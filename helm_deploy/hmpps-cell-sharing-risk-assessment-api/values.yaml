@@ -12,7 +12,7 @@ generic-service:
   ingress:
     enabled: true
     host: app-hostname.local # override per environment
-    tlsSecretName: hmpps-cell-sharing-risk-assessment-api-cert
+    tlsSecretName: cell-sharing-risk-assessment-api-cert
 
   # Environment variables to load into the deployment
   env:
