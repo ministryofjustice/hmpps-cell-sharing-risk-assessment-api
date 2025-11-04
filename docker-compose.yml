@@ -15,6 +15,21 @@ services:
       - HMPPS_AUTH_URL=http://hmpps-auth:8080/auth
       - SPRING_PROFILES_ACTIVE=dev
 
+  localstack:
+    image: localstack/localstack:4
+    networks:
+      - hmpps
+    container_name: localstack
+    ports:
+      - "4566:4566"
+      - "8999:8080"
+    environment:
+      - DEBUG=${DEBUG- }
+      - DOCKER_HOST=unix:///var/run/docker.sock
+    volumes:
+      - "${TMPDIR:-/tmp/localstack}:/var/lib/localstack"
+      - "/var/run/docker.sock:/var/run/docker.sock"
+
   hmpps-auth:
     image: quay.io/hmpps/hmpps-auth:latest
     networks:
@@ -28,6 +43,19 @@ services:
       - SERVER_PORT=8080
       - SPRING_PROFILES_ACTIVE=dev
       - APPLICATION_AUTHENTICATION_UI_ALLOWLIST=0.0.0.0/0
+
+  cell-sharing-risk-assessment-db:
+    image: postgres:17
+    networks:
+      - hmpps
+    container_name: cell-sharing-risk-assessment-db
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_PASSWORD=cell_sharing_risk_assessment
+      - POSTGRES_USER=cell_sharing_risk_assessment
+      - POSTGRES_DB=cell_sharing_risk_assessment
 
 networks:
   hmpps:
