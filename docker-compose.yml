@@ -45,7 +45,7 @@ services:
       - APPLICATION_AUTHENTICATION_UI_ALLOWLIST=0.0.0.0/0
 
   cell-sharing-risk-assessment-db:
-    image: postgres:17
+    image: postgres:18
     networks:
       - hmpps
     container_name: cell-sharing-risk-assessment-db
