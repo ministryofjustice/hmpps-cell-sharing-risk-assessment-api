@@ -9,7 +9,7 @@ import org.springframework.web.servlet.mvc.method.RequestMappingInfo
 import org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping
 import java.io.File
 
-class ResourceSecurityTest : IntegrationTestBase() {
+class ResourceSecurityTest : SqsIntegrationTestBase() {
   @Autowired
   private lateinit var context: ApplicationContext
 
@@ -18,6 +18,7 @@ class ResourceSecurityTest : IntegrationTestBase() {
     "GET /swagger-ui.html",
     "GET /v3/api-docs",
     "GET /v3/api-docs/swagger-config",
+    "PUT /queue-admin/retry-all-dlqs",
     " /error",
   )
 

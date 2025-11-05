@@ -7,3 +7,32 @@ management.endpoint:
 
 hmpps-auth:
   url: "http://localhost:8090/auth"
+
+spring:
+  datasource:
+    url: jdbc:postgresql://localhost:5432/cell_sharing_risk_assessment?sslmode=prefer
+    username: cell_sharing_risk_assessment
+    password: cell_sharing_risk_assessment
+    hikari:
+      pool-name: CSRA-DB-CP
+      maximum-pool-size: 10
+
+  main:
+    allow-bean-definition-overriding: true
+
+  jpa:
+    show-sql: false
+
+hmpps.sqs:
+  provider: localstack
+  queues:
+    audit:
+      queueName: ${random.uuid}
+    test:
+      queueName: ${random.uuid}
+      dlqName: ${random.uuid}
+      subscribeTopicId: domainevents
+      subscribeFilter: '{"eventType":[ {"prefix": "cell-sharing-risk-assessment"} ] }'
+  topics:
+    domainevents:
+      arn: arn:aws:sns:eu-west-2:000000000000:${random.uuid}

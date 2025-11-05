@@ -1,2 +1,18 @@
 hmpps-auth:
   url: "http://localhost:8090/auth"
+
+spring:
+  devtools:
+    add-properties: true
+
+  datasource:
+    url: jdbc:postgresql://localhost:5432/cell_sharing_risk_assessment?sslmode=prefer
+    username: cell_sharing_risk_assessment
+    password: cell_sharing_risk_assessment
+
+  jpa:
+    show-sql: true
+    properties:
+      hibernate:
+        generate_statistics: false
+        format_sql: false
