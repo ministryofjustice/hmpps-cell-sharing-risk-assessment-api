@@ -24,9 +24,9 @@ abstract class EventBase {
     )
   }
 
-  protected fun audit(id: String, function: () -> Any) = function().also { auditData ->
+  protected fun audit(id: String, auditType: AuditType, function: () -> Any) = function().also { auditData ->
     eventPublishAndAuditService.auditEvent(
-      auditType = AuditType.CSRA_AMENDED,
+      auditType = auditType,
       id = id,
       auditData = auditData,
     )
