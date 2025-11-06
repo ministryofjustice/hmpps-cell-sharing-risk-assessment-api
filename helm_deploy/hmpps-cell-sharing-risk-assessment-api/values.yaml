@@ -2,6 +2,8 @@ generic-service:
   nameOverride: hmpps-cell-sharing-risk-assessment-api
   productId: "DPS126" # productId for the product that this belongs too, i.e. DPS001, see README.md for details
 
+  serviceAccountName: hmpps-cell-sharing-risk-assessment-api
+
   replicaCount: 4
 
   image:
