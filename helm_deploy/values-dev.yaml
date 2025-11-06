@@ -10,6 +10,8 @@ generic-service:
   env:
     APPLICATIONINSIGHTS_CONFIGURATION_FILE: "applicationinsights.dev.json"
     HMPPS_AUTH_URL: "https://sign-in-dev.hmpps.service.justice.gov.uk/auth"
+    HMPPS_SQS_USE_WEB_TOKEN: "true"
+    SPRING_PROFILES_ACTIVE: "logstash"
 
   namespace_secrets:
     hmpps-domain-events-topic:
