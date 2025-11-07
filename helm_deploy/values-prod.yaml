@@ -8,6 +8,30 @@ generic-service:
   env:
     HMPPS_AUTH_URL: "https://sign-in.hmpps.service.justice.gov.uk/auth"
 
+  namespace_secrets:
+    hmpps-domain-events-topic:
+      HMPPS_SQS_TOPICS_DOMAINEVENTS_ARN: "topic_arn"
+    sqs-hmpps-audit-secret:
+      HMPPS_SQS_QUEUES_AUDIT_QUEUE_NAME: "sqs_queue_name"
+    sqs-prisoner-event-queue-secret:
+      HMPPS_SQS_QUEUES_CSRA_QUEUE_NAME: "sqs_queue_name"
+    sqs-prisoner-event-queue-dlq-secret:
+      HMPPS_SQS_QUEUES_CSRA_DLQ_NAME: "sqs_queue_name"
+
+  postgresDatabaseRestore:
+    enabled: false # FIXME - update to true when build starts
+    namespace_secrets:
+      dps-rds-instance-output:
+        DB_NAME: "database_name"
+        DB_USER: "database_username"
+        DB_PASS: "database_password"
+        DB_HOST: "rds_instance_address"
+      dps-rds-instance-output-preprod:
+        DB_NAME_PREPROD: "database_name"
+        DB_USER_PREPROD: "database_username"
+        DB_PASS_PREPROD: "database_password"
+        DB_HOST_PREPROD: "rds_instance_address"
+
 # CloudPlatform AlertManager receiver to route prometheus alerts to slack
 # See https://user-guide.cloud-platform.service.justice.gov.uk/documentation/monitoring-an-app/how-to-create-alarms.html#creating-your-own-custom-alerts
 generic-prometheus-alerts:
