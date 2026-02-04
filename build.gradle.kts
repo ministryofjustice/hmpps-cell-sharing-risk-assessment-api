@@ -14,14 +14,14 @@ dependencies {
   implementation("org.springframework.boot:spring-boot-starter-validation")
   implementation("uk.gov.justice.service.hmpps:hmpps-sqs-spring-boot-starter:5.6.3")
   implementation("uk.gov.justice.service.hmpps:hmpps-sqs-spring-boot-starter:5.6.3")
-  implementation("io.opentelemetry.instrumentation:opentelemetry-instrumentation-annotations:2.23.0")
+  implementation("io.opentelemetry.instrumentation:opentelemetry-instrumentation-annotations:2.24.0")
 
   runtimeOnly("org.flywaydb:flyway-database-postgresql")
   implementation("com.zaxxer:HikariCP:7.0.2")
   runtimeOnly("org.postgresql:postgresql")
   implementation("com.fasterxml.uuid:java-uuid-generator:5.2.0")
-  implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.14")
-  implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.20.1")
+  implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.15")
+  implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.21.0")
 
   developmentOnly("org.springframework.boot:spring-boot-devtools")
 
