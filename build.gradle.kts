@@ -20,7 +20,7 @@ dependencies {
   implementation("com.zaxxer:HikariCP:7.0.2")
   runtimeOnly("org.postgresql:postgresql")
   implementation("com.fasterxml.uuid:java-uuid-generator:5.2.0")
-  implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.15")
+  implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.1")
   implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.21.0")
 
   developmentOnly("org.springframework.boot:spring-boot-devtools")
