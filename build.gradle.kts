@@ -14,7 +14,7 @@ dependencies {
   implementation("org.springframework.boot:spring-boot-starter-validation")
   implementation("uk.gov.justice.service.hmpps:hmpps-sqs-spring-boot-starter:5.6.3")
   implementation("uk.gov.justice.service.hmpps:hmpps-sqs-spring-boot-starter:5.6.3")
-  implementation("io.opentelemetry.instrumentation:opentelemetry-instrumentation-annotations:2.24.0")
+  implementation("io.opentelemetry.instrumentation:opentelemetry-instrumentation-annotations:2.25.0")
 
   runtimeOnly("org.flywaydb:flyway-database-postgresql")
   implementation("com.zaxxer:HikariCP:7.0.2")
@@ -29,7 +29,7 @@ dependencies {
   testImplementation("org.wiremock:wiremock-standalone:3.13.2")
   testImplementation("org.awaitility:awaitility-kotlin:4.3.0")
   testImplementation("org.mockito:mockito-inline:5.2.0")
-  testImplementation("io.swagger.parser.v3:swagger-parser:2.1.37") {
+  testImplementation("io.swagger.parser.v3:swagger-parser:2.1.38") {
     exclude(group = "io.swagger.core.v3")
   }
   testImplementation("org.springframework.security:spring-security-test")
