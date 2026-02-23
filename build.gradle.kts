@@ -21,7 +21,7 @@ dependencies {
   runtimeOnly("org.postgresql:postgresql")
   implementation("com.fasterxml.uuid:java-uuid-generator:5.2.0")
   implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:2.8.15")
-  implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.21.0")
+  implementation("com.fasterxml.jackson.module:jackson-module-kotlin:2.21.1")
 
   developmentOnly("org.springframework.boot:spring-boot-devtools")
 
