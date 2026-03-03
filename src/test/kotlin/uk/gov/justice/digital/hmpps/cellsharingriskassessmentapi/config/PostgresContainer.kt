@@ -1,23 +1,21 @@
 package uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.config
 
 import org.slf4j.LoggerFactory
-import org.testcontainers.containers.PostgreSQLContainer
 import org.testcontainers.containers.wait.strategy.Wait
+import org.testcontainers.postgresql.PostgreSQLContainer
 import java.io.IOException
 import java.net.ServerSocket
-import kotlin.apply
-import kotlin.jvm.java
 
 object PostgresContainer {
-  val instance: PostgreSQLContainer<Nothing>? by lazy { startPostgresqlContainer() }
+  val instance: PostgreSQLContainer? by lazy { startPostgresqlContainer() }
 
-  private fun startPostgresqlContainer(): PostgreSQLContainer<Nothing>? {
+  private fun startPostgresqlContainer(): PostgreSQLContainer? {
     if (isPostgresRunning()) {
       log.warn("Using existing Postgres database")
       return null
     }
     log.info("Creating a Postgres database")
-    return PostgreSQLContainer<Nothing>("postgres").apply {
+    return PostgreSQLContainer("postgres").apply {
       withEnv("HOSTNAME_EXTERNAL", "localhost")
       withDatabaseName("cell_sharing_risk_assessment")
       withUsername("cell_sharing_risk_assessment")
