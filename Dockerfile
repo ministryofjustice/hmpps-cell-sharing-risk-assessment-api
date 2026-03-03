@@ -5,7 +5,7 @@ ARG BUILD_NUMBER
 ENV BUILD_NUMBER=${BUILD_NUMBER:-1_0_0}
 
 WORKDIR /builder
-COPY hmpps-nomis-prisoner-api-${BUILD_NUMBER}.jar app.jar
+COPY hmpps-cell-sharing-risk-assessment-api-${BUILD_NUMBER}.jar app.jar
 RUN java -Djarmode=tools -jar app.jar extract --layers --destination extracted
 
 FROM ${BASE_IMAGE}
