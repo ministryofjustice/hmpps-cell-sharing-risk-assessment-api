@@ -14,7 +14,8 @@
       "matchFileNames": [
         "**/.github/workflows/**/*.ya?ml",
         "**/.github/actions/**/*.ya?ml"
-        ]
+        ],
+      "separateMinorPatch": true
     }
   ],
   "rebaseWhen": "conflicted",
