@@ -2,8 +2,6 @@ hmpps-auth:
   url: "http://localhost:8090/auth"
 
 spring:
-  devtools:
-    add-properties: true
 
   datasource:
     url: jdbc:postgresql://localhost:5432/cell_sharing_risk_assessment?sslmode=prefer
