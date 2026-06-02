@@ -2,21 +2,19 @@ package uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.config
 
 import org.slf4j.LoggerFactory
 import org.springframework.test.context.DynamicPropertyRegistry
-import org.testcontainers.containers.localstack.LocalStackContainer
 import org.testcontainers.containers.output.Slf4jLogConsumer
 import org.testcontainers.containers.wait.strategy.Wait
+import org.testcontainers.localstack.LocalStackContainer
 import org.testcontainers.utility.DockerImageName
 import java.io.IOException
 import java.net.ServerSocket
-import kotlin.apply
-import kotlin.jvm.java
 
 object LocalStackContainer {
   private val log = LoggerFactory.getLogger(this::class.java)
   val instance by lazy { startLocalstackIfNotRunning() }
 
   fun setLocalStackProperties(localStackContainer: LocalStackContainer, registry: DynamicPropertyRegistry) {
-    val localstackUrl = localStackContainer.getEndpointOverride(LocalStackContainer.Service.SNS).toString()
+    val localstackUrl = localStackContainer.endpoint
     val region = localStackContainer.region
     registry.add("hmpps.sqs.localstackUrl") { localstackUrl }
     registry.add("hmpps.sqs.region") { region }
@@ -28,7 +26,7 @@ object LocalStackContainer {
     return LocalStackContainer(
       DockerImageName.parse("localstack/localstack").withTag("4"),
     ).apply {
-      withServices(LocalStackContainer.Service.SQS, LocalStackContainer.Service.SNS)
+      withServices("sqs", "sns")
       withEnv("DEFAULT_REGION", "eu-west-2")
       waitingFor(
         Wait.forLogMessage(".*Ready.*", 1),

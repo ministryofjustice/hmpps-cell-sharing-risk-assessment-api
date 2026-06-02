@@ -1,7 +1,7 @@
 package uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.resource
 
 import org.springframework.beans.factory.annotation.Autowired
-import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.RiskAssessment
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraReview
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.service.AuditType
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.service.CSRADomainEventType
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.service.EventPublishAndAuditService
@@ -14,11 +14,11 @@ abstract class EventBase {
 
   protected fun eventPublishAndAudit(
     event: CSRADomainEventType,
-    function: () -> RiskAssessment,
+    function: () -> CsraReview,
   ) = function().also { riskAssessment ->
     eventPublishAndAuditService.publishEvent(
       eventType = event,
-      riskAssessment = riskAssessment,
+      csraReview = riskAssessment,
       auditData = riskAssessment,
       source = InformationSource.DPS,
     )

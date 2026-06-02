@@ -1,4 +1,4 @@
-version: "3"
+
 services:
   hmpps-cell-sharing-risk-assessment-api:
     build:
@@ -16,7 +16,7 @@ services:
       - SPRING_PROFILES_ACTIVE=dev
 
   localstack:
-    image: localstack/localstack:4
+    image: localstack/localstack:community-archive
     networks:
       - hmpps
     container_name: localstack

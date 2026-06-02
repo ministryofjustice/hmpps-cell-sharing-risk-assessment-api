@@ -29,7 +29,7 @@ class HealthCheckTest : SqsIntegrationTestBase() {
       .is5xxServerError
       .expectBody()
       .jsonPath("status").isEqualTo("DOWN")
-      .jsonPath("components.hmppsAuth.status").isEqualTo("DOWN")
+      .jsonPath("components.hmppsAuthApi.status").isEqualTo("DOWN")
   }
 
   @Test
