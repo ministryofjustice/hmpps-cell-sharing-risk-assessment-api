@@ -11,5 +11,5 @@ class ClockConfiguration(
   @param:Value($$"${spring.jackson.time-zone}") private val timeZone: String,
 ) {
   @Bean
-  fun clock(): Clock? = Clock.system(ZoneId.of(timeZone))
+  fun clock(): Clock = Clock.system(ZoneId.of(timeZone))
 }

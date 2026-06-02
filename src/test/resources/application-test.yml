@@ -8,6 +8,12 @@ management.endpoint:
 hmpps-auth:
   url: "http://localhost:8090/auth"
 
+springdoc:
+  api-docs:
+    enabled: true
+  swagger-ui:
+    enabled: true
+
 spring:
   datasource:
     url: jdbc:postgresql://localhost:5432/cell_sharing_risk_assessment?sslmode=prefer
