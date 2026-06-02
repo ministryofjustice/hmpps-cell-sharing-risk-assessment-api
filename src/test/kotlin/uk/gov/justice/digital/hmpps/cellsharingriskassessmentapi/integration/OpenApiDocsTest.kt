@@ -11,7 +11,6 @@ import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTest
 import org.springframework.http.MediaType
 import java.time.LocalDate
 import java.time.format.DateTimeFormatter
-import kotlin.text.get
 
 @AutoConfigureWebTestClient(timeout = "PT60S")
 class OpenApiDocsTest : SqsIntegrationTestBase() {
