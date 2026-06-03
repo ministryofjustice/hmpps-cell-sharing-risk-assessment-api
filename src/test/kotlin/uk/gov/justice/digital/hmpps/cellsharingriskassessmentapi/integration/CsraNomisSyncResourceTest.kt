@@ -1,54 +1,39 @@
 package uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.integration
 
+import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.http.MediaType
 import org.springframework.web.reactive.function.BodyInserters
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraReview
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.SyncResult
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraResult
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraType
 import java.util.UUID
 
 class CsraNomisSyncResourceTest : SqsIntegrationTestBase() {
 
   private val syncRole = listOf("ROLE_PRISONER_CSRA__SYNC__RW")
 
-  // A single review mirroring the producer's CsraReviewDto so we guard the binding contract.
+  // A single review mirroring the producer's payload (extra legacy fields are ignored on bind).
   private val reviewJson = """
     {
-      "bookingId": 3222111,
-      "sequenceNumber": 4,
+      "assessmentPrisonId": "LEI",
       "assessmentDate": "2025-11-22",
       "assessmentType": "CSR",
       "calculatedLevel": "STANDARD",
       "score": 1000,
       "status": "A",
-      "staffId": 123456,
       "committeeCode": "REVIEW",
       "nextReviewDate": "2026-05-22",
       "comment": "All good",
-      "placementPrisonId": "LEI",
       "createdDateTime": "2025-12-06T12:34:56",
       "createdBy": "NQP56Y",
       "reviewLevel": "STANDARD",
-      "approvedLevel": "STANDARD",
+      "approvedLevel": "HI",
       "evaluationDate": "2025-12-08",
-      "evaluationResultCode": "APP",
-      "reviewCommitteeCode": "REVIEW",
-      "reviewCommitteeComment": "Approved",
-      "reviewPlacementPrisonId": "LEI",
-      "reviewComment": "Reviewed",
       "reviewDetails": [
-        {
-          "code": "SEC1",
-          "description": "Section one",
-          "questions": [
-            {
-              "code": "Q1",
-              "description": "Question one",
-              "responses": [
-                { "code": "R1", "answer": "Yes", "comment": "ok" }
-              ]
-            }
-          ]
-        }
+        { "code": "SEC1", "questions": [ { "code": "Q1", "responses": [ { "code": "R1", "answer": "Yes" } ] } ] }
       ]
     }
   """.trimIndent()
@@ -56,8 +41,8 @@ class CsraNomisSyncResourceTest : SqsIntegrationTestBase() {
   @Nested
   inner class Migrate {
     @Test
-    fun `returns 201 with a DPS id mapping per review`() {
-      webTestClient.post().uri("/nomis-sync/migrate/A1234BC")
+    fun `persists each review and returns the mapped CSRA`() {
+      val body = webTestClient.post().uri("/nomis-sync/migrate/A1234BC")
         .headers(setAuthorisation(roles = syncRole))
         .contentType(MediaType.APPLICATION_JSON)
         .body(BodyInserters.fromValue("[$reviewJson]"))
@@ -65,7 +50,23 @@ class CsraNomisSyncResourceTest : SqsIntegrationTestBase() {
         .expectStatus().isCreated
         .expectBody()
         .jsonPath("$.length()").isEqualTo(1)
-        .jsonPath("$[0].id").isNotEmpty
+        .returnResult().responseBody!!
+
+      val migrated = objectMapper.readValue(body, Array<CsraReview>::class.java).single()
+      assertThat(migrated.prisonerNumber).isEqualTo("A1234BC")
+      assertThat(migrated.prisonId).isEqualTo("LEI")
+      assertThat(migrated.type).isEqualTo(CsraType.RATING)
+      assertThat(migrated.finalResult).isEqualTo(CsraResult.HIGH)
+      assertThat(migrated.finalResultDate).isEqualTo("2025-12-08")
+
+      // and it is readable back via the read endpoint
+      webTestClient.get().uri("/csra-review/${migrated.id}")
+        .headers(setAuthorisation(roles = listOf("ROLE_CSRA_REVIEW__R")))
+        .exchange()
+        .expectStatus().isOk
+        .expectBody()
+        .jsonPath("$.id").isEqualTo(migrated.id.toString())
+        .jsonPath("$.finalResult").isEqualTo("HIGH")
     }
 
     @Test
@@ -102,8 +103,8 @@ class CsraNomisSyncResourceTest : SqsIntegrationTestBase() {
   @Nested
   inner class Sync {
     @Test
-    fun `returns 201 and created=true when no csraReviewId is supplied`() {
-      webTestClient.post().uri("/nomis-sync/sync/A1234BC")
+    fun `creates a review when no csraReviewId is supplied then updates it when supplied`() {
+      val createBody = webTestClient.post().uri("/nomis-sync/sync/A1234BC")
         .headers(setAuthorisation(roles = syncRole))
         .contentType(MediaType.APPLICATION_JSON)
         .body(BodyInserters.fromValue("""{ "review": $reviewJson }"""))
@@ -111,21 +112,40 @@ class CsraNomisSyncResourceTest : SqsIntegrationTestBase() {
         .expectStatus().isCreated
         .expectBody()
         .jsonPath("$.created").isEqualTo(true)
-        .jsonPath("$.csraReviewId").isNotEmpty
-    }
+        .returnResult().responseBody!!
+      val created = objectMapper.readValue(createBody, SyncResult::class.java)
 
-    @Test
-    fun `returns 200 and created=false when a csraReviewId is supplied`() {
-      val existingId = UUID.randomUUID().toString()
+      // sync again with the id -> update (200)
+      val updateJson = reviewJson.replace("\"approvedLevel\": \"HI\"", "\"approvedLevel\": \"STANDARD\"")
       webTestClient.post().uri("/nomis-sync/sync/A1234BC")
         .headers(setAuthorisation(roles = syncRole))
         .contentType(MediaType.APPLICATION_JSON)
-        .body(BodyInserters.fromValue("""{ "csraReviewId": "$existingId", "review": $reviewJson }"""))
+        .body(BodyInserters.fromValue("""{ "csraReviewId": "${created.csraReviewId}", "review": $updateJson }"""))
         .exchange()
         .expectStatus().isOk
         .expectBody()
         .jsonPath("$.created").isEqualTo(false)
-        .jsonPath("$.csraReviewId").isEqualTo(existingId)
+        .jsonPath("$.csraReviewId").isEqualTo(created.csraReviewId.toString())
+
+      // the update is persisted: result changed and last-modified populated
+      webTestClient.get().uri("/csra-review/${created.csraReviewId}")
+        .headers(setAuthorisation(roles = listOf("ROLE_CSRA_REVIEW__R")))
+        .exchange()
+        .expectStatus().isOk
+        .expectBody()
+        .jsonPath("$.finalResult").isEqualTo("STANDARD")
+        .jsonPath("$.lastModifiedBy").isEqualTo("NQP56Y")
+        .jsonPath("$.lastModifiedAt").isNotEmpty
+    }
+
+    @Test
+    fun `returns 404 when updating an unknown csraReviewId`() {
+      webTestClient.post().uri("/nomis-sync/sync/A1234BC")
+        .headers(setAuthorisation(roles = syncRole))
+        .contentType(MediaType.APPLICATION_JSON)
+        .body(BodyInserters.fromValue("""{ "csraReviewId": "${UUID.randomUUID()}", "review": $reviewJson }"""))
+        .exchange()
+        .expectStatus().isNotFound
     }
 
     @Test
