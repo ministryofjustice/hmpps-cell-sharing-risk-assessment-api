@@ -4,134 +4,93 @@
 [![Docker Repository on ghcr](https://img.shields.io/badge/ghcr.io-repository-2496ED.svg?logo=docker)](https://ghcr.io/ministryofjustice/hmpps-cell-sharing-risk-assessment-api)
 [![API docs](https://img.shields.io/badge/API_docs_-view-85EA2D.svg?logo=swagger)](https://cell-sharing-risk-assessment-api-dev.hmpps.service.justice.gov.uk/swagger-ui/index.html)
 
-Template github repo used for new Kotlin based projects.
+The API that owns Cell Sharing Risk Assessment (CSRA) data for prisoners within Digital Prison Services (DPS).
 
-# Instructions
+This service is taking ownership of CSRA data that currently lives in the legacy NOMIS system. Existing data is migrated and kept in sync from NOMIS via [hmpps-prisoner-from-nomis-migration](https://github.com/ministryofjustice/hmpps-prisoner-from-nomis-migration), persisted in this service's own PostgreSQL database, and exposed back to DPS through a read API.
 
-If this is a HMPPS project then the project will be created as part of bootstrapping -
-see [hmpps-project-bootstrap](https://github.com/ministryofjustice/hmpps-project-bootstrap). You are able to specify a
-template application using the `github_template_repo` attribute to clone without the need to manually do this yourself
-within GitHub.
-
-This project is community managed by the mojdt `#kotlin-dev` slack channel.
-Please raise any questions or queries there. Contributions welcome!
+This project is community managed by the mojdt `#kotlin-dev` slack channel. Please raise any questions or queries there. Contributions welcome!
 
 Our security policy is located [here](https://github.com/ministryofjustice/hmpps-cell-sharing-risk-assessment-api/security/policy).
 
-Documentation to create new service is located [here](https://tech-docs.hmpps.service.justice.gov.uk/creating-new-services/).
+## Tech stack
 
-## Creating a Cloud Platform namespace
+- Kotlin / Spring Boot (Spring MVC), built with Gradle
+- JDK 25
+- PostgreSQL with Flyway migrations
+- AWS SNS (domain events) and SQS (audit) via the HMPPS SQS Spring Boot starter
+- HMPPS Auth (OAuth2) for authentication and role-based authorisation
+- Application Insights / OpenTelemetry for monitoring
 
-When deploying to a new namespace, you may wish to use the
-[templates project namespace](https://github.com/ministryofjustice/cloud-platform-environments/tree/main/namespaces/live.cloud-platform.service.justice.gov.uk/hmpps-templates-dev)
-as the basis for your new namespace. This namespace contains both the kotlin and typescript template projects,
-which is the usual way that projects are setup.
+## API documentation
 
-Copy this folder and update all the existing namespace references to correspond to the environment to which you're deploying.
+OpenAPI / Swagger UI is available at `/swagger-ui/index.html` on a running instance (e.g. the [dev environment](https://cell-sharing-risk-assessment-api-dev.hmpps.service.justice.gov.uk/swagger-ui/index.html)).
 
-If you only need the kotlin configuration then remove all typescript references and remove the elasticache configuration.
+The API has two surfaces, each guarded by its own role:
 
-To ensure the correct github teams can approve releases, you will need to make changes to the configuration in `resources/service-account-github` where the appropriate team names will need to be added (based on [lines 98-100](https://github.com/ministryofjustice/cloud-platform-environments/blob/main/namespaces/live.cloud-platform.service.justice.gov.uk/hmpps-templates-dev/resources/serviceaccount-github.tf#L98) and the reference appended to the teams list below [line 112](https://github.com/ministryofjustice/cloud-platform-environments/blob/main/namespaces/live.cloud-platform.service.justice.gov.uk/hmpps-templates-dev/resources/serviceaccount-github.tf#L112)). Note: hmpps-sre is in this list to assist with deployment issues.
+| Path | Purpose | Required role |
+| --- | --- | --- |
+| `GET /csra-review/{id}` | Read a CSRA review (DPS) | `ROLE_CSRA_REVIEW__R` |
+| `POST /nomis-sync/migrate/{prisonerNumber}` | Bulk migrate all of a prisoner's CSRA reviews from NOMIS | `ROLE_PRISONER_CSRA__SYNC__RW` |
+| `POST /nomis-sync/sync/{prisonerNumber}` | Upsert a single CSRA review changed in NOMIS (201 created / 200 updated) | `ROLE_PRISONER_CSRA__SYNC__RW` |
 
-Submit a PR to the Cloud Platform team in
-# ask-cloud-platform. Further instructions from the Cloud Platform team can be found in
-the [Cloud Platform User Guide](https://user-guide.cloud-platform.service.justice.gov.uk/#cloud-platform-user-guide)
+## Building and testing
 
-## Renaming from HMPPS Cell Sharing Risk Assessment Api - github Actions
+The project uses the Gradle wrapper, so a local Gradle install is not required.
 
-Once the new repository is deployed. Navigate to the repository in github, and select the `Actions` tab.
-Click the link to `Enable Actions on this repository`.
+```bash
+./gradlew build            # compile, run ktlint and all tests
+./gradlew test             # run all tests
+./gradlew ktlintFormat     # auto-fix lint issues
+./gradlew koverHtmlReport  # generate the test coverage report
+```
 
-Find the Action workflow named: `rename-project-create-pr` and click `Run workflow`. This workflow will
-execute the `rename-project.bash` and create Pull Request for you to review. Review the PR and merge.
+Run a single test class or method:
 
-Note: ideally this workflow would run automatically however due to a recent change github Actions are not
-enabled by default on newly created repos. There is no way to enable Actions other then to click the button in the UI.
-If this situation changes we will update this project so that the workflow is triggered during the bootstrap project.
-Further reading: <https://github.community/t/workflow-isnt-enabled-in-repos-generated-from-template/136421>
+```bash
+./gradlew test --tests "*CsraReviewResourceTest"
+```
 
-The script takes six arguments:
+### Docker is required for tests
 
-### New project name
-
-This should start with `hmpps-` e.g. `hmpps-prison-visits` so that it can be easily distinguished in github from
-other departments projects. Try to avoid using abbreviations so that others can understand easily what your project is.
-
-### Slack channel for release notifications
-
-By default, release notifications are only enabled for production. The circleci configuration can be amended to send
-release notifications for deployments to other environments if required. Note that if the configuration is amended,
-the slack channel should then be amended to your own team's channel as `dps-releases` is strictly for production release
-notifications. If the slack channel is set to something other than `dps-releases`, production release notifications
-will still automatically go to `dps-releases` as well. This is configured by `releases-slack-channel` in
-`.circleci/config.yml`.
-
-### Slack channel for pipeline security notifications
-
-Ths channel should be specific to your team and is for daily / weekly security scanning job results. It is your team's
-responsibility to keep up-to-date with security issues and update your application so that these jobs pass. You will
-only be notified if the jobs fail. The scan results can always be found in circleci for your project. This is
-configured by `alerts-slack-channel` in `.circleci/config.yml`.
-
-### Non production kubernetes alerts
-
-By default Prometheus alerts are created in the application namespaces to monitor your application e.g. if your
-application is crash looping, there are a significant number of errors from the ingress. Since Prometheus runs in
-cloud platform AlertManager needs to be setup first with your channel. Please see
-[Create your own custom alerts](https://user-guide.cloud-platform.service.justice.gov.uk/documentation/monitoring-an-app/how-to-create-alarms.html)
-in the Cloud Platform user guide. Once that is setup then the `custom severity label` can be used for
-`alertSeverity` in the `helm_deploy/values-*.yaml` configuration.
-
-Normally it is worth setting up two separate labels and therefore two separate slack channels - one for your production
-alerts and one for your non-production alerts. Using the same channel can mean that production alerts are sometimes
-lost within non-production issues.
-
-### Production kubernetes alerts
-
-This is the severity label for production, determined by the `custom severity label`. See the above
-# non-production-kubernetes-alerts for more information. This is configured in `helm_deploy/values-prod.yaml`.
-
-### Product ID
-
-This is so that we can link a component to a product and thus provide team and product information in the Developer
-Portal. Refer to the developer portal at <https://developer-portal.hmpps.service.justice.gov.uk/products> to find your
-product id. This is configured in `helm_deploy/<project_name>/values.yaml`.
-
-## Manually branding from template app
-
-Run the `rename-project.bash` without any arguments. This will prompt for the six required parameters and create a PR.
-The script requires a recent version of `bash` to be installed, as well as GNU `sed` in the path.
-
-## Common Kotlin patterns
-
-Many patterns have evolved for HMPPS Kotlin applications. Using these patterns provides consistency across our suite of
-Kotlin microservices and allows you to concentrate on building your business needs rather than reinventing the
-technical approach.
-
-Documentation for these patterns can be found in the [HMPPS tech docs](https://tech-docs.hmpps.service.justice.gov.uk/common-kotlin-patterns/).
-If this documentation is incorrect or needs improving please report to [#ask-prisons-digital-sre](https://moj.enterprise.slack.com/archives/C06MWP0UKDE)
-or [raise a PR](https://github.com/ministryofjustice/hmpps-tech-docs).
+The test suite uses [Testcontainers](https://www.testcontainers.org/) to start a PostgreSQL database and [LocalStack](https://localstack.cloud/) for SNS/SQS, so **Docker must be running** to execute the tests. If a PostgreSQL instance is already listening on port 5432 (e.g. from `docker compose`), the tests will reuse it instead of starting a container.
 
 ## Running the application locally
 
-The application comes with a `dev` spring profile that includes default settings for running locally. This is not
-necessary when deploying to kubernetes as these values are included in the helm configuration templates -
-e.g. `values-dev.yaml`.
+The application has a `dev` Spring profile with sensible defaults for local running (these are not used in Kubernetes, where values come from the Helm configuration).
 
-There is also a `docker-compose.yml` that can be used to run a local instance of the template in docker and also an
-instance of HMPPS Auth (required if your service calls out to other services using a token).
+A `docker-compose.yml` is provided to run the service together with its dependencies — HMPPS Auth, PostgreSQL and LocalStack:
 
 ```bash
 docker compose pull && docker compose up
 ```
 
-will build the application and run it and HMPPS Auth within a local docker instance.
-
-### Running the application in Intellij
+To run only the dependencies and start the application yourself (e.g. from IntelliJ with the `dev` profile active):
 
 ```bash
 docker compose pull && docker compose up --scale hmpps-cell-sharing-risk-assessment-api=0
 ```
 
-will just start a docker instance of HMPPS Auth. The application should then be started with a `dev` active profile
-in Intellij.
+Once running, the service is available on `http://localhost:8080` (health at `/health`, Swagger at `/swagger-ui/index.html`).
+
+## Architecture overview
+
+Standard layered Spring service under `uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi`:
+
+- `resource/` — REST controllers (`CsraReviewResource`, `CsraNomisSyncResource`) and the global exception handler.
+- `service/` — business logic (`CsraReviewService`, `CsraMigrationSyncService`) plus outbound domain-event (`SnsService`) and audit (`AuditService`) publishing.
+- `jpa/` — the `CsraReviewEntity` (`csra_review` table), enums and repository. Primary keys are time-ordered UUID v7 values for index-friendly inserts.
+- `dto/` — the DPS API model, with `dto/migration/` holding the legacy NOMIS shapes and the mappers that translate them onto the core entity.
+
+The core record holds only the data common to both the new DPS assessment journey and migrated NOMIS reviews; richer legacy-only NOMIS detail is intentionally not stored on this entity.
+
+## Database migrations
+
+Schema is managed entirely by Flyway (no Hibernate auto-DDL). Add changes as new versioned scripts under `src/main/resources/db/migration/` (`V{n}__description.sql`) and never edit a migration that has already been applied.
+
+## Deployment
+
+The service is deployed to the MOJ Cloud Platform via Helm. Charts and per-environment values live in `helm_deploy/` (`values-dev.yaml`, `values-preprod.yaml`, `values-prod.yaml`), and deployment runs through the GitHub Actions workflows in `.github/workflows/`. The product ID is `DPS126`.
+
+## Common HMPPS Kotlin patterns
+
+This service follows the shared HMPPS Kotlin conventions. Documentation for these patterns is in the [HMPPS tech docs](https://tech-docs.hmpps.service.justice.gov.uk/common-kotlin-patterns/). If that documentation is incorrect or needs improving please report it to [#ask-prisons-digital-sre](https://moj.enterprise.slack.com/archives/C06MWP0UKDE) or [raise a PR](https://github.com/ministryofjustice/hmpps-tech-docs).
