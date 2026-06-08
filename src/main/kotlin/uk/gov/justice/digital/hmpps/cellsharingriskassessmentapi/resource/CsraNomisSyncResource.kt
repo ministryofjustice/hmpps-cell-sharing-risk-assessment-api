@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
-import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraReview
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraMigrationResponse
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraSyncRequest
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.NomisCsraReview
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.SyncResult
@@ -61,7 +61,7 @@ class CsraNomisSyncResource(
     @Schema(description = "The prisoner number (NOMIS offender number)", example = "A1234BC", required = true)
     @PathVariable prisonerNumber: String,
     @RequestBody @Valid reviews: List<NomisCsraReview>,
-  ): List<CsraReview> = csraMigrationSyncService.migrate(prisonerNumber, reviews)
+  ): List<CsraMigrationResponse> = csraMigrationSyncService.migrate(prisonerNumber, reviews)
 
   @PostMapping("/sync/{prisonerNumber}")
   @Operation(

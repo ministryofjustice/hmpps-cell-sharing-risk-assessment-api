@@ -37,6 +37,7 @@ class NomisCsraReviewMappersTest {
     nextReviewDate = LocalDate.parse("2026-05-22"),
     createdDateTime = LocalDateTime.parse("2025-12-06T12:34:56"),
     createdBy = "NQP56Y",
+    legacyId = 1234567,
   )
 
   @ParameterizedTest
