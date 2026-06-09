@@ -6,13 +6,12 @@ import org.slf4j.LoggerFactory
 import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
-import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraReview
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraMigrationResponse
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraSyncRequest
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.NomisCsraReview
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.SyncResult
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.toNewCsraReview
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.updateFromNomis
-import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toDto
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraReviewRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.resource.CsraReviewNotFoundException
 import java.time.Clock
@@ -32,9 +31,11 @@ class CsraMigrationSyncService(
     val log: Logger = LoggerFactory.getLogger(this::class.java)
   }
 
-  fun migrate(prisonerNumber: String, reviews: List<NomisCsraReview>): List<CsraReview> = csraReviewRepository
-    .saveAll(reviews.map { it.toNewCsraReview(prisonerNumber) })
-    .map { it.toDto() }
+  fun migrate(prisonerNumber: String, reviews: List<NomisCsraReview>): List<CsraMigrationResponse> = reviews
+    .map {
+      val saved = csraReviewRepository.save(it.toNewCsraReview(prisonerNumber))
+      CsraMigrationResponse(saved.id!!, it.bookingId, it.nomisSequence)
+    }
     .also { results ->
       log.info("Migrated {} CSRA review(s) for {}", results.size, prisonerNumber)
       telemetryClient.trackEvent(
