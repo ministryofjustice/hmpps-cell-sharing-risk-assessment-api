@@ -8,6 +8,9 @@ data class CsraMigrationResponse(
   @param:Schema(description = "The unique id of the CSRA review", example = "de91dfa7-821f-4552-a427-bf2f32eafeb0")
   val id: UUID,
 
-  @param:Schema(description = "The id of the CSRA in Nomis", example = "4123456")
-  val legacyId: Long,
+  @param:Schema(description = "The booking id of the CSRA in Nomis - the first part of its id", example = "4123456")
+  val bookingId: Long,
+
+  @param:Schema(description = "The sequence number of the CSRA in Nomis - the second part of its id", example = "4")
+  val nomisSequence: Int,
 )

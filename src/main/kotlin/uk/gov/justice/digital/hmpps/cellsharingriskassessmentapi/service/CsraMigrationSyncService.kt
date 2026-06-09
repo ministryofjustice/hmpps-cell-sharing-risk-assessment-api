@@ -34,7 +34,7 @@ class CsraMigrationSyncService(
   fun migrate(prisonerNumber: String, reviews: List<NomisCsraReview>): List<CsraMigrationResponse> = reviews
     .map {
       val saved = csraReviewRepository.save(it.toNewCsraReview(prisonerNumber))
-      CsraMigrationResponse(saved.id!!, it.legacyId)
+      CsraMigrationResponse(saved.id!!, it.bookingId, it.nomisSequence)
     }
     .also { results ->
       log.info("Migrated {} CSRA review(s) for {}", results.size, prisonerNumber)

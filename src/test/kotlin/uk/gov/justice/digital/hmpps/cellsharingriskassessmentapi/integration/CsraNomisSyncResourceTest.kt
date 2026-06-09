@@ -15,14 +15,15 @@ class CsraNomisSyncResourceTest : SqsIntegrationTestBase() {
   private val syncRole = listOf("ROLE_PRISONER_CSRA__SYNC__RW")
 
   // A single review mirroring the producer's payload (extra legacy fields are ignored on bind).
-  private fun reviewJson(legacyId: Int = 1234567, nextReviewDate: String = "2026-05-22", level: String = "STANDARD") =
+  private fun reviewJson(bookingId: Long = 1234567, nomisSequence: Int = 1, nextReviewDate: String = "2026-05-22") =
     """
     {
-      "legacyId": $legacyId,
+      "bookingId": $bookingId,
+      "nomisSequence": $nomisSequence,
       "assessmentPrisonId": "LEI",
       "assessmentDate": "2025-11-22",
       "assessmentType": "CSR",
-      "calculatedLevel": "$level",
+      "calculatedLevel": "STANDARD",
       "score": 1000,
       "status": "A",
       "committeeCode": "REVIEW",
@@ -30,8 +31,8 @@ class CsraNomisSyncResourceTest : SqsIntegrationTestBase() {
       "comment": "All good",
       "createdDateTime": "2025-12-06T12:34:56",
       "createdBy": "NQP56Y",
-      "reviewLevel": "$level",
-      "approvedLevel": "$level",
+      "reviewLevel": "STANDARD",
+      "approvedLevel": "HI",
       "evaluationDate": "2025-12-08",
       "reviewDetails": [
         { "code": "SEC1", "questions": [ { "code": "Q1", "responses": [ { "code": "R1", "answer": "Yes" } ] } ] }
@@ -46,7 +47,7 @@ class CsraNomisSyncResourceTest : SqsIntegrationTestBase() {
       val migrated = webTestClient.post().uri("/nomis-sync/migrate/A1234BC")
         .headers(setAuthorisation(roles = syncRole))
         .contentType(MediaType.APPLICATION_JSON)
-        .body(BodyInserters.fromValue("[${reviewJson(1,"2026-05-01")},${reviewJson(2,"2026-05-02")},${reviewJson(3,"2026-05-03")}]"))
+        .body(BodyInserters.fromValue("[${reviewJson(10,1,"2026-05-01")},${reviewJson(10,2,"2026-05-02")},${reviewJson(11,3,"2026-05-03")}]"))
         .exchange()
         .expectStatus().isCreated
         .expectBody<List<CsraMigrationResponse>>()
@@ -54,20 +55,31 @@ class CsraNomisSyncResourceTest : SqsIntegrationTestBase() {
 
       assertThat(migrated.size).isEqualTo(3)
       assertThat(migrated[0].id).isNotNull()
-      assertThat(migrated[1].id).isNotNull()
-      assertThat(migrated[2].id).isNotNull()
-      assertThat(migrated[0].legacyId).isEqualTo(1)
-      assertThat(migrated[1].legacyId).isEqualTo(2)
-      assertThat(migrated[2].legacyId).isEqualTo(3)
+      assertThat(migrated[0].bookingId).isEqualTo(10)
+      assertThat(migrated[0].nomisSequence).isEqualTo(1)
 
-      // and it is readable back via the read endpoint
+      assertThat(migrated[1].id).isNotNull()
+      assertThat(migrated[1].bookingId).isEqualTo(10)
+      assertThat(migrated[1].nomisSequence).isEqualTo(2)
+
+      assertThat(migrated[2].id).isNotNull()
+      assertThat(migrated[2].bookingId).isEqualTo(11)
+      assertThat(migrated[2].nomisSequence).isEqualTo(3)
+
+      // Check data is readable back via the read endpoint
       webTestClient.get().uri("/csra-review/${migrated[0].id}")
         .headers(setAuthorisation(roles = listOf("ROLE_CSRA_REVIEW__R")))
         .exchange()
         .expectStatus().isOk
         .expectBody()
         .jsonPath("$.id").isEqualTo(migrated[0].id.toString())
+        .jsonPath("$.prisonerNumber").isEqualTo("A1234BC")
+        .jsonPath("$.prisonId").isEqualTo("LEI")
+        .jsonPath("$.type").isEqualTo("RATING")
+        .jsonPath("$.finalResult").isEqualTo("HIGH")
+        .jsonPath("$.finalResultDate").isEqualTo("2025-12-08")
         .jsonPath("$.nextReviewDate").isEqualTo("2026-05-01")
+
       webTestClient.get().uri("/csra-review/${migrated[1].id}")
         .headers(setAuthorisation(roles = listOf("ROLE_CSRA_REVIEW__R")))
         .exchange()
@@ -75,6 +87,7 @@ class CsraNomisSyncResourceTest : SqsIntegrationTestBase() {
         .expectBody()
         .jsonPath("$.id").isEqualTo(migrated[1].id.toString())
         .jsonPath("$.nextReviewDate").isEqualTo("2026-05-02")
+
       webTestClient.get().uri("/csra-review/${migrated[2].id}")
         .headers(setAuthorisation(roles = listOf("ROLE_CSRA_REVIEW__R")))
         .exchange()

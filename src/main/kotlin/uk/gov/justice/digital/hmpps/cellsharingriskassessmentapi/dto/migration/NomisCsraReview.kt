@@ -16,8 +16,11 @@ import java.time.LocalDateTime
  */
 @Schema(description = "A single CSRA review in the legacy NOMIS format")
 data class NomisCsraReview(
-  @param:Schema(description = "The id of the CSRA in Nomis", example = "4123456")
-  val legacyId: Long,
+  @param:Schema(description = "The booking id of the CSRA in Nomis - the first part of its id", example = "4123456")
+  val bookingId: Long,
+
+  @param:Schema(description = "The sequence number of the CSRA in Nomis - the second part of its id", example = "4")
+  val nomisSequence: Int,
 
   @param:Schema(description = "Prison where the assessment took place (NOMIS agencyId). Not currently populated by NOMIS.", example = "LEI", required = false)
   val assessmentPrisonId: String? = null,
