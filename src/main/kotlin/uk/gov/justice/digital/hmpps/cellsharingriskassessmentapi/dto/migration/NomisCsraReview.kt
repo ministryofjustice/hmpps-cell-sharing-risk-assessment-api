@@ -16,25 +16,31 @@ import java.time.LocalDateTime
  */
 @Schema(description = "A single CSRA review in the legacy NOMIS format")
 data class NomisCsraReview(
+  @param:Schema(description = "The booking id of the CSRA in Nomis - the first part of its id", example = "4123456")
+  val bookingId: Long,
+
+  @param:Schema(description = "The sequence number of the CSRA in Nomis - the second part of its id", example = "4")
+  val nomisSequence: Int,
+
   @param:Schema(description = "Prison where the assessment took place (NOMIS agencyId). Not currently populated by NOMIS.", example = "LEI", required = false)
   val assessmentPrisonId: String? = null,
 
   @param:Schema(description = "Date the CSRA was created", example = "2025-11-22", required = true)
   val assessmentDate: LocalDate,
 
-  @param:Schema(description = "CSRA assessment type", example = "CSR", required = true)
+  @param:Schema(description = "CSRA assessment type", example = "CSR", required = true, enumAsRef = true)
   val assessmentType: CsraAssessmentType,
 
-  @param:Schema(description = "The calculated CSRA level", example = "STANDARD", required = false)
+  @param:Schema(description = "The calculated CSRA level", example = "STANDARD", required = false, enumAsRef = true)
   val calculatedLevel: CsraLevel? = null,
 
   @param:Schema(description = "Score", example = "1000", required = true)
   val score: BigDecimal,
 
-  @param:Schema(description = "Status: active, inactive or provisional", example = "A", required = true)
+  @param:Schema(description = "Status: active, inactive or provisional", example = "A", required = true, enumAsRef = true)
   val status: CsraStatus,
 
-  @param:Schema(description = "The assessment committee code", example = "REVIEW", required = false)
+  @param:Schema(description = "The assessment committee code", example = "REVIEW", required = false, enumAsRef = true)
   val committeeCode: CsraCommitteeCode? = null,
 
   @param:Schema(description = "Next review date", example = "2026-05-22", required = false)
@@ -53,19 +59,19 @@ data class NomisCsraReview(
   @field:NotBlank
   val createdBy: String,
 
-  @param:Schema(description = "The review CSRA level", example = "STANDARD", required = false)
+  @param:Schema(description = "The review CSRA level", example = "STANDARD", required = false, enumAsRef = true)
   val reviewLevel: CsraLevel? = null,
 
-  @param:Schema(description = "The approved CSRA level", example = "STANDARD", required = false)
+  @param:Schema(description = "The approved CSRA level", example = "STANDARD", required = false, enumAsRef = true)
   val approvedLevel: CsraLevel? = null,
 
   @param:Schema(description = "Evaluation or approval date", example = "2025-12-08", required = false)
   val evaluationDate: LocalDate? = null,
 
-  @param:Schema(description = "Approved or rejected indicator", example = "APP", required = false)
+  @param:Schema(description = "Approved or rejected indicator", example = "APP", required = false, enumAsRef = true)
   val evaluationResultCode: CsraEvaluationResultCode? = null,
 
-  @param:Schema(description = "The review/approval committee code", example = "REVIEW", required = false)
+  @param:Schema(description = "The review/approval committee code", example = "REVIEW", required = false, enumAsRef = true)
   val reviewCommitteeCode: CsraCommitteeCode? = null,
 
   @param:Schema(description = "Approval committee comment text", required = false)
