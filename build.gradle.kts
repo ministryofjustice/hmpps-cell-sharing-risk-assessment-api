@@ -21,7 +21,7 @@ dependencies {
   implementation("org.springframework.security:spring-security-access")
   implementation("org.springframework.boot:spring-boot-starter-validation")
   implementation("io.opentelemetry.instrumentation:opentelemetry-instrumentation-annotations:2.28.1")
-  implementation("io.opentelemetry:opentelemetry-extension-kotlin:1.62.0")
+  implementation("io.opentelemetry:opentelemetry-extension-kotlin:1.63.0")
 
   runtimeOnly("org.flywaydb:flyway-database-postgresql")
   implementation("com.zaxxer:HikariCP:7.0.2")
