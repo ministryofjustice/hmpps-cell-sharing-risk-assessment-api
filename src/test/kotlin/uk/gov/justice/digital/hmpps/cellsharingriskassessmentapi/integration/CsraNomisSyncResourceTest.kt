@@ -3,14 +3,23 @@ package uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.integration
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
+import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.http.MediaType
 import org.springframework.test.web.reactive.server.expectBody
 import org.springframework.web.reactive.function.BodyInserters
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraCommitteeCode
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraLevel
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraMigrationResponse
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraStatus
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.SyncResult
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraReviewNomisRepository
+import java.math.BigDecimal
 import java.util.UUID
 
 class CsraNomisSyncResourceTest : SqsIntegrationTestBase() {
+
+  @Autowired
+  private lateinit var csraReviewNomisRepository: CsraReviewNomisRepository
 
   private val syncRole = listOf("ROLE_PRISONER_CSRA__SYNC__RW")
 
@@ -95,6 +104,18 @@ class CsraNomisSyncResourceTest : SqsIntegrationTestBase() {
         .expectBody()
         .jsonPath("$.id").isEqualTo(migrated[2].id.toString())
         .jsonPath("$.nextReviewDate").isEqualTo("2026-05-03")
+
+      // the additional NOMIS data, including the Q&A blob, is persisted alongside each core review
+      val nomis = csraReviewNomisRepository.findByCsraReviewId(migrated[0].id)!!
+      assertThat(nomis.score).isEqualByComparingTo(BigDecimal("1000"))
+      assertThat(nomis.status).isEqualTo(CsraStatus.A)
+      assertThat(nomis.calculatedLevel).isEqualTo(CsraLevel.STANDARD)
+      assertThat(nomis.approvedLevel).isEqualTo(CsraLevel.HI)
+      assertThat(nomis.committeeCode).isEqualTo(CsraCommitteeCode.REVIEW)
+      assertThat(nomis.comment).isEqualTo("All good")
+      assertThat(nomis.reviewDetails).singleElement()
+        .satisfies({ section -> assertThat(section.code).isEqualTo("SEC1") })
+      assertThat(csraReviewNomisRepository.findByCsraReviewId(migrated[2].id)).isNotNull()
     }
 
     @Test
@@ -164,6 +185,12 @@ class CsraNomisSyncResourceTest : SqsIntegrationTestBase() {
         .jsonPath("$.finalResult").isEqualTo("STANDARD")
         .jsonPath("$.lastModifiedBy").isEqualTo("NQP56Y")
         .jsonPath("$.lastModifiedAt").isNotEmpty
+
+      // the adjacent NOMIS record was created on sync-create and refreshed on sync-update
+      val nomis = csraReviewNomisRepository.findByCsraReviewId(created.csraReviewId)!!
+      assertThat(nomis.approvedLevel).isEqualTo(CsraLevel.STANDARD)
+      assertThat(nomis.reviewDetails).singleElement()
+        .satisfies({ section -> assertThat(section.code).isEqualTo("SEC1") })
     }
 
     @Test
