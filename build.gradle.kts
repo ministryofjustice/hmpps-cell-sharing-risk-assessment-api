@@ -1,3 +1,6 @@
+import org.gradle.kotlin.dsl.register
+import uk.gov.justice.digital.hmpps.gradle.PortForwardRDSTask
+
 plugins {
   id("uk.gov.justice.hmpps.gradle-spring-boot") version "10.5.3"
   kotlin("plugin.spring") version "2.4.0"
@@ -59,5 +62,9 @@ java {
 tasks {
   withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile> {
     compilerOptions.jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_25
+  }
+
+  register<PortForwardRDSTask>("portForwardRDS") {
+    namespacePrefix = "hmpps-cell-sharing-risk-assessment"
   }
 }
