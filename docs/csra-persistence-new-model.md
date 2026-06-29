@@ -1,8 +1,8 @@
-MAPA-141 CSRA – Step 3: Persist all NOMIS sync data, and the new-model storage direction
+### MAPA-141 CSRA – Persist all NOMIS sync data
 
 ## Why
 
-Step 2 (MAPA-51, `csra-persistence-step2.md`) persisted only the **core** CSRA fields common to both
+Step 2 (MAPA-51) persisted only the **core** CSRA fields common to both
 the new assessment journey and migrated NOMIS reviews (`csra_review`). Everything else the NOMIS sync
 sends in `NomisCsraReview` — score, status, the raw calculated/review/approved levels, committee and
 approval data, comments, placement prisons, and the whole `reviewDetails` question/answer tree — was
