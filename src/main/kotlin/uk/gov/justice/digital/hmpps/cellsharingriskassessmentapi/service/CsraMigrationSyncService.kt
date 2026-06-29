@@ -11,7 +11,9 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.C
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.NomisCsraReview
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.SyncResult
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.toNewCsraReview
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.toNomisEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.updateFromNomis
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraReviewNomisRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraReviewRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.resource.CsraReviewNotFoundException
 import java.time.Clock
@@ -24,6 +26,7 @@ import java.time.Clock
 @Transactional
 class CsraMigrationSyncService(
   private val csraReviewRepository: CsraReviewRepository,
+  private val csraReviewNomisRepository: CsraReviewNomisRepository,
   private val telemetryClient: TelemetryClient,
   private val clock: Clock,
 ) {
@@ -34,6 +37,7 @@ class CsraMigrationSyncService(
   fun migrate(prisonerNumber: String, reviews: List<NomisCsraReview>): List<CsraMigrationResponse> = reviews
     .map {
       val saved = csraReviewRepository.save(it.toNewCsraReview(prisonerNumber))
+      csraReviewNomisRepository.save(it.toNomisEntity(saved))
       CsraMigrationResponse(saved.id!!, it.bookingId, it.nomisSequence)
     }
     .also { results ->
@@ -49,11 +53,19 @@ class CsraMigrationSyncService(
     val csraReviewId = request.csraReviewId
     val created = csraReviewId == null
     val review = if (csraReviewId == null) {
-      csraReviewRepository.save(request.review.toNewCsraReview(prisonerNumber))
+      val saved = csraReviewRepository.save(request.review.toNewCsraReview(prisonerNumber))
+      csraReviewNomisRepository.save(request.review.toNomisEntity(saved))
+      saved
     } else {
       val existing = csraReviewRepository.findByIdOrNull(csraReviewId)
         ?: throw CsraReviewNotFoundException(csraReviewId.toString())
       existing.updateFromNomis(prisonerNumber, request.review, clock)
+      val existingNomis = csraReviewNomisRepository.findByCsraReviewId(csraReviewId)
+      if (existingNomis == null) {
+        csraReviewNomisRepository.save(request.review.toNomisEntity(existing))
+      } else {
+        existingNomis.updateFromNomis(request.review)
+      }
       existing
     }
     log.info("Synchronised CSRA review {} for {} (created={})", review.id, prisonerNumber, created)

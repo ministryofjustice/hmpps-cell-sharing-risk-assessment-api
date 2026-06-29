@@ -2,6 +2,7 @@ package uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration
 
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraResult
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewEntity
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewNomisEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraType
 import java.time.Clock
 import java.time.LocalDateTime
@@ -9,8 +10,9 @@ import java.time.LocalDateTime
 /**
  * Maps the legacy NOMIS CSRA shape onto the core [CsraReviewEntity].
  *
- * Only core data is mapped; legacy-only NOMIS data (review detail, committee/approval data, scores)
- * is intentionally dropped and will be persisted to a separate legacy table in a later step.
+ * Core data common to the new and legacy journeys is mapped onto [CsraReviewEntity]; the remaining
+ * NOMIS-only data (raw levels, committee/approval data, scores, comments and the question/answer
+ * detail) is preserved verbatim on the adjacent [CsraReviewNomisEntity].
  */
 
 fun CsraAssessmentType.toCsraType(): CsraType = when (this) {
@@ -62,4 +64,46 @@ fun CsraReviewEntity.updateFromNomis(prisonerNumber: String, review: NomisCsraRe
   this.nextReviewDate = review.nextReviewDate
   this.lastModifiedAt = LocalDateTime.now(clock)
   this.lastModifiedBy = review.createdBy
+}
+
+/**
+ * Builds the adjacent NOMIS-only record for a freshly mapped [core] review, keeping the raw NOMIS
+ * values (booking id and NOMIS sequence are intentionally not stored).
+ */
+fun NomisCsraReview.toNomisEntity(core: CsraReviewEntity): CsraReviewNomisEntity = CsraReviewNomisEntity(
+  csraReview = core,
+  score = score,
+  status = status,
+  calculatedLevel = calculatedLevel,
+  reviewLevel = reviewLevel,
+  approvedLevel = approvedLevel,
+  committeeCode = committeeCode,
+  reviewCommitteeCode = reviewCommitteeCode,
+  evaluationDate = evaluationDate,
+  evaluationResultCode = evaluationResultCode,
+  comment = comment,
+  reviewComment = reviewComment,
+  reviewCommitteeComment = reviewCommitteeComment,
+  placementPrisonId = placementPrisonId,
+  reviewPlacementPrisonId = reviewPlacementPrisonId,
+  reviewDetails = reviewDetails,
+)
+
+/** Applies an incoming NOMIS review to an existing adjacent NOMIS-only record (sync updates). */
+fun CsraReviewNomisEntity.updateFromNomis(review: NomisCsraReview) {
+  this.score = review.score
+  this.status = review.status
+  this.calculatedLevel = review.calculatedLevel
+  this.reviewLevel = review.reviewLevel
+  this.approvedLevel = review.approvedLevel
+  this.committeeCode = review.committeeCode
+  this.reviewCommitteeCode = review.reviewCommitteeCode
+  this.evaluationDate = review.evaluationDate
+  this.evaluationResultCode = review.evaluationResultCode
+  this.comment = review.comment
+  this.reviewComment = review.reviewComment
+  this.reviewCommitteeComment = review.reviewCommitteeComment
+  this.placementPrisonId = review.placementPrisonId
+  this.reviewPlacementPrisonId = review.reviewPlacementPrisonId
+  this.reviewDetails = review.reviewDetails
 }

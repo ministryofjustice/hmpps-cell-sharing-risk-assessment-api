@@ -112,4 +112,89 @@ class NomisCsraReviewMappersTest {
     assertThat(entity.lastModifiedBy).isEqualTo("NQP56Y")
     assertThat(entity.lastModifiedAt).isEqualTo(LocalDateTime.now(clock))
   }
+
+  private val reviewDetails = listOf(
+    CsraReviewDetailDto(
+      code = "SECTION1",
+      description = "First section",
+      questions = listOf(
+        CsraQuestionDto(
+          code = "Q1",
+          description = "Question one",
+          responses = listOf(CsraResponseDto(code = "R1", answer = "Yes", comment = "ok")),
+        ),
+      ),
+    ),
+  )
+
+  private fun fullReview() = NomisCsraReview(
+    bookingId = 1234567,
+    nomisSequence = 1,
+    assessmentPrisonId = "LEI",
+    assessmentDate = LocalDate.parse("2025-11-22"),
+    assessmentType = CsraAssessmentType.CSR,
+    calculatedLevel = CsraLevel.MED,
+    score = BigDecimal("1000"),
+    status = CsraStatus.A,
+    committeeCode = CsraCommitteeCode.REVIEW,
+    nextReviewDate = LocalDate.parse("2026-05-22"),
+    comment = "assessment comment",
+    placementPrisonId = "MDI",
+    createdDateTime = LocalDateTime.parse("2025-12-06T12:34:56"),
+    createdBy = "NQP56Y",
+    reviewLevel = CsraLevel.STANDARD,
+    approvedLevel = CsraLevel.HI,
+    evaluationDate = LocalDate.parse("2025-12-08"),
+    evaluationResultCode = CsraEvaluationResultCode.APP,
+    reviewCommitteeCode = CsraCommitteeCode.GOV,
+    reviewCommitteeComment = "approval comment",
+    reviewPlacementPrisonId = "WWI",
+    reviewComment = "review comment",
+    reviewDetails = reviewDetails,
+  )
+
+  @Test
+  fun `maps every additional NOMIS field verbatim onto the adjacent record`() {
+    val review = fullReview()
+    val core = review.toNewCsraReview("A1234BC")
+
+    val nomis = review.toNomisEntity(core)
+
+    assertThat(nomis.csraReview).isSameAs(core)
+    assertThat(nomis.score).isEqualByComparingTo(BigDecimal("1000"))
+    assertThat(nomis.status).isEqualTo(CsraStatus.A)
+    assertThat(nomis.calculatedLevel).isEqualTo(CsraLevel.MED)
+    assertThat(nomis.reviewLevel).isEqualTo(CsraLevel.STANDARD)
+    assertThat(nomis.approvedLevel).isEqualTo(CsraLevel.HI)
+    assertThat(nomis.committeeCode).isEqualTo(CsraCommitteeCode.REVIEW)
+    assertThat(nomis.reviewCommitteeCode).isEqualTo(CsraCommitteeCode.GOV)
+    assertThat(nomis.evaluationDate).isEqualTo(LocalDate.parse("2025-12-08"))
+    assertThat(nomis.evaluationResultCode).isEqualTo(CsraEvaluationResultCode.APP)
+    assertThat(nomis.comment).isEqualTo("assessment comment")
+    assertThat(nomis.reviewComment).isEqualTo("review comment")
+    assertThat(nomis.reviewCommitteeComment).isEqualTo("approval comment")
+    assertThat(nomis.placementPrisonId).isEqualTo("MDI")
+    assertThat(nomis.reviewPlacementPrisonId).isEqualTo("WWI")
+    assertThat(nomis.reviewDetails).isEqualTo(reviewDetails)
+  }
+
+  @Test
+  fun `update of the adjacent record overwrites every additional field`() {
+    val original = fullReview()
+    val nomis = original.toNomisEntity(original.toNewCsraReview("A1234BC"))
+
+    nomis.updateFromNomis(
+      fullReview().copy(
+        approvedLevel = CsraLevel.STANDARD,
+        status = CsraStatus.I,
+        comment = "changed",
+        reviewDetails = emptyList(),
+      ),
+    )
+
+    assertThat(nomis.approvedLevel).isEqualTo(CsraLevel.STANDARD)
+    assertThat(nomis.status).isEqualTo(CsraStatus.I)
+    assertThat(nomis.comment).isEqualTo("changed")
+    assertThat(nomis.reviewDetails).isEmpty()
+  }
 }

@@ -7,11 +7,16 @@ import io.swagger.v3.oas.annotations.media.Schema
  * from the legacy NOMIS assessment type codes which are mapped onto it during migration/sync.
  */
 @Schema(description = "The type of CSRA assessment")
-enum class CsraType {
-  FULL,
-  HEALTH,
-  LOCATE,
-  RATING,
-  RECEPTION,
-  REVIEW,
+enum class CsraType(
+  legacy: Boolean = false,
+) {
+  FULL(true),
+  HEALTH(true),
+  LOCATE(true),
+  RATING(true),
+  RECEPTION(true),
+  REVIEW(true),
+
+  CSRA_INITIAL_REVIEW(false),
+  CSRA_REVIEW(false),
 }
