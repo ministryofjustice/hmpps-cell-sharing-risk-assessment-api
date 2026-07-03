@@ -10,5 +10,7 @@ import java.util.UUID
 interface CsraAssessmentStageRepository : JpaRepository<CsraAssessmentStageEntity, UUID> {
   fun findAllByCsraReviewId(csraReviewId: UUID): List<CsraAssessmentStageEntity>
 
+  fun findAllByCsraReviewIdIn(csraReviewIds: Collection<UUID>): List<CsraAssessmentStageEntity>
+
   fun findByCsraReviewIdAndStage(csraReviewId: UUID, stage: CsraAssessmentStage): CsraAssessmentStageEntity?
 }
