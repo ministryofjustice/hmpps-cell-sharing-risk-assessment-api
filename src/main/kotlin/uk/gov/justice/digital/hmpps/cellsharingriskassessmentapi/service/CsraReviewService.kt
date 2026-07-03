@@ -5,11 +5,15 @@ import org.springframework.data.domain.Sort
 import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraCurrentRating
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraRatingBucket
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraRatingStatus
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraReview
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraReviewHistory
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraReviewHistorySummary
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraReviewSummary
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraRiskToDetail
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraVulnerabilityDetail
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.isHigh
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toDto
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toResults
@@ -18,6 +22,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessm
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewNomisEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraAssessmentStageRepository
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraNextReviewRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraReviewNomisRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraReviewRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraReviewSpecifications
@@ -30,8 +35,58 @@ class CsraReviewService(
   private val csraReviewRepository: CsraReviewRepository,
   private val csraReviewNomisRepository: CsraReviewNomisRepository,
   private val csraAssessmentStageRepository: CsraAssessmentStageRepository,
+  private val csraNextReviewRepository: CsraNextReviewRepository,
 ) {
   fun getCsraReviewById(id: UUID): CsraReview? = csraReviewRepository.findByIdOrNull(id)?.toDto()
+
+  fun getCurrentRating(prisonerNumber: String): CsraCurrentRating {
+    val review = csraReviewRepository.findFirstByPrisonerNumberOrderByAssessmentDateDescIdDesc(prisonerNumber)
+      ?: return CsraCurrentRating(
+        prisonerNumber = prisonerNumber,
+        status = CsraRatingStatus.NO_RATING,
+        rating = null,
+        provisional = false,
+        reviewId = null,
+        prisonId = null,
+        assessmentComment = null,
+        provisionalAssessmentComment = null,
+        riskTo = emptyList(),
+        vulnerabilities = emptyList(),
+        provisionalDate = null,
+        finalDate = null,
+        nextReviewDate = null,
+      )
+
+    val status = when {
+      review.finalResult != null -> CsraRatingStatus.COMPLETE
+      review.interimResult != null -> CsraRatingStatus.PROVISIONAL
+      else -> CsraRatingStatus.IN_PROGRESS
+    }
+
+    val stages = csraAssessmentStageRepository.findAllByCsraReviewId(review.id!!)
+    val finalStage = stages.firstOrNull { it.stage == CsraAssessmentStage.FINAL }
+    val provisionalStage = stages.firstOrNull { it.stage == CsraAssessmentStage.PROVISIONAL }
+    // The stage that produced the current rating: the final stage once complete, otherwise the provisional.
+    val ratingStage = finalStage ?: provisionalStage
+    // Migrated legacy reviews have no stages; their comment lives on the adjacent NOMIS record.
+    val nomis = if (stages.isEmpty()) csraReviewNomisRepository.findByCsraReviewId(review.id!!) else null
+
+    return CsraCurrentRating(
+      prisonerNumber = prisonerNumber,
+      status = status,
+      rating = review.finalResult ?: review.interimResult,
+      provisional = status == CsraRatingStatus.PROVISIONAL,
+      reviewId = review.id,
+      prisonId = ratingStage?.prisonId ?: review.prisonId,
+      assessmentComment = finalStage?.assessmentComment ?: nomis?.reviewComment ?: nomis?.comment,
+      provisionalAssessmentComment = provisionalStage?.assessmentComment,
+      riskTo = ratingStage?.riskTo?.map { CsraRiskToDetail(it.category, it.details) }.orEmpty(),
+      vulnerabilities = ratingStage?.vulnerabilities?.map { CsraVulnerabilityDetail(it.category, it.details) }.orEmpty(),
+      provisionalDate = provisionalStage?.completedAt?.toLocalDate() ?: review.interimResultDate,
+      finalDate = finalStage?.completedAt?.toLocalDate() ?: review.finalResultDate,
+      nextReviewDate = csraNextReviewRepository.findByPrisonerNumber(prisonerNumber)?.nextReviewDate,
+    )
+  }
 
   fun getCsraHistory(
     prisonerNumber: String,

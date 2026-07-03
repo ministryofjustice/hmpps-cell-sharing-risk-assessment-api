@@ -128,4 +128,35 @@ class CsraReviewResource(
     establishments = establishments,
     ratings = ratings,
   )
+
+  @GetMapping("/prisoner/{prisonerNumber}/current-rating")
+  @ResponseStatus(HttpStatus.OK)
+  @Operation(
+    summary = "Returns a prisoner's current CSRA rating",
+    description = "The prisoner's current CSRA rating and its state (no rating / in progress / provisional / " +
+      "complete), plus the supporting comments, high-risk risk-to & vulnerability detail, and next review " +
+      "date. Returns a NO_RATING result rather than a 404 when the prisoner has no CSRA. Requires role " +
+      "ROLE_CSRA_REVIEW__R",
+    responses = [
+      ApiResponse(
+        responseCode = "200",
+        description = "Returns the prisoner's current CSRA rating",
+      ),
+      ApiResponse(
+        responseCode = "401",
+        description = "Unauthorized to access this endpoint",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
+      ),
+      ApiResponse(
+        responseCode = "403",
+        description = "Missing required role. Requires the ROLE_CSRA_REVIEW__R role",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
+      ),
+    ],
+  )
+  fun getCurrentRating(
+    @Parameter(description = "The prisoner number", example = "A1234BC", required = true)
+    @PathVariable
+    prisonerNumber: String,
+  ) = csraReviewService.getCurrentRating(prisonerNumber = prisonerNumber)
 }
