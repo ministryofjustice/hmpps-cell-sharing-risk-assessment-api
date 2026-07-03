@@ -79,7 +79,6 @@ class NomisCsraReviewMappersTest {
     assertThat(entity.type).isEqualTo(CsraType.RATING)
     assertThat(entity.finalResult).isEqualTo(CsraResult.HIGH)
     assertThat(entity.finalResultDate).isEqualTo(LocalDate.parse("2025-12-08"))
-    assertThat(entity.nextReviewDate).isEqualTo(LocalDate.parse("2026-05-22"))
     assertThat(entity.createdAt).isEqualTo(LocalDateTime.parse("2025-12-06T12:34:56"))
     assertThat(entity.createdBy).isEqualTo("NQP56Y")
     assertThat(entity.interimResult).isNull()

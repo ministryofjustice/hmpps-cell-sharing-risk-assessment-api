@@ -12,8 +12,10 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.C
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraMigrationResponse
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraStatus
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.SyncResult
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraNextReviewRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraReviewNomisRepository
 import java.math.BigDecimal
+import java.time.LocalDate
 import java.util.UUID
 
 class CsraNomisSyncResourceTest : SqsIntegrationTestBase() {
@@ -21,16 +23,23 @@ class CsraNomisSyncResourceTest : SqsIntegrationTestBase() {
   @Autowired
   private lateinit var csraReviewNomisRepository: CsraReviewNomisRepository
 
+  @Autowired
+  private lateinit var csraNextReviewRepository: CsraNextReviewRepository
+
   private val syncRole = listOf("ROLE_PRISONER_CSRA__SYNC__RW")
 
   // A single review mirroring the producer's payload (extra legacy fields are ignored on bind).
-  private fun reviewJson(bookingId: Long = 1234567, nomisSequence: Int = 1, nextReviewDate: String = "2026-05-22") =
-    """
+  private fun reviewJson(
+    bookingId: Long = 1234567,
+    nomisSequence: Int = 1,
+    nextReviewDate: String = "2026-05-22",
+    assessmentDate: String = "2025-11-22",
+  ) = """
     {
       "bookingId": $bookingId,
       "nomisSequence": $nomisSequence,
       "assessmentPrisonId": "LEI",
-      "assessmentDate": "2025-11-22",
+      "assessmentDate": "$assessmentDate",
       "assessmentType": "CSR",
       "calculatedLevel": "STANDARD",
       "score": 1000,
@@ -47,7 +56,7 @@ class CsraNomisSyncResourceTest : SqsIntegrationTestBase() {
         { "code": "SEC1", "questions": [ { "code": "Q1", "responses": [ { "code": "R1", "answer": "Yes" } ] } ] }
       ]
     }
-    """.trimIndent()
+  """.trimIndent()
 
   @Nested
   inner class Migrate {
@@ -87,23 +96,12 @@ class CsraNomisSyncResourceTest : SqsIntegrationTestBase() {
         .jsonPath("$.type").isEqualTo("RATING")
         .jsonPath("$.finalResult").isEqualTo("HIGH")
         .jsonPath("$.finalResultDate").isEqualTo("2025-12-08")
-        .jsonPath("$.nextReviewDate").isEqualTo("2026-05-01")
 
-      webTestClient.get().uri("/csra-review/${migrated[1].id}")
-        .headers(setAuthorisation(roles = listOf("ROLE_CSRA_REVIEW__R")))
-        .exchange()
-        .expectStatus().isOk
-        .expectBody()
-        .jsonPath("$.id").isEqualTo(migrated[1].id.toString())
-        .jsonPath("$.nextReviewDate").isEqualTo("2026-05-02")
-
-      webTestClient.get().uri("/csra-review/${migrated[2].id}")
-        .headers(setAuthorisation(roles = listOf("ROLE_CSRA_REVIEW__R")))
-        .exchange()
-        .expectStatus().isOk
-        .expectBody()
-        .jsonPath("$.id").isEqualTo(migrated[2].id.toString())
-        .jsonPath("$.nextReviewDate").isEqualTo("2026-05-03")
+      // the prisoner's single next review date comes from their latest review (same assessment date, so
+      // the last review migrated wins the tie)
+      val nextReview = csraNextReviewRepository.findByPrisonerNumber("A1234BC")!!
+      assertThat(nextReview.nextReviewDate).isEqualTo(LocalDate.parse("2026-05-03"))
+      assertThat(nextReview.setByReviewId).isEqualTo(migrated[2].id)
 
       // the additional NOMIS data, including the Q&A blob, is persisted alongside each core review
       val nomis = csraReviewNomisRepository.findByCsraReviewId(migrated[0].id)!!
@@ -191,6 +189,33 @@ class CsraNomisSyncResourceTest : SqsIntegrationTestBase() {
       assertThat(nomis.approvedLevel).isEqualTo(CsraLevel.STANDARD)
       assertThat(nomis.reviewDetails).singleElement()
         .satisfies({ section -> assertThat(section.code).isEqualTo("SEC1") })
+    }
+
+    @Test
+    fun `only the prisoner's latest review sets the current next review date`() {
+      fun sync(nextReviewDate: String, assessmentDate: String) {
+        webTestClient.post().uri("/nomis-sync/sync/B2222BB")
+          .headers(setAuthorisation(roles = syncRole))
+          .contentType(MediaType.APPLICATION_JSON)
+          .body(BodyInserters.fromValue("""{ "review": ${reviewJson(nextReviewDate = nextReviewDate, assessmentDate = assessmentDate)} }"""))
+          .exchange()
+          .expectStatus().isCreated
+      }
+
+      // first review sets it
+      sync(nextReviewDate = "2026-07-10", assessmentDate = "2026-01-10")
+      assertThat(csraNextReviewRepository.findByPrisonerNumber("B2222BB")!!.nextReviewDate)
+        .isEqualTo(LocalDate.parse("2026-07-10"))
+
+      // an out-of-order sync of an older review must not overwrite it
+      sync(nextReviewDate = "2025-11-01", assessmentDate = "2025-05-01")
+      assertThat(csraNextReviewRepository.findByPrisonerNumber("B2222BB")!!.nextReviewDate)
+        .isEqualTo(LocalDate.parse("2026-07-10"))
+
+      // a newer review does overwrite it
+      sync(nextReviewDate = "2026-09-01", assessmentDate = "2026-03-01")
+      assertThat(csraNextReviewRepository.findByPrisonerNumber("B2222BB")!!.nextReviewDate)
+        .isEqualTo(LocalDate.parse("2026-09-01"))
     }
 
     @Test

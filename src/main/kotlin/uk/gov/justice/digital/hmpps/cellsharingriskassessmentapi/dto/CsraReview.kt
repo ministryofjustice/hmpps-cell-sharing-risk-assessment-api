@@ -37,9 +37,6 @@ data class CsraReview(
   @param:Schema(description = "The date the final result was given", example = "2025-11-24")
   val finalResultDate: LocalDate?,
 
-  @param:Schema(description = "The date the next review is due", example = "2026-05-22")
-  val nextReviewDate: LocalDate?,
-
   @param:Schema(description = "When the review was created", example = "2025-11-22T12:34:56")
   val createdAt: LocalDateTime,
 
@@ -63,7 +60,6 @@ fun CsraReviewEntity.toDto() = CsraReview(
   interimResultDate = interimResultDate,
   finalResult = finalResult,
   finalResultDate = finalResultDate,
-  nextReviewDate = nextReviewDate,
   createdAt = createdAt,
   createdBy = createdBy,
   lastModifiedAt = lastModifiedAt,

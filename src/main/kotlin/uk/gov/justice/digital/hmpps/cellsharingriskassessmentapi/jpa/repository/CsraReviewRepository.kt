@@ -8,4 +8,7 @@ import java.util.UUID
 @Repository
 interface CsraReviewRepository : JpaRepository<CsraReviewEntity, UUID> {
   fun findAllByPrisonerNumberOrderByAssessmentDateDesc(prisonerNumber: String): List<CsraReviewEntity>
+
+  /** The prisoner's most recent review (latest assessment date, then newest id), or null if none. */
+  fun findFirstByPrisonerNumberOrderByAssessmentDateDescIdDesc(prisonerNumber: String): CsraReviewEntity?
 }

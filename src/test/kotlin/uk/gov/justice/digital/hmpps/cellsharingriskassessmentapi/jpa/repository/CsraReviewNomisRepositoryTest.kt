@@ -52,7 +52,6 @@ class CsraReviewNomisRepositoryTest : TestBase() {
     type = CsraType.RATING,
     finalResult = CsraResult.HIGH,
     finalResultDate = LocalDate.parse("2025-11-22"),
-    nextReviewDate = LocalDate.parse("2026-05-22"),
     createdAt = LocalDateTime.parse("2025-12-06T12:34:56"),
     createdBy = "NQP56Y",
   )
