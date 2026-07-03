@@ -50,8 +50,6 @@ class CsraReviewEntity(
   var finalResult: CsraResult? = null,
   var finalResultDate: LocalDate? = null,
 
-  var nextReviewDate: LocalDate? = null,
-
   var createdAt: LocalDateTime,
   var createdBy: String,
   var lastModifiedAt: LocalDateTime? = null,

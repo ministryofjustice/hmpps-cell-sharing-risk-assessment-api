@@ -8,4 +8,6 @@ import java.util.UUID
 @Repository
 interface CsraReviewNomisRepository : JpaRepository<CsraReviewNomisEntity, UUID> {
   fun findByCsraReviewId(csraReviewId: UUID): CsraReviewNomisEntity?
+
+  fun findAllByCsraReviewIdIn(csraReviewIds: Collection<UUID>): List<CsraReviewNomisEntity>
 }

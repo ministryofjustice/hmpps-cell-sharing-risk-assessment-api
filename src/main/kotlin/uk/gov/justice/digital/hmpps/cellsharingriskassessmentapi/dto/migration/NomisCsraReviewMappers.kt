@@ -46,7 +46,6 @@ fun NomisCsraReview.toNewCsraReview(prisonerNumber: String): CsraReviewEntity {
     type = assessmentType.toCsraType(),
     finalResult = result,
     finalResultDate = result?.let { evaluationDate ?: assessmentDate },
-    nextReviewDate = nextReviewDate,
     createdAt = createdDateTime,
     createdBy = createdBy,
   )
@@ -61,7 +60,6 @@ fun CsraReviewEntity.updateFromNomis(prisonerNumber: String, review: NomisCsraRe
   this.type = review.assessmentType.toCsraType()
   this.finalResult = result
   this.finalResultDate = result?.let { review.evaluationDate ?: review.assessmentDate }
-  this.nextReviewDate = review.nextReviewDate
   this.lastModifiedAt = LocalDateTime.now(clock)
   this.lastModifiedBy = review.createdBy
 }

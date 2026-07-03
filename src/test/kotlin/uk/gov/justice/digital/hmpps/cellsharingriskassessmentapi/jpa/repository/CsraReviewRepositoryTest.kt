@@ -35,7 +35,6 @@ class CsraReviewRepositoryTest : TestBase() {
     type = CsraType.RATING,
     finalResult = CsraResult.HIGH,
     finalResultDate = assessmentDate,
-    nextReviewDate = assessmentDate.plusMonths(6),
     createdAt = LocalDateTime.parse("2025-12-06T12:34:56"),
     createdBy = "NQP56Y",
   )
@@ -60,7 +59,6 @@ class CsraReviewRepositoryTest : TestBase() {
     assertThat(found.type).isEqualTo(CsraType.RATING)
     assertThat(found.finalResult).isEqualTo(CsraResult.HIGH)
     assertThat(found.finalResultDate).isEqualTo(LocalDate.parse("2025-11-22"))
-    assertThat(found.nextReviewDate).isEqualTo(LocalDate.parse("2026-05-22"))
     assertThat(found.createdBy).isEqualTo("NQP56Y")
     assertThat(found.interimResult).isNull()
   }
