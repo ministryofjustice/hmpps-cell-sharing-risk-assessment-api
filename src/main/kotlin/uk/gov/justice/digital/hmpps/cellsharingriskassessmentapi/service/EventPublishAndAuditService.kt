@@ -3,6 +3,7 @@ package uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.service
 import org.springframework.stereotype.Service
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraReview
 import java.time.Clock
+import java.time.LocalDateTime
 
 @Service
 class EventPublishAndAuditService(
@@ -16,6 +17,12 @@ class EventPublishAndAuditService(
     auditData: Any? = null,
     source: InformationSource = InformationSource.DPS,
   ) {
+    snsService.publishDomainEvent(
+      eventType = eventType,
+      description = eventType.description,
+      occurredAt = LocalDateTime.now(clock),
+      additionalInformation = AdditionalInformation(id = csraReview.id, source = source),
+    )
     auditData?.let {
       auditEvent(
         auditType = eventType.auditType,
