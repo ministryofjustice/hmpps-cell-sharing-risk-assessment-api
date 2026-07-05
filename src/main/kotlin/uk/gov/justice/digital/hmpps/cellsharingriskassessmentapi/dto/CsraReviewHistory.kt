@@ -46,6 +46,18 @@ data class CsraReviewHistorySummary(
 
   @param:Schema(description = "The date of the most recent high-risk CSRA", example = "2013-07-14")
   val lastHighDate: LocalDate?,
+
+  @param:Schema(description = "The distinct establishments the prisoner has CSRAs at, for the establishment filter (name-sorted)")
+  val establishments: List<CsraEstablishment>,
+)
+
+@Schema(description = "An establishment the prisoner has a CSRA at")
+data class CsraEstablishment(
+  @param:Schema(description = "The prison id (the establishment filter key)", example = "LEI")
+  val prisonId: String,
+
+  @param:Schema(description = "The prison name, resolved from prison-register (falls back to the id)", example = "Leeds (HMP)")
+  val prisonName: String,
 )
 
 @Schema(description = "A single CSRA review in a prisoner's history")

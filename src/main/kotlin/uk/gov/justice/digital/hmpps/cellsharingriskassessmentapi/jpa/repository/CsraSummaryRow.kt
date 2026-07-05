@@ -11,6 +11,7 @@ data class CsraSummaryRow(
   val finalResult: CsraResult?,
   val interimResult: CsraResult?,
   val assessmentDate: LocalDate,
+  val prisonId: String?,
 ) {
   val result: CsraResult get() = finalResult ?: interimResult!!
 }
