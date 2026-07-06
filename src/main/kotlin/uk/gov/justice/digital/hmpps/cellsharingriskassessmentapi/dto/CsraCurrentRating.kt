@@ -5,6 +5,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraResult
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraRiskToCategory
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraVulnerabilityCategory
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.util.UUID
 
 /** The state of a prisoner's current CSRA rating. */
@@ -63,6 +64,12 @@ data class CsraCurrentRating(
 
   @param:Schema(description = "The date the prisoner's next review is due, if any", example = "2027-05-06")
   val nextReviewDate: LocalDate?,
+
+  @param:Schema(description = "The username that started the current assessment", example = "BPONDS")
+  val startedBy: String?,
+
+  @param:Schema(description = "When the current assessment was started", example = "2026-06-26T11:20:00")
+  val startedAt: LocalDateTime?,
 )
 
 @Schema(description = "A group the prisoner is a risk to, with optional free-text detail")

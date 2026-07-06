@@ -8,4 +8,6 @@ package uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.resource
  */
 enum class ErrorCode(val errorCode: Int) {
   CsraReviewNotFound(101),
+  MandatoryHighRiskGeneral(102),
+  AssessmentInProgress(103),
 }

@@ -3,6 +3,7 @@ package uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.resource
 import jakarta.validation.ValidationException
 import org.slf4j.LoggerFactory
 import org.springframework.http.HttpStatus.BAD_REQUEST
+import org.springframework.http.HttpStatus.CONFLICT
 import org.springframework.http.HttpStatus.FORBIDDEN
 import org.springframework.http.HttpStatus.INTERNAL_SERVER_ERROR
 import org.springframework.http.HttpStatus.NOT_FOUND
@@ -84,6 +85,30 @@ class CellSharingRiskAssessmentApiExceptionHandler {
       ),
     ).also { log.error("Unexpected exception", e) }
 
+  @ExceptionHandler(MandatoryHighRiskGeneralException::class)
+  fun handleMandatoryHighRiskGeneralException(e: MandatoryHighRiskGeneralException): ResponseEntity<ErrorResponse> = ResponseEntity
+    .status(BAD_REQUEST)
+    .body(
+      ErrorResponse(
+        status = BAD_REQUEST,
+        errorCode = ErrorCode.MandatoryHighRiskGeneral.name,
+        userMessage = "Validation failure: ${e.message}",
+        developerMessage = e.message,
+      ),
+    ).also { log.info("Mandatory high risk general violation: {}", e.message) }
+
+  @ExceptionHandler(CsraAssessmentInProgressException::class)
+  fun handleCsraAssessmentInProgressException(e: CsraAssessmentInProgressException): ResponseEntity<ErrorResponse> = ResponseEntity
+    .status(CONFLICT)
+    .body(
+      ErrorResponse(
+        status = CONFLICT,
+        errorCode = ErrorCode.AssessmentInProgress.name,
+        userMessage = "Conflict: ${e.message}",
+        developerMessage = e.message,
+      ),
+    ).also { log.info("Assessment already in progress: {}", e.message) }
+
   @ExceptionHandler(Exception::class)
   fun handleException(e: Exception): ResponseEntity<ErrorResponse> = ResponseEntity
     .status(INTERNAL_SERVER_ERROR)
@@ -101,3 +126,7 @@ class CellSharingRiskAssessmentApiExceptionHandler {
 }
 
 class CsraReviewNotFoundException(id: String) : Exception("There is no CSRA review found for ID = $id")
+
+class MandatoryHighRiskGeneralException : Exception("The rating must be HIGH_GENERAL when there is evidence of a mandatory high-risk offence")
+
+class CsraAssessmentInProgressException(prisonerNumber: String) : Exception("An assessment is already in progress for prisoner $prisonerNumber")
