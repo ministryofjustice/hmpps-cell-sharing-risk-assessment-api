@@ -59,6 +59,8 @@ class CsraReviewService(
         provisionalDate = null,
         finalDate = null,
         nextReviewDate = null,
+        startedBy = null,
+        startedAt = null,
       )
 
     val status = when {
@@ -89,6 +91,8 @@ class CsraReviewService(
       provisionalDate = provisionalStage?.completedAt?.toLocalDate() ?: review.interimResultDate,
       finalDate = finalStage?.completedAt?.toLocalDate() ?: review.finalResultDate,
       nextReviewDate = csraNextReviewRepository.findByPrisonerNumber(prisonerNumber)?.nextReviewDate,
+      startedBy = review.createdBy,
+      startedAt = review.createdAt,
     )
   }
 
