@@ -20,7 +20,7 @@ interface CsraReviewRepository :
   @Query(
     """
     SELECT new uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraSummaryRow(
-      r.finalResult, r.interimResult, r.assessmentDate)
+      r.finalResult, r.interimResult, r.assessmentDate, r.prisonId)
     FROM CsraReviewEntity r
     WHERE r.prisonerNumber = :prisonerNumber
       AND (r.finalResult IS NOT NULL OR r.interimResult IS NOT NULL)

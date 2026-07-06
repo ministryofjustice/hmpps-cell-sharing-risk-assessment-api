@@ -2,6 +2,7 @@ package uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.integration
 
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.integration.wiremock.PrisonRegisterApiExtension.Companion.prisonRegister
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStage
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStageEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraResult
@@ -84,10 +85,12 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
       .jsonPath("$.summary.standardCount").isEqualTo(0)
       .jsonPath("$.summary.firstAssessmentDate").doesNotExist()
       .jsonPath("$.summary.lastHighDate").doesNotExist()
+      .jsonPath("$.summary.establishments").isEmpty
   }
 
   @Test
   fun `returns the summary and a newest-first page resolving comments from both sources`() {
+    prisonRegister.stubGetPrisons(mapOf("LEI" to "Leeds (HMP)", "MDI" to "Moorland (HMP)"))
     val legacyHigh = review("H1111HH", LocalDate.parse("2023-07-14"), CsraResult.HIGH, "LEI")
     withNomisComment(legacyHigh, "Legacy high comment")
     val standard = review("H1111HH", LocalDate.parse("2025-06-30"), CsraResult.STANDARD, "LEI")
@@ -106,6 +109,11 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
       .jsonPath("$.summary.firstAssessmentDate").isEqualTo("2023-07-14")
       .jsonPath("$.summary.lastAssessmentDate").isEqualTo("2025-10-11")
       .jsonPath("$.summary.lastHighDate").isEqualTo("2025-10-11")
+      .jsonPath("$.summary.establishments.length()").isEqualTo(2)
+      .jsonPath("$.summary.establishments[0].prisonId").isEqualTo("LEI")
+      .jsonPath("$.summary.establishments[0].prisonName").isEqualTo("Leeds (HMP)")
+      .jsonPath("$.summary.establishments[1].prisonId").isEqualTo("MDI")
+      .jsonPath("$.summary.establishments[1].prisonName").isEqualTo("Moorland (HMP)")
       .jsonPath("$.totalElements").isEqualTo(3)
       .jsonPath("$.content.length()").isEqualTo(3)
       .jsonPath("$.content[0].rating").isEqualTo("HIGH_SPECIFIC")
@@ -152,5 +160,24 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
       .jsonPath("$.totalElements").isEqualTo(1)
       .jsonPath("$.content[0].recordedDate").isEqualTo("2025-09-01")
       .jsonPath("$.content[0].prisonId").isEqualTo("LEI")
+  }
+
+  @Test
+  fun `establishment list resolves names from prison-register and falls back to the id when unknown`() {
+    prisonRegister.stubGetPrisons(mapOf("LEI" to "Leeds (HMP)"))
+    review("G4444GG", LocalDate.parse("2024-01-01"), CsraResult.STANDARD, "LEI")
+    review("G4444GG", LocalDate.parse("2025-01-01"), CsraResult.STANDARD, "MDI")
+
+    webTestClient.get().uri("/csra-review/prisoner/G4444GG/history")
+      .headers(setAuthorisation(roles = readRole))
+      .exchange()
+      .expectStatus().isOk
+      .expectBody()
+      // Name-sorted: "Leeds (HMP)" before the unresolved "MDI".
+      .jsonPath("$.summary.establishments.length()").isEqualTo(2)
+      .jsonPath("$.summary.establishments[0].prisonId").isEqualTo("LEI")
+      .jsonPath("$.summary.establishments[0].prisonName").isEqualTo("Leeds (HMP)")
+      .jsonPath("$.summary.establishments[1].prisonId").isEqualTo("MDI")
+      .jsonPath("$.summary.establishments[1].prisonName").isEqualTo("MDI")
   }
 }

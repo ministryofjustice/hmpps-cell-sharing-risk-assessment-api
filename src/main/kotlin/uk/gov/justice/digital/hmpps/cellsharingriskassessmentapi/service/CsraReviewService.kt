@@ -5,7 +5,9 @@ import org.springframework.data.domain.Sort
 import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.client.PrisonRegisterClient
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraCurrentRating
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraEstablishment
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraRatingBucket
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraRatingStatus
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraReview
@@ -26,6 +28,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraReviewNomisRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraReviewRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraReviewSpecifications
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraSummaryRow
 import java.time.LocalDate
 import java.util.UUID
 
@@ -36,6 +39,7 @@ class CsraReviewService(
   private val csraReviewNomisRepository: CsraReviewNomisRepository,
   private val csraAssessmentStageRepository: CsraAssessmentStageRepository,
   private val csraNextReviewRepository: CsraNextReviewRepository,
+  private val prisonRegisterClient: PrisonRegisterClient,
 ) {
   fun getCsraReviewById(id: UUID): CsraReview? = csraReviewRepository.findByIdOrNull(id)?.toDto()
 
@@ -131,7 +135,18 @@ class CsraReviewService(
       firstAssessmentDate = dates.minOrNull(),
       lastAssessmentDate = dates.maxOrNull(),
       lastHighDate = highDates.maxOrNull(),
+      establishments = buildEstablishments(rows),
     )
+  }
+
+  /** The distinct establishments across a prisoner's whole history, name-resolved and name-sorted. */
+  private fun buildEstablishments(rows: List<CsraSummaryRow>): List<CsraEstablishment> {
+    val prisonIds = rows.mapNotNull { it.prisonId }.distinct()
+    if (prisonIds.isEmpty()) return emptyList()
+    val names = prisonRegisterClient.getPrisonNames()
+    return prisonIds
+      .map { CsraEstablishment(prisonId = it, prisonName = names[it] ?: it) }
+      .sortedBy { it.prisonName }
   }
 
   /**

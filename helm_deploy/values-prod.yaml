@@ -8,6 +8,7 @@ generic-service:
 
   env:
     HMPPS_AUTH_URL: "https://sign-in.hmpps.service.justice.gov.uk/auth"
+    PRISON_REGISTER_URL: "https://prison-register.hmpps.service.justice.gov.uk"
 
   namespace_secrets:
     hmpps-domain-events-topic:

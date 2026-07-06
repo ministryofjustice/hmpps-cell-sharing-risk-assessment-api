@@ -172,4 +172,16 @@ class CsraReviewHistoryRepositoryTest : TestBase() {
     assertThat(rows.map { it.result })
       .containsExactlyInAnyOrder(CsraResult.STANDARD, CsraResult.HIGH_GENERAL)
   }
+
+  @Test
+  fun `summary rows expose the prison id for building the establishment list`() {
+    repository.save(review(assessmentDate = LocalDate.parse("2025-01-01"), prisonId = "LEI"))
+    repository.save(review(assessmentDate = LocalDate.parse("2025-02-01"), prisonId = "MDI"))
+    repository.save(review(assessmentDate = LocalDate.parse("2025-03-01"), prisonId = null))
+    repository.flush()
+
+    val rows = repository.findSummaryRows("A1234BC")
+
+    assertThat(rows.map { it.prisonId }).containsExactlyInAnyOrder("LEI", "MDI", null)
+  }
 }

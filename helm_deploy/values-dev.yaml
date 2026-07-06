@@ -10,6 +10,7 @@ generic-service:
   env:
     APPLICATIONINSIGHTS_CONFIGURATION_FILE: "applicationinsights.dev.json"
     HMPPS_AUTH_URL: "https://sign-in-dev.hmpps.service.justice.gov.uk/auth"
+    PRISON_REGISTER_URL: "https://prison-register-dev.hmpps.service.justice.gov.uk"
     HMPPS_SQS_USE_WEB_TOKEN: "true"
     SPRING_PROFILES_ACTIVE: "logstash"
     SPRINGDOC_API-DOCS_ENABLED: "true"

@@ -10,6 +10,7 @@ generic-service:
   env:
     APPLICATIONINSIGHTS_CONFIGURATION_FILE: "applicationinsights.dev.json"
     HMPPS_AUTH_URL: "https://sign-in-preprod.hmpps.service.justice.gov.uk/auth"
+    PRISON_REGISTER_URL: "https://prison-register-preprod.hmpps.service.justice.gov.uk"
 
   namespace_secrets:
     hmpps-domain-events-topic:

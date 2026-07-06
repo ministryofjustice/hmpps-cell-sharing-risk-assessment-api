@@ -1,6 +1,7 @@
 package uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.integration
 
 import com.fasterxml.jackson.databind.ObjectMapper
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.extension.ExtendWith
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.boot.test.autoconfigure.json.AutoConfigureJson
@@ -11,11 +12,14 @@ import org.springframework.http.HttpHeaders
 import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.web.reactive.server.WebTestClient
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.SYSTEM_USERNAME
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.client.PrisonRegisterClient
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.integration.wiremock.HmppsAuthApiExtension
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.integration.wiremock.HmppsAuthApiExtension.Companion.hmppsAuth
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.integration.wiremock.PrisonRegisterApiExtension
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.integration.wiremock.PrisonRegisterApiExtension.Companion.prisonRegister
 import uk.gov.justice.hmpps.test.kotlin.auth.JwtAuthorisationHelper
 
-@ExtendWith(HmppsAuthApiExtension::class)
+@ExtendWith(HmppsAuthApiExtension::class, PrisonRegisterApiExtension::class)
 @SpringBootTest(webEnvironment = RANDOM_PORT)
 @ActiveProfiles("test")
 @AutoConfigureWebTestClient
@@ -30,6 +34,15 @@ abstract class IntegrationTestBase : TestBase() {
 
   @Autowired
   protected lateinit var jwtAuthHelper: JwtAuthorisationHelper
+
+  @Autowired
+  private lateinit var prisonRegisterClient: PrisonRegisterClient
+
+  // The prison-name cache is a singleton shared across tests; evict it so each test sees its own stub.
+  @BeforeEach
+  fun evictPrisonRegisterCache() {
+    prisonRegisterClient.evictCache()
+  }
 
   init {
     // Resolves an issue where Wiremock keeps previous sockets open from other tests causing connection resets
@@ -48,5 +61,6 @@ abstract class IntegrationTestBase : TestBase() {
   )
   protected fun stubPingWithResponse(status: Int) {
     hmppsAuth.stubHealthPing(status)
+    prisonRegister.stubHealthPing(status)
   }
 }

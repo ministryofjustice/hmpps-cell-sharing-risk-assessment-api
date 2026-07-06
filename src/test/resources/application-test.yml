@@ -8,6 +8,9 @@ management.endpoint:
 hmpps-auth:
   url: "http://localhost:8090/auth"
 
+prison-register:
+  url: "http://localhost:8091"
+
 springdoc:
   api-docs:
     enabled: true
