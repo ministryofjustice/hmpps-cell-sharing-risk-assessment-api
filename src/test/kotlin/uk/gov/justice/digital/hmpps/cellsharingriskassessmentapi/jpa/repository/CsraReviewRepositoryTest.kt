@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.integration.TestBase
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraResult
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewEntity
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewStatus
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraType
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -168,9 +169,10 @@ class CsraReviewRepositoryTest : TestBase() {
     repository.save(entity("REVIEW", CsraType.CSRA_REVIEW, null, "LEI")) // wrong type
     repository.save(entity("OTHERP", CsraType.CSRA_INITIAL_REVIEW, null, "MDI")) // wrong prison
     repository.save(entity("LEGACY", CsraType.RATING, null, "LEI")) // legacy null-result, wrong type
+    repository.save(entity("CLOSED", CsraType.CSRA_INITIAL_REVIEW, null, "LEI").apply { status = CsraReviewStatus.CLOSED }) // no longer in progress
     repository.flush()
 
-    val found = repository.findAllByPrisonIdAndTypeAndFinalResultIsNull("LEI", CsraType.CSRA_INITIAL_REVIEW)
+    val found = repository.findAllByPrisonIdAndTypeAndFinalResultIsNullAndStatus("LEI", CsraType.CSRA_INITIAL_REVIEW, CsraReviewStatus.IN_PROGRESS)
 
     assertThat(found.map { it.prisonerNumber }).containsExactly("INPROG")
   }

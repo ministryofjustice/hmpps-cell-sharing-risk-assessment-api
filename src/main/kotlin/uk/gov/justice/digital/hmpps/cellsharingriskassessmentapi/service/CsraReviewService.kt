@@ -47,6 +47,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessm
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraResult
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewNomisEntity
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewStatus
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraType
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraAssessmentStageRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraNextReviewRepository
@@ -241,7 +242,8 @@ class CsraReviewService(
    * prisoner-search for the small in-progress set.
    */
   fun getAssessmentsInProgress(prisonId: String): CsraAssessmentsInProgress {
-    val reviews = csraReviewRepository.findAllByPrisonIdAndTypeAndFinalResultIsNull(prisonId, CsraType.CSRA_INITIAL_REVIEW)
+    val reviews = csraReviewRepository
+      .findAllByPrisonIdAndTypeAndFinalResultIsNullAndStatus(prisonId, CsraType.CSRA_INITIAL_REVIEW, CsraReviewStatus.IN_PROGRESS)
     val names = prisonerSearchClient.getPrisonerNames(reviews.map { it.prisonerNumber })
     val provisionalStageByReviewId = csraAssessmentStageRepository.findAllByCsraReviewIdIn(reviews.mapNotNull { it.id })
       .filter { it.stage == CsraAssessmentStage.PROVISIONAL }
@@ -281,7 +283,8 @@ class CsraReviewService(
    * prison with no final result. Names resolved from prisoner-search.
    */
   fun getReviewsInProgress(prisonId: String): CsraReviewsInProgress {
-    val reviews = csraReviewRepository.findAllByPrisonIdAndTypeAndFinalResultIsNull(prisonId, CsraType.CSRA_REVIEW)
+    val reviews = csraReviewRepository
+      .findAllByPrisonIdAndTypeAndFinalResultIsNullAndStatus(prisonId, CsraType.CSRA_REVIEW, CsraReviewStatus.IN_PROGRESS)
     val names = prisonerSearchClient.getPrisonerNames(reviews.map { it.prisonerNumber })
     val content = reviews.map { r ->
       val name = names[r.prisonerNumber]
@@ -343,7 +346,8 @@ class CsraReviewService(
   }
 
   fun getCurrentRating(prisonerNumber: String): CsraCurrentRating {
-    val review = csraReviewRepository.findFirstByPrisonerNumberOrderByAssessmentDateDescIdDesc(prisonerNumber)
+    val review = csraReviewRepository
+      .findFirstByPrisonerNumberAndStatusNotOrderByAssessmentDateDescIdDesc(prisonerNumber, CsraReviewStatus.ARCHIVED)
       ?: return CsraCurrentRating(
         prisonerNumber = prisonerNumber,
         status = CsraRatingStatus.NO_RATING,

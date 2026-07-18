@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor
 import org.springframework.data.jpa.repository.Query
 import org.springframework.stereotype.Repository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewEntity
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewStatus
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraType
 import java.time.LocalDate
 import java.util.UUID
@@ -15,15 +16,33 @@ interface CsraReviewRepository :
   JpaSpecificationExecutor<CsraReviewEntity> {
   fun findAllByPrisonerNumberOrderByAssessmentDateDesc(prisonerNumber: String): List<CsraReviewEntity>
 
-  /** The prisoner's most recent review (latest assessment date, then newest id), or null if none. */
+  /** The prisoner's most recent review of any status (latest assessment date, then newest id), or null. */
   fun findFirstByPrisonerNumberOrderByAssessmentDateDescIdDesc(prisonerNumber: String): CsraReviewEntity?
 
+  /** A prisoner's reviews in a given lifecycle state (e.g. the IN_PROGRESS one to close on admission). */
+  fun findAllByPrisonerNumberAndStatus(prisonerNumber: String, status: CsraReviewStatus): List<CsraReviewEntity>
+
   /**
-   * In-progress reviews (no final result yet) of a given type at a prison — the "assessments/reviews in
-   * progress" worklists. Callers pass a new-model type ([CsraType.CSRA_INITIAL_REVIEW] / [CsraType.CSRA_REVIEW]);
-   * legacy rows (which can also have a null result via NOMIS PEND) are excluded by the type filter.
+   * The prisoner's most recent review that still counts towards the current rating (latest assessment
+   * date, then newest id), or null if none. ARCHIVED reviews (deleted on admission) are excluded; CLOSED
+   * ones are kept because their provisional/interim rating remains the current rating.
    */
-  fun findAllByPrisonIdAndTypeAndFinalResultIsNull(prisonId: String, type: CsraType): List<CsraReviewEntity>
+  fun findFirstByPrisonerNumberAndStatusNotOrderByAssessmentDateDescIdDesc(
+    prisonerNumber: String,
+    status: CsraReviewStatus,
+  ): CsraReviewEntity?
+
+  /**
+   * Genuinely in-progress reviews of a given type at a prison — the "assessments/reviews in progress"
+   * worklists. Callers pass a new-model type ([CsraType.CSRA_INITIAL_REVIEW] / [CsraType.CSRA_REVIEW]) and
+   * status IN_PROGRESS, so completed rows (final result set), legacy rows (excluded by type) and closed/
+   * archived rows (excluded by status) all drop out.
+   */
+  fun findAllByPrisonIdAndTypeAndFinalResultIsNullAndStatus(
+    prisonId: String,
+    type: CsraType,
+    status: CsraReviewStatus,
+  ): List<CsraReviewEntity>
 
   /** Every rated review for a prisoner, projected for computing whole-history summary counts. */
   @Query(
@@ -51,6 +70,7 @@ interface CsraReviewRepository :
         SELECT DISTINCT ON (prisoner_number) COALESCE(final_result, interim_result) AS current_result
         FROM csra_review
         WHERE prisoner_number IN (:prisonerNumbers)
+          AND status <> 'ARCHIVED'
         ORDER BY prisoner_number, assessment_date DESC, id DESC
       ) latest
       GROUP BY current_result
@@ -72,6 +92,7 @@ interface CsraReviewRepository :
              assessment_date AS assessmentDate, final_result_date AS finalResultDate
       FROM csra_review
       WHERE prisoner_number IN (:prisonerNumbers)
+        AND status <> 'ARCHIVED'
       ORDER BY prisoner_number, assessment_date DESC, id DESC
     """,
     nativeQuery = true,
