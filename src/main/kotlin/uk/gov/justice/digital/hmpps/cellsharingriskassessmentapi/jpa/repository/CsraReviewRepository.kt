@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor
 import org.springframework.data.jpa.repository.Query
 import org.springframework.stereotype.Repository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewEntity
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraType
 import java.time.LocalDate
 import java.util.UUID
 
@@ -16,6 +17,13 @@ interface CsraReviewRepository :
 
   /** The prisoner's most recent review (latest assessment date, then newest id), or null if none. */
   fun findFirstByPrisonerNumberOrderByAssessmentDateDescIdDesc(prisonerNumber: String): CsraReviewEntity?
+
+  /**
+   * In-progress reviews (no final result yet) of a given type at a prison — the "assessments/reviews in
+   * progress" worklists. Callers pass a new-model type ([CsraType.CSRA_INITIAL_REVIEW] / [CsraType.CSRA_REVIEW]);
+   * legacy rows (which can also have a null result via NOMIS PEND) are excluded by the type filter.
+   */
+  fun findAllByPrisonIdAndTypeAndFinalResultIsNull(prisonId: String, type: CsraType): List<CsraReviewEntity>
 
   /** Every rated review for a prisoner, projected for computing whole-history summary counts. */
   @Query(

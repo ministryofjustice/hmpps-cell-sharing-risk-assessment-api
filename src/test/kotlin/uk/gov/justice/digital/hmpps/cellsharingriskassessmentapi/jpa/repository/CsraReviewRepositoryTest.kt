@@ -150,4 +150,28 @@ class CsraReviewRepositoryTest : TestBase() {
     assertThat(inProgress.finalResult).isNull()
     assertThat(inProgress.interimResult).isNull()
   }
+
+  @Test
+  fun `finds in-progress reviews of a type at a prison, excluding completed, other types and other prisons`() {
+    fun entity(prisonerNumber: String, type: CsraType, finalResult: CsraResult?, prisonId: String) = CsraReviewEntity(
+      prisonerNumber = prisonerNumber,
+      prisonId = prisonId,
+      assessmentDate = LocalDate.parse("2026-07-01"),
+      type = type,
+      finalResult = finalResult,
+      finalResultDate = finalResult?.let { LocalDate.parse("2026-07-01") },
+      createdAt = LocalDateTime.parse("2025-12-06T12:34:56"),
+      createdBy = "NQP56Y",
+    )
+    repository.save(entity("INPROG", CsraType.CSRA_INITIAL_REVIEW, null, "LEI")) // match
+    repository.save(entity("DONE", CsraType.CSRA_INITIAL_REVIEW, CsraResult.STANDARD, "LEI")) // completed
+    repository.save(entity("REVIEW", CsraType.CSRA_REVIEW, null, "LEI")) // wrong type
+    repository.save(entity("OTHERP", CsraType.CSRA_INITIAL_REVIEW, null, "MDI")) // wrong prison
+    repository.save(entity("LEGACY", CsraType.RATING, null, "LEI")) // legacy null-result, wrong type
+    repository.flush()
+
+    val found = repository.findAllByPrisonIdAndTypeAndFinalResultIsNull("LEI", CsraType.CSRA_INITIAL_REVIEW)
+
+    assertThat(found.map { it.prisonerNumber }).containsExactly("INPROG")
+  }
 }

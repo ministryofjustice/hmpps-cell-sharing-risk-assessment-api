@@ -34,6 +34,20 @@ class PrisonerSearchClient(
     return members
   }
 
+  /** The names of the given prisoners, keyed by prisoner number. Empty input skips the call. */
+  fun getPrisonerNames(prisonerNumbers: Collection<String>): Map<String, PrisonRollMember> {
+    if (prisonerNumbers.isEmpty()) return emptyMap()
+    return webClient
+      .post()
+      .uri("/prisoner-search/prisoner-numbers")
+      .bodyValue(PrisonerNumbersRequest(prisonerNumbers.distinct()))
+      .retrieve()
+      .bodyToMono<List<PrisonRollEntry>>()
+      .block()
+      .orEmpty()
+      .associate { it.prisonerNumber to PrisonRollMember(it.prisonerNumber, it.firstName, it.lastName) }
+  }
+
   private fun fetchPage(prisonId: String, page: Int): PrisonRollPage = webClient
     .get()
     .uri(
@@ -48,6 +62,8 @@ class PrisonerSearchClient(
     private const val PAGE_SIZE = 2000
   }
 }
+
+data class PrisonerNumbersRequest(val prisonerNumbers: List<String>)
 
 /** A member of a prison's roll: their number and name. */
 data class PrisonRollMember(

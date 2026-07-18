@@ -7,7 +7,9 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.client.PrisonRegisterClient
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.client.PrisonerSearchClient
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentStartedRow
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentTypeBucket
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentsInProgress
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraCurrentRating
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraEstablishment
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraHighRiskDueForReview
@@ -18,13 +20,16 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraPrisonP
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraPrisonPrisonerList
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraPrisonRatingSummary
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraPrisonerSortField
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraProvisionalRatingRow
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraRatingBucket
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraRatingFilter
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraRatingStatus
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraReview
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraReviewHistory
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraReviewHistorySummary
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraReviewInProgressRow
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraReviewSummary
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraReviewsInProgress
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraRiskToDetail
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraSortDirection
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraVulnerabilityDetail
@@ -220,6 +225,69 @@ class CsraReviewService(
       CsraHighRiskSortField.NAME -> compareBy({ it.lastName?.lowercase() }, { it.firstName?.lowercase() })
     }
     return if (direction == CsraSortDirection.DESC) base.reversed() else base
+  }
+
+  /**
+   * A prison's in-progress CSRA initial assessments (the "assessments in progress" worklist), split into
+   * those started with no rating yet and those with a provisional rating awaiting a final. Driven solely
+   * by our data (new-model assessments at this prison with no final result); names are resolved from
+   * prisoner-search for the small in-progress set.
+   */
+  fun getAssessmentsInProgress(prisonId: String): CsraAssessmentsInProgress {
+    val reviews = csraReviewRepository.findAllByPrisonIdAndTypeAndFinalResultIsNull(prisonId, CsraType.CSRA_INITIAL_REVIEW)
+    val names = prisonerSearchClient.getPrisonerNames(reviews.map { it.prisonerNumber })
+    val provisionalStageByReviewId = csraAssessmentStageRepository.findAllByCsraReviewIdIn(reviews.mapNotNull { it.id })
+      .filter { it.stage == CsraAssessmentStage.PROVISIONAL }
+      .associateBy { it.csraReview.id }
+
+    val started = reviews.filter { it.interimResult == null }.map { r ->
+      val name = names[r.prisonerNumber]
+      CsraAssessmentStartedRow(
+        reviewId = r.id!!,
+        prisonerNumber = r.prisonerNumber,
+        firstName = name?.firstName,
+        lastName = name?.lastName,
+        startedOn = r.assessmentDate,
+        startedBy = r.createdBy,
+      )
+    }.sortedWith(compareBy({ it.startedOn }, { it.lastName?.lowercase() }, { it.firstName?.lowercase() }))
+
+    val provisional = reviews.filter { it.interimResult != null }.map { r ->
+      val name = names[r.prisonerNumber]
+      val stage = provisionalStageByReviewId[r.id]
+      CsraProvisionalRatingRow(
+        reviewId = r.id!!,
+        prisonerNumber = r.prisonerNumber,
+        firstName = name?.firstName,
+        lastName = name?.lastName,
+        assessedOn = stage?.completedAt?.toLocalDate() ?: r.interimResultDate ?: r.assessmentDate,
+        assessedBy = stage?.completedBy ?: r.createdBy,
+        rating = r.interimResult!!,
+      )
+    }.sortedWith(compareBy({ it.assessedOn }, { it.lastName?.lowercase() }, { it.firstName?.lowercase() }))
+
+    return CsraAssessmentsInProgress(assessmentStarted = started, provisionalRatingEntered = provisional)
+  }
+
+  /**
+   * A prison's in-progress CSRA reviews (the "reviews in progress" worklist): new-model reviews at this
+   * prison with no final result. Names resolved from prisoner-search.
+   */
+  fun getReviewsInProgress(prisonId: String): CsraReviewsInProgress {
+    val reviews = csraReviewRepository.findAllByPrisonIdAndTypeAndFinalResultIsNull(prisonId, CsraType.CSRA_REVIEW)
+    val names = prisonerSearchClient.getPrisonerNames(reviews.map { it.prisonerNumber })
+    val content = reviews.map { r ->
+      val name = names[r.prisonerNumber]
+      CsraReviewInProgressRow(
+        reviewId = r.id!!,
+        prisonerNumber = r.prisonerNumber,
+        firstName = name?.firstName,
+        lastName = name?.lastName,
+        startedOn = r.assessmentDate,
+        startedBy = r.createdBy,
+      )
+    }.sortedWith(compareBy({ it.startedOn }, { it.lastName?.lowercase() }, { it.firstName?.lowercase() }))
+    return CsraReviewsInProgress(content = content, totalResults = content.size)
   }
 
   fun getCurrentRating(prisonerNumber: String): CsraCurrentRating {

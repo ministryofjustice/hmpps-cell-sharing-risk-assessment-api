@@ -3,6 +3,7 @@ package uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.integration.wi
 import com.github.tomakehurst.wiremock.WireMockServer
 import com.github.tomakehurst.wiremock.client.WireMock.aResponse
 import com.github.tomakehurst.wiremock.client.WireMock.get
+import com.github.tomakehurst.wiremock.client.WireMock.post
 import com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo
 import org.junit.jupiter.api.extension.AfterAllCallback
 import org.junit.jupiter.api.extension.BeforeAllCallback
@@ -62,6 +63,21 @@ class PrisonerSearchMockServer : WireMockServer(WIREMOCK_PORT) {
   }
 
   data class RollMemberStub(val prisonerNumber: String, val firstName: String, val lastName: String)
+
+  /** Stub the bulk names lookup (POST /prisoner-search/prisoner-numbers) with the given members. */
+  fun stubGetPrisonerNames(members: List<RollMemberStub>) {
+    val body = members.joinToString(",") {
+      """{"prisonerNumber":"${it.prisonerNumber}","firstName":"${it.firstName}","lastName":"${it.lastName}"}"""
+    }
+    stubFor(
+      post(urlPathEqualTo("/prisoner-search/prisoner-numbers")).willReturn(
+        aResponse()
+          .withHeader("Content-Type", "application/json")
+          .withBody("[$body]")
+          .withStatus(200),
+      ),
+    )
+  }
 
   fun stubHealthPing(status: Int) {
     stubFor(

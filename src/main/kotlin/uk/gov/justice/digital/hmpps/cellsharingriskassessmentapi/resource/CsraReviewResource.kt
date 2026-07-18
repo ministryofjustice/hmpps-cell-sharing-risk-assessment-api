@@ -319,4 +319,57 @@ class CsraReviewResource(
     sort = sort,
     direction = direction,
   )
+
+  @GetMapping("/prison/{prisonId}/assessments-in-progress")
+  @ResponseStatus(HttpStatus.OK)
+  @Operation(
+    summary = "Returns a prison's in-progress CSRA initial assessments",
+    description = "The 'assessments in progress' worklist, split into assessments started with no rating " +
+      "entered yet and assessments with a provisional rating awaiting a final rating. Requires role " +
+      "ROLE_CSRA_REVIEW__R",
+    responses = [
+      ApiResponse(responseCode = "200", description = "Returns the in-progress assessments"),
+      ApiResponse(
+        responseCode = "401",
+        description = "Unauthorized to access this endpoint",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
+      ),
+      ApiResponse(
+        responseCode = "403",
+        description = "Missing required role. Requires the ROLE_CSRA_REVIEW__R role",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
+      ),
+    ],
+  )
+  fun getAssessmentsInProgress(
+    @Parameter(description = "The prison id", example = "LEI", required = true)
+    @PathVariable
+    prisonId: String,
+  ) = csraReviewService.getAssessmentsInProgress(prisonId = prisonId)
+
+  @GetMapping("/prison/{prisonId}/reviews-in-progress")
+  @ResponseStatus(HttpStatus.OK)
+  @Operation(
+    summary = "Returns a prison's in-progress CSRA reviews",
+    description = "The 'reviews in progress' worklist: prisoners with a cell sharing risk review started " +
+      "but not yet completed. Requires role ROLE_CSRA_REVIEW__R",
+    responses = [
+      ApiResponse(responseCode = "200", description = "Returns the in-progress reviews"),
+      ApiResponse(
+        responseCode = "401",
+        description = "Unauthorized to access this endpoint",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
+      ),
+      ApiResponse(
+        responseCode = "403",
+        description = "Missing required role. Requires the ROLE_CSRA_REVIEW__R role",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
+      ),
+    ],
+  )
+  fun getReviewsInProgress(
+    @Parameter(description = "The prison id", example = "LEI", required = true)
+    @PathVariable
+    prisonId: String,
+  ) = csraReviewService.getReviewsInProgress(prisonId = prisonId)
 }
