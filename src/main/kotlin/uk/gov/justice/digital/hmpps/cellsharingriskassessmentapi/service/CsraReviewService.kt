@@ -5,8 +5,11 @@ import org.springframework.data.domain.Sort
 import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.client.PrisonApiClient
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.client.PrisonRegisterClient
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.client.PrisonerSearchClient
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraArrivalRow
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraArrivalType
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentStartedRow
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentTypeBucket
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentsInProgress
@@ -24,6 +27,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraProvisi
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraRatingBucket
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraRatingFilter
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraRatingStatus
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraRecentArrivals
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraReview
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraReviewHistory
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraReviewHistorySummary
@@ -50,6 +54,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraReviewRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraReviewSpecifications
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraSummaryRow
+import java.time.Clock
 import java.time.LocalDate
 import java.util.UUID
 
@@ -62,6 +67,8 @@ class CsraReviewService(
   private val csraNextReviewRepository: CsraNextReviewRepository,
   private val prisonRegisterClient: PrisonRegisterClient,
   private val prisonerSearchClient: PrisonerSearchClient,
+  private val prisonApiClient: PrisonApiClient,
+  private val clock: Clock,
 ) {
   fun getCsraReviewById(id: UUID): CsraReview? = csraReviewRepository.findByIdOrNull(id)?.toDto()
 
@@ -288,6 +295,51 @@ class CsraReviewService(
       )
     }.sortedWith(compareBy({ it.startedOn }, { it.lastName?.lowercase() }, { it.firstName?.lowercase() }))
     return CsraReviewsInProgress(content = content, totalResults = content.size)
+  }
+
+  /**
+   * Prisoners who arrived at [prisonId] in the last [days] days and are still in the establishment (the
+   * "recent arrivals" worklist). Arrivals come from prison-api movements (the source of truth); anyone no
+   * longer in the establishment (released or moved on) is excluded via the prisoner-search roll. One row
+   * per prisoner — their most recent arrival in the window.
+   */
+  fun getRecentArrivals(prisonId: String, days: Int, arrivalTypes: List<CsraArrivalType>?): CsraRecentArrivals {
+    val today = LocalDate.now(clock)
+    val fromDate = today.minusDays((days - 1).toLong())
+    val roll = prisonerSearchClient.getPrisonRoll(prisonId).toSet()
+
+    val arrivals = prisonApiClient.getArrivals(prisonId, fromDate.atStartOfDay())
+      .mapNotNull { movement ->
+        val type = CsraArrivalType.fromMovementType(movement.movementType) ?: return@mapNotNull null
+        val arrivedAt = movement.movementDateTime ?: return@mapNotNull null
+        if (movement.offenderNo !in roll) return@mapNotNull null
+        CsraArrivalRow(
+          prisonerNumber = movement.offenderNo,
+          firstName = movement.firstName,
+          lastName = movement.lastName,
+          dateOfBirth = movement.dateOfBirth,
+          arrivalType = type,
+          arrivedAt = arrivedAt,
+          location = movement.location,
+        )
+      }
+      // One row per prisoner: their most recent arrival in the window.
+      .groupBy { it.prisonerNumber }
+      .map { (_, rows) -> rows.maxBy { it.arrivedAt } }
+
+    val arrivalTypeCounts = CsraArrivalType.entries.associateWith { type -> arrivals.count { it.arrivalType == type } }
+
+    val filtered = arrivals
+      .filter { arrivalTypes == null || it.arrivalType in arrivalTypes }
+      .sortedByDescending { it.arrivedAt }
+
+    return CsraRecentArrivals(
+      arrivals = filtered,
+      totalResults = filtered.size,
+      arrivalTypeCounts = arrivalTypeCounts,
+      fromDate = fromDate,
+      toDate = today,
+    )
   }
 
   fun getCurrentRating(prisonerNumber: String): CsraCurrentRating {

@@ -17,6 +17,7 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraArrivalType
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentTypeBucket
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraHighRiskSortField
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraHighRiskType
@@ -372,4 +373,38 @@ class CsraReviewResource(
     @PathVariable
     prisonId: String,
   ) = csraReviewService.getReviewsInProgress(prisonId = prisonId)
+
+  @GetMapping("/prison/{prisonId}/recent-arrivals")
+  @ResponseStatus(HttpStatus.OK)
+  @Operation(
+    summary = "Returns prisoners who recently arrived at a prison",
+    description = "Prisoners who arrived at the prison in the last N days (default 3) and are still in the " +
+      "establishment, most recent first, with their arrival type and time. Arrivals come from prison-api " +
+      "movements; anyone no longer in the establishment is excluded via the prisoner-search roll. One row " +
+      "per prisoner (their most recent arrival). Requires role ROLE_CSRA_REVIEW__R",
+    responses = [
+      ApiResponse(responseCode = "200", description = "Returns the recent arrivals"),
+      ApiResponse(
+        responseCode = "401",
+        description = "Unauthorized to access this endpoint",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
+      ),
+      ApiResponse(
+        responseCode = "403",
+        description = "Missing required role. Requires the ROLE_CSRA_REVIEW__R role",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
+      ),
+    ],
+  )
+  fun getRecentArrivals(
+    @Parameter(description = "The prison id", example = "LEI", required = true)
+    @PathVariable
+    prisonId: String,
+    @Parameter(description = "The number of days back to include (inclusive of today)", example = "3")
+    @RequestParam(defaultValue = "3")
+    days: Int,
+    @Parameter(description = "Only include these arrival types")
+    @RequestParam(required = false)
+    arrivalTypes: List<CsraArrivalType>?,
+  ) = csraReviewService.getRecentArrivals(prisonId = prisonId, days = days, arrivalTypes = arrivalTypes)
 }

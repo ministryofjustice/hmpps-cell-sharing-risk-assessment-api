@@ -14,6 +14,9 @@ prison-register:
 prisoner-search:
   url: "http://localhost:8092"
 
+prison-api:
+  url: "http://localhost:8093"
+
 system:
   client:
     id: test-client-id

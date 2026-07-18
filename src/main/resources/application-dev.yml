@@ -7,6 +7,9 @@ prison-register:
 prisoner-search:
   url: "http://localhost:8092"
 
+prison-api:
+  url: "http://localhost:8093"
+
 spring:
 
   datasource:

@@ -15,6 +15,7 @@ class WebClientConfiguration(
   @param:Value("\${hmpps-auth.url}") val hmppsAuthBaseUri: String,
   @param:Value("\${prison-register.url}") val prisonRegisterBaseUri: String,
   @param:Value("\${prisoner-search.url}") val prisonerSearchBaseUri: String,
+  @param:Value("\${prison-api.url}") val prisonApiBaseUri: String,
   @param:Value("\${api.health-timeout:2s}") val healthTimeout: Duration,
   @param:Value("\${api.timeout:20s}") val timeout: Duration,
 ) {
@@ -44,4 +45,20 @@ class WebClientConfiguration(
 
   @Bean
   fun prisonerSearchHealthWebClient(builder: WebClient.Builder): WebClient = builder.healthWebClient(prisonerSearchBaseUri, healthTimeout)
+
+  // prison-api movement lookups require an access token, so this client is authenticated (the system
+  // client also needs the ROLE_ESTABLISHMENT_ROLL role for the movements endpoint).
+  @Bean
+  fun prisonApiWebClient(
+    authorizedClientManager: OAuth2AuthorizedClientManager,
+    builder: WebClient.Builder,
+  ): WebClient = builder.authorisedWebClient(
+    authorizedClientManager,
+    registrationId = SYSTEM_USERNAME,
+    url = prisonApiBaseUri,
+    timeout,
+  )
+
+  @Bean
+  fun prisonApiHealthWebClient(builder: WebClient.Builder): WebClient = builder.healthWebClient(prisonApiBaseUri, healthTimeout)
 }
