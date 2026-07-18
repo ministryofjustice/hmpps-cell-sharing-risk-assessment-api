@@ -46,7 +46,7 @@ class CsraPrisonPrisonersResourceTest : SqsIntegrationTestBase() {
       createdAt = LocalDateTime.parse("2026-01-02T09:00:00"),
       createdBy = "NQP56Y",
     ),
-  )
+  ).also { refreshCurrentRating(it.prisonerNumber) }
 
   // A fixed 6-prisoner roll: standard, no-record, high-general review, in-progress review, high-specific, provisional.
   private fun seedRoll() {

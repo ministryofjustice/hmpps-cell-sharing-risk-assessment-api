@@ -25,17 +25,17 @@ import java.time.LocalDateTime
 @Transactional
 class CsraMovementService(
   private val csraReviewRepository: CsraReviewRepository,
+  private val csraCurrentRatingService: CsraCurrentRatingService,
   private val telemetryClient: TelemetryClient,
   private val clock: Clock,
 ) {
   /**
-   * Readmission after a period of release (R-01): close/archive any in-progress review.
-   *
-   * TODO (PR-2): also reset the prisoner's current CSRA rating to "No rating" via the csra_current_rating
-   * projection. Until then this behaves the same as a transfer, minus the reset.
+   * Readmission after a period of release (R-01): close/archive any in-progress review and reset the
+   * prisoner's current CSRA rating to "No rating" (a fresh period of custody starts with no rating).
    */
   fun handleReadmission(prisonerNumber: String, prisonId: String?) {
     closeOrArchiveInProgress(prisonerNumber, prisonId, "readmission")
+    csraCurrentRatingService.resetToNoRating(prisonerNumber, SYSTEM_USERNAME)
   }
 
   /** Transfer to another establishment with no release between (R-02): close/archive any in-progress review. */

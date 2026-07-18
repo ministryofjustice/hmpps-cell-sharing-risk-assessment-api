@@ -7,7 +7,6 @@ import org.springframework.stereotype.Repository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewStatus
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraType
-import java.time.LocalDate
 import java.util.UUID
 
 @Repository
@@ -23,14 +22,19 @@ interface CsraReviewRepository :
   fun findAllByPrisonerNumberAndStatus(prisonerNumber: String, status: CsraReviewStatus): List<CsraReviewEntity>
 
   /**
-   * The prisoner's most recent review that still counts towards the current rating (latest assessment
-   * date, then newest id), or null if none. ARCHIVED reviews (deleted on admission) are excluded; CLOSED
-   * ones are kept because their provisional/interim rating remains the current rating.
+   * A prisoner's rated, non-[excludedStatus] reviews, most recent first — the first is the review that
+   * sets the current rating (drives the csra_current_rating projection). Pass ARCHIVED for [excludedStatus].
    */
-  fun findFirstByPrisonerNumberAndStatusNotOrderByAssessmentDateDescIdDesc(
-    prisonerNumber: String,
-    status: CsraReviewStatus,
-  ): CsraReviewEntity?
+  @Query(
+    """
+    SELECT r FROM CsraReviewEntity r
+    WHERE r.prisonerNumber = :prisonerNumber
+      AND (r.finalResult IS NOT NULL OR r.interimResult IS NOT NULL)
+      AND r.status <> :excludedStatus
+    ORDER BY r.assessmentDate DESC, r.id DESC
+    """,
+  )
+  fun findRatedReviews(prisonerNumber: String, excludedStatus: CsraReviewStatus): List<CsraReviewEntity>
 
   /**
    * Genuinely in-progress reviews of a given type at a prison — the "assessments/reviews in progress"
@@ -55,70 +59,4 @@ interface CsraReviewRepository :
     """,
   )
   fun findSummaryRows(prisonerNumber: String): List<CsraSummaryRow>
-
-  /**
-   * For the given prisoners, counts how many have each current rating. A prisoner's current rating is
-   * their latest review's `COALESCE(final_result, interim_result)` (consistent with
-   * [findFirstByPrisonerNumberOrderByAssessmentDateDescIdDesc] / `getCurrentRating`). Prisoners whose
-   * latest review has no saved rating appear under a `null` currentResult; prisoners with no review at
-   * all are simply absent (they are "No rating", derived by the caller as roll − rated).
-   */
-  @Query(
-    value = """
-      SELECT current_result AS currentResult, COUNT(*) AS count
-      FROM (
-        SELECT DISTINCT ON (prisoner_number) COALESCE(final_result, interim_result) AS current_result
-        FROM csra_review
-        WHERE prisoner_number IN (:prisonerNumbers)
-          AND status <> 'ARCHIVED'
-        ORDER BY prisoner_number, assessment_date DESC, id DESC
-      ) latest
-      GROUP BY current_result
-    """,
-    nativeQuery = true,
-  )
-  fun countCurrentRatingsByPrisonerNumberIn(prisonerNumbers: Collection<String>): List<CurrentRatingCount>
-
-  /**
-   * The latest review per prisoner for the given prisoners, projected for prison-scoped prisoner lists.
-   * Same latest-review-per-prisoner semantics as [countCurrentRatingsByPrisonerNumberIn] /
-   * [findFirstByPrisonerNumberOrderByAssessmentDateDescIdDesc]. Prisoners with no review are absent.
-   */
-  @Query(
-    value = """
-      SELECT DISTINCT ON (prisoner_number)
-             prisoner_number AS prisonerNumber, final_result AS finalResult,
-             interim_result AS interimResult, type AS type,
-             assessment_date AS assessmentDate, final_result_date AS finalResultDate
-      FROM csra_review
-      WHERE prisoner_number IN (:prisonerNumbers)
-        AND status <> 'ARCHIVED'
-      ORDER BY prisoner_number, assessment_date DESC, id DESC
-    """,
-    nativeQuery = true,
-  )
-  fun findCurrentReviewsByPrisonerNumberIn(prisonerNumbers: Collection<String>): List<CurrentReviewRow>
-}
-
-/** Projection of [CsraReviewRepository.countCurrentRatingsByPrisonerNumberIn]: a current-rating value and its count. */
-interface CurrentRatingCount {
-  /** The stored [uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraResult] name, or null for an in-progress (unrated) latest review. */
-  val currentResult: String?
-  val count: Long
-}
-
-/** Projection of [CsraReviewRepository.findCurrentReviewsByPrisonerNumberIn]: a prisoner's latest review. */
-interface CurrentReviewRow {
-  val prisonerNumber: String
-
-  /** Stored [uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraResult] name, or null. */
-  val finalResult: String?
-
-  /** Stored [uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraResult] name, or null. */
-  val interimResult: String?
-
-  /** Stored [uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraType] name. */
-  val type: String
-  val assessmentDate: LocalDate
-  val finalResultDate: LocalDate?
 }

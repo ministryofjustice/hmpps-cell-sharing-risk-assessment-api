@@ -41,6 +41,7 @@ class CsraAssessmentService(
   private val csraAssessmentStageRepository: CsraAssessmentStageRepository,
   private val csraNextReviewRepository: CsraNextReviewRepository,
   private val csraReviewService: CsraReviewService,
+  private val csraCurrentRatingService: CsraCurrentRatingService,
   private val eventPublishAndAuditService: EventPublishAndAuditService,
   private val authenticationHolder: HmppsAuthenticationHolder,
   private val clock: Clock,
@@ -102,6 +103,9 @@ class CsraAssessmentService(
     review.lastModifiedAt = now
     review.lastModifiedBy = username
     csraReviewRepository.saveAndFlush(review)
+
+    // A saved provisional/final rating becomes the prisoner's current rating.
+    csraCurrentRatingService.refreshFromReviews(prisonerNumber, username)
 
     eventPublishAndAuditService.publishEvent(
       eventType = if (created) CSRADomainEventType.CSRA_CREATED else CSRADomainEventType.CSRA_AMENDED,

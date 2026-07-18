@@ -14,6 +14,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraResult
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewStatus
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraType
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraCurrentRatingRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraReviewRepository
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -23,6 +24,9 @@ class PrisonerMovementListenerTest : SqsIntegrationTestBase() {
 
   @Autowired
   private lateinit var csraReviewRepository: CsraReviewRepository
+
+  @Autowired
+  private lateinit var csraCurrentRatingRepository: CsraCurrentRatingRepository
 
   @MockitoBean
   private lateinit var telemetryClient: TelemetryClient
@@ -94,6 +98,30 @@ class PrisonerMovementListenerTest : SqsIntegrationTestBase() {
     send("A3333AA", "MDI", "NEW_ADMISSION")
 
     awaitStatus(review.id!!, CsraReviewStatus.CLOSED)
+  }
+
+  @Test
+  fun `readmission resets the current rating to No rating even when a prior rated review exists`() {
+    // A completed rating from a previous period of custody.
+    csraReviewRepository.saveAndFlush(
+      CsraReviewEntity(
+        prisonerNumber = "A6666AA",
+        prisonId = "LEI",
+        assessmentDate = LocalDate.parse("2023-06-01"),
+        type = CsraType.CSRA_INITIAL_REVIEW,
+        finalResult = CsraResult.STANDARD,
+        finalResultDate = LocalDate.parse("2023-06-01"),
+        status = CsraReviewStatus.COMPLETE,
+        createdAt = LocalDateTime.parse("2023-06-01T09:00:00"),
+        createdBy = "NQP56Y",
+      ),
+    )
+    csraCurrentRatingService.refreshFromReviews("A6666AA")
+    assertThat(csraCurrentRatingRepository.findByPrisonerNumber("A6666AA")!!.rating).isEqualTo(CsraResult.STANDARD)
+
+    send("A6666AA", "MDI", "READMISSION")
+
+    await.until { csraCurrentRatingRepository.findByPrisonerNumber("A6666AA")?.rating == null }
   }
 
   @Test

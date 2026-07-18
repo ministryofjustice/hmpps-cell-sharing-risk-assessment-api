@@ -97,59 +97,21 @@ class CsraReviewRepositoryTest : TestBase() {
   }
 
   @Test
-  fun `counts current ratings per prisoner using the latest review, bucketing null for in-progress`() {
-    // High: final HIGH, provisional HIGH_GENERAL, final HIGH_SPECIFIC
-    repository.save(ratedReview("H0001AA", LocalDate.parse("2026-03-01"), finalResult = CsraResult.HIGH))
-    repository.save(ratedReview("H0002AA", LocalDate.parse("2026-03-01"), interimResult = CsraResult.HIGH_GENERAL))
-    repository.save(ratedReview("H0003AA", LocalDate.parse("2026-03-01"), finalResult = CsraResult.HIGH_SPECIFIC))
-    // Standard
-    repository.save(ratedReview("S0001AA", LocalDate.parse("2026-03-01"), finalResult = CsraResult.STANDARD))
-    // In progress -> current rating null
-    repository.save(ratedReview("N0001AA", LocalDate.parse("2026-03-01")))
-    // Latest review wins: an old HIGH superseded by a newer STANDARD
-    repository.save(ratedReview("L0001AA", LocalDate.parse("2024-01-01"), finalResult = CsraResult.HIGH))
-    repository.save(ratedReview("L0001AA", LocalDate.parse("2026-02-01"), finalResult = CsraResult.STANDARD))
-    repository.flush()
-
-    val counts = repository.countCurrentRatingsByPrisonerNumberIn(
-      listOf("H0001AA", "H0002AA", "H0003AA", "S0001AA", "N0001AA", "L0001AA", "MISSING99"),
-    ).associate { it.currentResult to it.count }
-
-    assertThat(counts[CsraResult.HIGH.name]).isEqualTo(1)
-    assertThat(counts[CsraResult.HIGH_GENERAL.name]).isEqualTo(1)
-    assertThat(counts[CsraResult.HIGH_SPECIFIC.name]).isEqualTo(1)
-    assertThat(counts[CsraResult.STANDARD.name]).isEqualTo(2) // S0001AA + L0001AA (latest STANDARD)
-    assertThat(counts[null]).isEqualTo(1) // N0001AA in progress
-  }
-
-  @Test
-  fun `finds the latest review per prisoner with its projected fields`() {
+  fun `finds a prisoner's rated non-archived reviews, most recent first`() {
     repository.save(ratedReview("R0001AA", LocalDate.parse("2024-01-01"), finalResult = CsraResult.HIGH))
-    repository.save(ratedReview("R0001AA", LocalDate.parse("2026-02-01"), finalResult = CsraResult.STANDARD)) // latest
-    repository.save(ratedReview("R0002AA", LocalDate.parse("2026-03-01"), interimResult = CsraResult.HIGH_GENERAL)) // provisional
-    repository.save(ratedReview("R0003AA", LocalDate.parse("2026-03-01"))) // in progress, no rating
+    repository.save(ratedReview("R0001AA", LocalDate.parse("2026-02-01"), finalResult = CsraResult.STANDARD)) // latest rated
+    repository.save(ratedReview("R0001AA", LocalDate.parse("2026-03-01"))) // in progress, unrated -> excluded
+    repository.save(
+      ratedReview("R0001AA", LocalDate.parse("2027-01-01"), finalResult = CsraResult.HIGH)
+        .apply { status = CsraReviewStatus.ARCHIVED }, // archived -> excluded
+    )
     repository.flush()
 
-    val rows = repository
-      .findCurrentReviewsByPrisonerNumberIn(listOf("R0001AA", "R0002AA", "R0003AA", "MISSING99"))
-      .associateBy { it.prisonerNumber }
+    val rated = repository.findRatedReviews("R0001AA", CsraReviewStatus.ARCHIVED)
 
-    assertThat(rows).hasSize(3)
-
-    val latest = rows.getValue("R0001AA")
-    assertThat(latest.finalResult).isEqualTo(CsraResult.STANDARD.name)
-    assertThat(latest.interimResult).isNull()
-    assertThat(latest.type).isEqualTo(CsraType.CSRA_INITIAL_REVIEW.name)
-    assertThat(latest.assessmentDate).isEqualTo(LocalDate.parse("2026-02-01"))
-    assertThat(latest.finalResultDate).isEqualTo(LocalDate.parse("2026-02-01"))
-
-    val provisional = rows.getValue("R0002AA")
-    assertThat(provisional.finalResult).isNull()
-    assertThat(provisional.interimResult).isEqualTo(CsraResult.HIGH_GENERAL.name)
-
-    val inProgress = rows.getValue("R0003AA")
-    assertThat(inProgress.finalResult).isNull()
-    assertThat(inProgress.interimResult).isNull()
+    // Most recent first, so the first is the current rating (STANDARD), excluding the unrated and archived rows.
+    assertThat(rated.map { it.finalResult ?: it.interimResult })
+      .containsExactly(CsraResult.STANDARD, CsraResult.HIGH)
   }
 
   @Test

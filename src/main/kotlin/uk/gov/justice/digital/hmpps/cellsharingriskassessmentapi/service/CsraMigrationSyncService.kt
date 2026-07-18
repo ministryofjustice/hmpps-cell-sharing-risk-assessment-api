@@ -33,6 +33,7 @@ class CsraMigrationSyncService(
   private val csraReviewRepository: CsraReviewRepository,
   private val csraReviewNomisRepository: CsraReviewNomisRepository,
   private val csraNextReviewRepository: CsraNextReviewRepository,
+  private val csraCurrentRatingService: CsraCurrentRatingService,
   private val telemetryClient: TelemetryClient,
   private val clock: Clock,
 ) {
@@ -51,6 +52,9 @@ class CsraMigrationSyncService(
     // win). A migrate is an authoritative full load, so the latest in this batch is the current one.
     saved.reduceOrNull { latest, next -> if (next.first.assessmentDate >= latest.first.assessmentDate) next else latest }
       ?.let { (review, savedReview) -> upsertNextReview(prisonerNumber, review.nextReviewDate, savedReview.id!!, review.createdBy) }
+
+    // Recompute the prisoner's current rating from the freshly loaded reviews.
+    csraCurrentRatingService.refreshFromReviews(prisonerNumber)
 
     log.info("Migrated {} CSRA review(s) for {}", saved.size, prisonerNumber)
     telemetryClient.trackEvent(
@@ -86,6 +90,9 @@ class CsraMigrationSyncService(
     if (csraReviewRepository.findFirstByPrisonerNumberOrderByAssessmentDateDescIdDesc(prisonerNumber)?.id == review.id) {
       upsertNextReview(prisonerNumber, request.review.nextReviewDate, review.id!!, request.review.createdBy)
     }
+
+    // Recompute the prisoner's current rating (the synced review may have gained or changed a rating).
+    csraCurrentRatingService.refreshFromReviews(prisonerNumber)
 
     log.info("Synchronised CSRA review {} for {} (created={})", review.id, prisonerNumber, created)
     telemetryClient.trackEvent(

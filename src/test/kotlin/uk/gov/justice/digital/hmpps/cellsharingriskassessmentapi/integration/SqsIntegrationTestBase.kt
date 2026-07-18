@@ -15,6 +15,7 @@ import software.amazon.awssdk.services.sqs.model.PurgeQueueRequest
 import software.amazon.awssdk.services.sqs.model.ReceiveMessageRequest
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.config.LocalStackContainer
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.config.LocalStackContainer.setLocalStackProperties
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.service.CsraCurrentRatingService
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.service.HMPPSDomainEvent
 import uk.gov.justice.hmpps.sqs.HmppsQueue
 import uk.gov.justice.hmpps.sqs.HmppsQueueService
@@ -38,6 +39,14 @@ class SqsIntegrationTestBase : IntegrationTestBase() {
 
   @Autowired
   private lateinit var hmppsQueueService: HmppsQueueService
+
+  @Autowired
+  protected lateinit var csraCurrentRatingService: CsraCurrentRatingService
+
+  /** Populates the current-rating projection for a directly-seeded prisoner (mirrors production maintenance). */
+  protected fun refreshCurrentRating(prisonerNumber: String) {
+    csraCurrentRatingService.refreshFromReviews(prisonerNumber)
+  }
 
   private val auditQueue by lazy { hmppsQueueService.findByQueueId("audit") as HmppsQueue }
   private val testDomainEventQueue by lazy { hmppsQueueService.findByQueueId("test") as HmppsQueue }
