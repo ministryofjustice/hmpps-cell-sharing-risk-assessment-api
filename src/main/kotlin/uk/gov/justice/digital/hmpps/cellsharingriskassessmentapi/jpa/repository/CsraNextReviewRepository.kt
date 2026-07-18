@@ -8,4 +8,6 @@ import java.util.UUID
 @Repository
 interface CsraNextReviewRepository : JpaRepository<CsraNextReviewEntity, UUID> {
   fun findByPrisonerNumber(prisonerNumber: String): CsraNextReviewEntity?
+
+  fun findAllByPrisonerNumberIn(prisonerNumbers: Collection<String>): List<CsraNextReviewEntity>
 }

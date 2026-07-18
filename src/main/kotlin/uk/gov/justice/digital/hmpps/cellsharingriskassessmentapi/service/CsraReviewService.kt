@@ -10,6 +10,10 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.client.Prisoner
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentTypeBucket
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraCurrentRating
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraEstablishment
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraHighRiskDueForReview
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraHighRiskReviewRow
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraHighRiskSortField
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraHighRiskType
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraPrisonPrisoner
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraPrisonPrisonerList
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraPrisonRatingSummary
@@ -147,6 +151,73 @@ class CsraReviewService(
       CsraPrisonerSortField.ASSESSMENT_TYPE -> compareBy { it.assessmentType }
       CsraPrisonerSortField.ASSESSED_ON -> compareBy { it.assessedOn }
       CsraPrisonerSortField.RATING -> compareBy { ratingSortOrder(it.rating) }
+    }
+    return if (direction == CsraSortDirection.DESC) base.reversed() else base
+  }
+
+  /**
+   * The "high risk prisoners due for review" worklist for a prison: everyone currently in the prison
+   * whose current rating is high-risk AND who has a scheduled next review date (csra_next_review).
+   * Not paginated. Also returns the distinct rating types present (for the dynamic filter checkboxes),
+   * computed over the whole establishment's due set (unaffected by the applied filters).
+   */
+  fun getHighRiskDueForReview(
+    prisonId: String,
+    ratingTypes: List<CsraHighRiskType>?,
+    reviewDateFrom: LocalDate?,
+    reviewDateTo: LocalDate?,
+    sort: CsraHighRiskSortField,
+    direction: CsraSortDirection,
+  ): CsraHighRiskDueForReview {
+    val numbers = prisonerSearchClient.getPrisonRollMembers(prisonId)
+    val currentByPrisoner = numbers.map { it.prisonerNumber }.chunked(RATING_COUNT_BATCH_SIZE)
+      .flatMap { csraReviewRepository.findCurrentReviewsByPrisonerNumberIn(it) }
+      .associateBy { it.prisonerNumber }
+    val nextReviewDateByPrisoner = numbers.map { it.prisonerNumber }.chunked(RATING_COUNT_BATCH_SIZE)
+      .flatMap { csraNextReviewRepository.findAllByPrisonerNumberIn(it) }
+      .mapNotNull { entity -> entity.nextReviewDate?.let { entity.prisonerNumber to it } }
+      .toMap()
+
+    val dueSet = numbers.mapNotNull { member ->
+      val reviewDueBy = nextReviewDateByPrisoner[member.prisonerNumber] ?: return@mapNotNull null
+      val row = currentByPrisoner[member.prisonerNumber] ?: return@mapNotNull null
+      val rating = (row.finalResult ?: row.interimResult)?.let { CsraResult.valueOf(it) } ?: return@mapNotNull null
+      if (!rating.isHigh()) return@mapNotNull null
+      val provisional = row.finalResult == null && row.interimResult != null
+      CsraHighRiskReviewRow(
+        prisonerNumber = member.prisonerNumber,
+        firstName = member.firstName,
+        lastName = member.lastName,
+        reviewDueBy = reviewDueBy,
+        ratingType = CsraHighRiskType.from(rating, provisional)!!,
+        rating = rating,
+        provisional = provisional,
+        lastRatingSource = CsraType.valueOf(row.type).toAssessmentBucket(),
+        lastRatingDate = row.finalResultDate ?: row.assessmentDate,
+      )
+    }
+
+    val availableRatingTypes = dueSet.map { it.ratingType }.distinct().sorted()
+
+    val filtered = dueSet.filter { r ->
+      (ratingTypes == null || r.ratingType in ratingTypes) &&
+        (reviewDateFrom == null || !r.reviewDueBy.isBefore(reviewDateFrom)) &&
+        (reviewDateTo == null || !r.reviewDueBy.isAfter(reviewDateTo))
+    }
+
+    val sorted = filtered.sortedWith(highRiskComparatorFor(sort, direction).thenBy { it.prisonerNumber })
+
+    return CsraHighRiskDueForReview(
+      content = sorted,
+      totalResults = sorted.size,
+      availableRatingTypes = availableRatingTypes,
+    )
+  }
+
+  private fun highRiskComparatorFor(sort: CsraHighRiskSortField, direction: CsraSortDirection): Comparator<CsraHighRiskReviewRow> {
+    val base: Comparator<CsraHighRiskReviewRow> = when (sort) {
+      CsraHighRiskSortField.REVIEW_DUE_BY -> compareBy({ it.reviewDueBy }, { it.lastName?.lowercase() }, { it.firstName?.lowercase() })
+      CsraHighRiskSortField.NAME -> compareBy({ it.lastName?.lowercase() }, { it.firstName?.lowercase() })
     }
     return if (direction == CsraSortDirection.DESC) base.reversed() else base
   }

@@ -18,6 +18,8 @@ import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentTypeBucket
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraHighRiskSortField
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraHighRiskType
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraPrisonerSortField
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraRatingBucket
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraRatingFilter
@@ -259,5 +261,62 @@ class CsraReviewResource(
     direction = direction,
     page = page,
     size = size,
+  )
+
+  @GetMapping("/prison/{prisonId}/high-risk-due-for-review")
+  @ResponseStatus(HttpStatus.OK)
+  @Operation(
+    summary = "Returns a prison's high risk prisoners due for a cell sharing risk review",
+    description = "Everyone currently in the prison whose current CSRA rating is high-risk (High, " +
+      "High – general, High – general (interim), or High – specific) and who has a scheduled next review " +
+      "date. Each row carries the review due date, the rating type, and whether the current rating came " +
+      "from an assessment or a review (for the 'Last assessed'/'Last reviewed' line). Overdue is derived " +
+      "on the client from the due date. Not paginated. The response also lists the rating types present " +
+      "across the establishment for the dynamic filter. Requires role ROLE_CSRA_REVIEW__R",
+    responses = [
+      ApiResponse(
+        responseCode = "200",
+        description = "Returns the high risk prisoners due for review",
+      ),
+      ApiResponse(
+        responseCode = "401",
+        description = "Unauthorized to access this endpoint",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
+      ),
+      ApiResponse(
+        responseCode = "403",
+        description = "Missing required role. Requires the ROLE_CSRA_REVIEW__R role",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
+      ),
+    ],
+  )
+  fun getHighRiskDueForReview(
+    @Parameter(description = "The prison id", example = "LEI", required = true)
+    @PathVariable
+    prisonId: String,
+    @Parameter(description = "Only include prisoners with these high-risk rating types")
+    @RequestParam(required = false)
+    ratingTypes: List<CsraHighRiskType>?,
+    @Parameter(description = "Only include reviews due on or after this date (inclusive)", example = "2026-01-01")
+    @RequestParam(required = false)
+    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+    reviewDateFrom: LocalDate?,
+    @Parameter(description = "Only include reviews due on or before this date (inclusive)", example = "2026-12-31")
+    @RequestParam(required = false)
+    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+    reviewDateTo: LocalDate?,
+    @Parameter(description = "Column to sort by")
+    @RequestParam(defaultValue = "REVIEW_DUE_BY")
+    sort: CsraHighRiskSortField,
+    @Parameter(description = "Sort direction")
+    @RequestParam(defaultValue = "ASC")
+    direction: CsraSortDirection,
+  ) = csraReviewService.getHighRiskDueForReview(
+    prisonId = prisonId,
+    ratingTypes = ratingTypes,
+    reviewDateFrom = reviewDateFrom,
+    reviewDateTo = reviewDateTo,
+    sort = sort,
+    direction = direction,
   )
 }
