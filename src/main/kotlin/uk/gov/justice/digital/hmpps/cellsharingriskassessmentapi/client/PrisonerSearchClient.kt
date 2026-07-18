@@ -20,21 +20,24 @@ class PrisonerSearchClient(
   @param:Qualifier("prisonerSearchWebClient") private val webClient: WebClient,
 ) {
   /** The prisoner numbers of everyone currently in [prisonId]. */
-  fun getPrisonRoll(prisonId: String): List<String> {
-    val numbers = mutableListOf<String>()
+  fun getPrisonRoll(prisonId: String): List<String> = getPrisonRollMembers(prisonId).map { it.prisonerNumber }
+
+  /** Everyone currently in [prisonId], with their names (for prison-scoped prisoner lists). */
+  fun getPrisonRollMembers(prisonId: String): List<PrisonRollMember> {
+    val members = mutableListOf<PrisonRollMember>()
     var page = 0
     do {
       val result = fetchPage(prisonId, page)
-      numbers += result.content.map { it.prisonerNumber }
+      members += result.content.map { PrisonRollMember(it.prisonerNumber, it.firstName, it.lastName) }
       page++
     } while (page < result.totalPages)
-    return numbers
+    return members
   }
 
   private fun fetchPage(prisonId: String, page: Int): PrisonRollPage = webClient
     .get()
     .uri(
-      "/prisoner-search/prison/{prisonId}?page={page}&size={size}&responseFields=prisonerNumber",
+      "/prisoner-search/prison/{prisonId}?page={page}&size={size}&responseFields=prisonerNumber,firstName,lastName",
       mapOf("prisonId" to prisonId, "page" to page, "size" to PAGE_SIZE),
     )
     .retrieve()
@@ -46,6 +49,13 @@ class PrisonerSearchClient(
   }
 }
 
+/** A member of a prison's roll: their number and name. */
+data class PrisonRollMember(
+  val prisonerNumber: String,
+  val firstName: String?,
+  val lastName: String?,
+)
+
 @JsonIgnoreProperties(ignoreUnknown = true)
 data class PrisonRollPage(
   val content: List<PrisonRollEntry> = emptyList(),
@@ -54,4 +64,8 @@ data class PrisonRollPage(
 )
 
 @JsonIgnoreProperties(ignoreUnknown = true)
-data class PrisonRollEntry(val prisonerNumber: String)
+data class PrisonRollEntry(
+  val prisonerNumber: String,
+  val firstName: String? = null,
+  val lastName: String? = null,
+)

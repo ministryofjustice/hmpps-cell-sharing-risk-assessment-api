@@ -7,19 +7,26 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.client.PrisonRegisterClient
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.client.PrisonerSearchClient
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentTypeBucket
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraCurrentRating
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraEstablishment
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraPrisonPrisoner
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraPrisonPrisonerList
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraPrisonRatingSummary
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraPrisonerSortField
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraRatingBucket
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraRatingFilter
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraRatingStatus
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraReview
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraReviewHistory
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraReviewHistorySummary
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraReviewSummary
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraRiskToDetail
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraSortDirection
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraVulnerabilityDetail
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.HIGH_RESULTS
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.isHigh
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toAssessmentBucket
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toDto
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toResults
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStage
@@ -27,6 +34,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessm
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraResult
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewNomisEntity
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraType
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraAssessmentStageRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraNextReviewRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraReviewNomisRepository
@@ -70,6 +78,77 @@ class CsraReviewService(
       standardRisk = standardRisk,
       noRating = roll.size - highRisk - standardRisk,
     )
+  }
+
+  /**
+   * A paged, filtered, sorted list of a prison's current prisoners with their current CSRA rating
+   * (the "CSRA ratings for all prisoners" screen). The roll (and names) comes from prisoner-search;
+   * each member's current rating is their latest review (same definition as [getPrisonRatingSummary]).
+   * Prisoners with no review — or whose latest review has no saved rating — are shown as "No rating".
+   *
+   * The join, filter, sort and paging are done in memory: names live in prisoner-search and no-rating
+   * prisoners have no `csra_review` row, so none of it can be pushed to the database or prisoner-search.
+   */
+  fun getPrisonPrisoners(
+    prisonId: String,
+    ratings: List<CsraRatingFilter>?,
+    assessmentTypes: List<CsraAssessmentTypeBucket>?,
+    fromDate: LocalDate?,
+    toDate: LocalDate?,
+    sort: CsraPrisonerSortField,
+    direction: CsraSortDirection,
+    page: Int,
+    size: Int,
+  ): CsraPrisonPrisonerList {
+    val members = prisonerSearchClient.getPrisonRollMembers(prisonId)
+    val currentByPrisoner = members.map { it.prisonerNumber }
+      .chunked(RATING_COUNT_BATCH_SIZE)
+      .flatMap { csraReviewRepository.findCurrentReviewsByPrisonerNumberIn(it) }
+      .associateBy { it.prisonerNumber }
+
+    val prisoners = members.map { member ->
+      val row = currentByPrisoner[member.prisonerNumber]
+      val rating = (row?.finalResult ?: row?.interimResult)?.let { CsraResult.valueOf(it) }
+      CsraPrisonPrisoner(
+        prisonerNumber = member.prisonerNumber,
+        firstName = member.firstName,
+        lastName = member.lastName,
+        rating = rating,
+        provisional = row != null && row.finalResult == null && row.interimResult != null,
+        assessmentType = if (rating != null) CsraType.valueOf(row!!.type).toAssessmentBucket() else null,
+        assessedOn = if (rating != null) (row!!.finalResultDate ?: row.assessmentDate) else null,
+      )
+    }
+
+    val ratingValues = ratings?.map { it.toResult() }?.toSet()
+    val filtered = prisoners.filter { p ->
+      (ratingValues == null || p.rating in ratingValues) &&
+        (assessmentTypes == null || p.assessmentType in assessmentTypes) &&
+        (fromDate == null || (p.assessedOn != null && !p.assessedOn.isBefore(fromDate))) &&
+        (toDate == null || (p.assessedOn != null && !p.assessedOn.isAfter(toDate)))
+    }
+
+    val sorted = filtered.sortedWith(comparatorFor(sort, direction).thenBy { it.prisonerNumber })
+
+    val fromIndex = (page * size).coerceIn(0, sorted.size)
+    val toIndex = (fromIndex + size).coerceIn(0, sorted.size)
+    return CsraPrisonPrisonerList(
+      content = sorted.subList(fromIndex, toIndex),
+      page = page,
+      size = size,
+      totalElements = sorted.size.toLong(),
+      totalPages = if (size <= 0) 0 else (sorted.size + size - 1) / size,
+    )
+  }
+
+  private fun comparatorFor(sort: CsraPrisonerSortField, direction: CsraSortDirection): Comparator<CsraPrisonPrisoner> {
+    val base: Comparator<CsraPrisonPrisoner> = when (sort) {
+      CsraPrisonerSortField.NAME -> compareBy({ it.lastName?.lowercase() }, { it.firstName?.lowercase() })
+      CsraPrisonerSortField.ASSESSMENT_TYPE -> compareBy { it.assessmentType }
+      CsraPrisonerSortField.ASSESSED_ON -> compareBy { it.assessedOn }
+      CsraPrisonerSortField.RATING -> compareBy { ratingSortOrder(it.rating) }
+    }
+    return if (direction == CsraSortDirection.DESC) base.reversed() else base
   }
 
   fun getCurrentRating(prisonerNumber: String): CsraCurrentRating {
@@ -217,5 +296,14 @@ class CsraReviewService(
 
     /** Chunk the roll when querying counts so the `IN (...)` list stays a sane size for large prisons. */
     private const val RATING_COUNT_BATCH_SIZE = 1000
+
+    /** Severity ordering for the RATING sort: No rating < Standard < High < High-general < High-specific. */
+    private fun ratingSortOrder(rating: CsraResult?): Int = when (rating) {
+      null -> 0
+      CsraResult.STANDARD -> 1
+      CsraResult.HIGH -> 2
+      CsraResult.HIGH_GENERAL -> 3
+      CsraResult.HIGH_SPECIFIC -> 4
+    }
   }
 }

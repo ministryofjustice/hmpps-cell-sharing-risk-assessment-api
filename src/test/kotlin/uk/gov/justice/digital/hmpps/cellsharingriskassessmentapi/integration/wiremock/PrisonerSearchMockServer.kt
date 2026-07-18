@@ -39,17 +39,29 @@ class PrisonerSearchMockServer : WireMockServer(WIREMOCK_PORT) {
   /** Stub the prison roll for [prisonId] as a single page of the given prisoner numbers. */
   fun stubGetPrisonRoll(prisonId: String, prisonerNumbers: List<String>) {
     val content = prisonerNumbers.joinToString(",") { """{"prisonerNumber":"$it"}""" }
+    stubRoll(prisonId, content, prisonerNumbers.size)
+  }
+
+  /** Stub the prison roll for [prisonId] as a single page of prisoners with their names. */
+  fun stubGetPrisonRollWithNames(prisonId: String, members: List<RollMemberStub>) {
+    val content = members.joinToString(",") {
+      """{"prisonerNumber":"${it.prisonerNumber}","firstName":"${it.firstName}","lastName":"${it.lastName}"}"""
+    }
+    stubRoll(prisonId, content, members.size)
+  }
+
+  private fun stubRoll(prisonId: String, content: String, size: Int) {
     stubFor(
       get(urlPathEqualTo("/prisoner-search/prison/$prisonId")).willReturn(
         aResponse()
           .withHeader("Content-Type", "application/json")
-          .withBody(
-            """{"content":[$content],"totalElements":${prisonerNumbers.size},"totalPages":1,"number":0}""",
-          )
+          .withBody("""{"content":[$content],"totalElements":$size,"totalPages":1,"number":0}""")
           .withStatus(200),
       ),
     )
   }
+
+  data class RollMemberStub(val prisonerNumber: String, val firstName: String, val lastName: String)
 
   fun stubHealthPing(status: Int) {
     stubFor(

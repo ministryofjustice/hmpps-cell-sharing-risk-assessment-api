@@ -17,7 +17,11 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentTypeBucket
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraPrisonerSortField
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraRatingBucket
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraRatingFilter
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraSortDirection
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.service.CsraReviewService
 import uk.gov.justice.hmpps.kotlin.common.ErrorResponse
 import java.time.LocalDate
@@ -189,4 +193,71 @@ class CsraReviewResource(
     @PathVariable
     prisonId: String,
   ) = csraReviewService.getPrisonRatingSummary(prisonId = prisonId)
+
+  @GetMapping("/prison/{prisonId}/prisoners")
+  @ResponseStatus(HttpStatus.OK)
+  @Operation(
+    summary = "Returns a prison's current prisoners with their CSRA rating",
+    description = "The 'CSRA ratings for all prisoners' list: a paged, filterable, sortable table of " +
+      "everyone currently in the prison (roll from prisoner-search) with their current CSRA rating " +
+      "(their latest review). Prisoners with no CSRA record, or whose latest review has no saved rating, " +
+      "appear with a null rating (No rating). Requires role ROLE_CSRA_REVIEW__R",
+    responses = [
+      ApiResponse(
+        responseCode = "200",
+        description = "Returns the page of prisoners",
+      ),
+      ApiResponse(
+        responseCode = "401",
+        description = "Unauthorized to access this endpoint",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
+      ),
+      ApiResponse(
+        responseCode = "403",
+        description = "Missing required role. Requires the ROLE_CSRA_REVIEW__R role",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
+      ),
+    ],
+  )
+  fun getPrisonPrisoners(
+    @Parameter(description = "The prison id", example = "LEI", required = true)
+    @PathVariable
+    prisonId: String,
+    @Parameter(description = "Zero-based page number", example = "0")
+    @RequestParam(defaultValue = "0")
+    page: Int,
+    @Parameter(description = "Page size", example = "25")
+    @RequestParam(defaultValue = "25")
+    size: Int,
+    @Parameter(description = "Column to sort by")
+    @RequestParam(defaultValue = "NAME")
+    sort: CsraPrisonerSortField,
+    @Parameter(description = "Sort direction")
+    @RequestParam(defaultValue = "ASC")
+    direction: CsraSortDirection,
+    @Parameter(description = "Only include prisoners with these current ratings (NO_RATING matches prisoners with no rating)")
+    @RequestParam(required = false)
+    ratings: List<CsraRatingFilter>?,
+    @Parameter(description = "Only include prisoners whose current rating came from these assessment types")
+    @RequestParam(required = false)
+    assessmentTypes: List<CsraAssessmentTypeBucket>?,
+    @Parameter(description = "Only include prisoners assessed on or after this date (inclusive)", example = "2026-01-01")
+    @RequestParam(required = false)
+    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+    fromDate: LocalDate?,
+    @Parameter(description = "Only include prisoners assessed on or before this date (inclusive)", example = "2026-12-31")
+    @RequestParam(required = false)
+    @DateTimeFormat(iso = DateTimeFormat.ISO.DATE)
+    toDate: LocalDate?,
+  ) = csraReviewService.getPrisonPrisoners(
+    prisonId = prisonId,
+    ratings = ratings,
+    assessmentTypes = assessmentTypes,
+    fromDate = fromDate,
+    toDate = toDate,
+    sort = sort,
+    direction = direction,
+    page = page,
+    size = size,
+  )
 }

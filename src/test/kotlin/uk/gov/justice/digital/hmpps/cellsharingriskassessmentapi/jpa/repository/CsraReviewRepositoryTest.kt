@@ -120,4 +120,34 @@ class CsraReviewRepositoryTest : TestBase() {
     assertThat(counts[CsraResult.STANDARD.name]).isEqualTo(2) // S0001AA + L0001AA (latest STANDARD)
     assertThat(counts[null]).isEqualTo(1) // N0001AA in progress
   }
+
+  @Test
+  fun `finds the latest review per prisoner with its projected fields`() {
+    repository.save(ratedReview("R0001AA", LocalDate.parse("2024-01-01"), finalResult = CsraResult.HIGH))
+    repository.save(ratedReview("R0001AA", LocalDate.parse("2026-02-01"), finalResult = CsraResult.STANDARD)) // latest
+    repository.save(ratedReview("R0002AA", LocalDate.parse("2026-03-01"), interimResult = CsraResult.HIGH_GENERAL)) // provisional
+    repository.save(ratedReview("R0003AA", LocalDate.parse("2026-03-01"))) // in progress, no rating
+    repository.flush()
+
+    val rows = repository
+      .findCurrentReviewsByPrisonerNumberIn(listOf("R0001AA", "R0002AA", "R0003AA", "MISSING99"))
+      .associateBy { it.prisonerNumber }
+
+    assertThat(rows).hasSize(3)
+
+    val latest = rows.getValue("R0001AA")
+    assertThat(latest.finalResult).isEqualTo(CsraResult.STANDARD.name)
+    assertThat(latest.interimResult).isNull()
+    assertThat(latest.type).isEqualTo(CsraType.CSRA_INITIAL_REVIEW.name)
+    assertThat(latest.assessmentDate).isEqualTo(LocalDate.parse("2026-02-01"))
+    assertThat(latest.finalResultDate).isEqualTo(LocalDate.parse("2026-02-01"))
+
+    val provisional = rows.getValue("R0002AA")
+    assertThat(provisional.finalResult).isNull()
+    assertThat(provisional.interimResult).isEqualTo(CsraResult.HIGH_GENERAL.name)
+
+    val inProgress = rows.getValue("R0003AA")
+    assertThat(inProgress.finalResult).isNull()
+    assertThat(inProgress.interimResult).isNull()
+  }
 }

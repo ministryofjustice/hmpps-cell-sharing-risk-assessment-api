@@ -5,6 +5,7 @@ import org.springframework.data.jpa.repository.JpaSpecificationExecutor
 import org.springframework.data.jpa.repository.Query
 import org.springframework.stereotype.Repository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewEntity
+import java.time.LocalDate
 import java.util.UUID
 
 @Repository
@@ -49,6 +50,25 @@ interface CsraReviewRepository :
     nativeQuery = true,
   )
   fun countCurrentRatingsByPrisonerNumberIn(prisonerNumbers: Collection<String>): List<CurrentRatingCount>
+
+  /**
+   * The latest review per prisoner for the given prisoners, projected for prison-scoped prisoner lists.
+   * Same latest-review-per-prisoner semantics as [countCurrentRatingsByPrisonerNumberIn] /
+   * [findFirstByPrisonerNumberOrderByAssessmentDateDescIdDesc]. Prisoners with no review are absent.
+   */
+  @Query(
+    value = """
+      SELECT DISTINCT ON (prisoner_number)
+             prisoner_number AS prisonerNumber, final_result AS finalResult,
+             interim_result AS interimResult, type AS type,
+             assessment_date AS assessmentDate, final_result_date AS finalResultDate
+      FROM csra_review
+      WHERE prisoner_number IN (:prisonerNumbers)
+      ORDER BY prisoner_number, assessment_date DESC, id DESC
+    """,
+    nativeQuery = true,
+  )
+  fun findCurrentReviewsByPrisonerNumberIn(prisonerNumbers: Collection<String>): List<CurrentReviewRow>
 }
 
 /** Projection of [CsraReviewRepository.countCurrentRatingsByPrisonerNumberIn]: a current-rating value and its count. */
@@ -56,4 +76,20 @@ interface CurrentRatingCount {
   /** The stored [uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraResult] name, or null for an in-progress (unrated) latest review. */
   val currentResult: String?
   val count: Long
+}
+
+/** Projection of [CsraReviewRepository.findCurrentReviewsByPrisonerNumberIn]: a prisoner's latest review. */
+interface CurrentReviewRow {
+  val prisonerNumber: String
+
+  /** Stored [uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraResult] name, or null. */
+  val finalResult: String?
+
+  /** Stored [uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraResult] name, or null. */
+  val interimResult: String?
+
+  /** Stored [uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraType] name. */
+  val type: String
+  val assessmentDate: LocalDate
+  val finalResultDate: LocalDate?
 }
