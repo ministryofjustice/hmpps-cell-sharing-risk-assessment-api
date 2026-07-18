@@ -2,6 +2,14 @@ info.app:
   name: HMPPS Cell Sharing Risk Assessment Api
   version: 1.0
 
+# Client-credentials used to call prisoner-search. Real values come from SYSTEM_CLIENT_ID /
+# SYSTEM_CLIENT_SECRET (a k8s secret) in deployed environments; the dummy defaults only keep the
+# OAuth2 client registration valid at startup before the secret is wired.
+system:
+  client:
+    id: ${SYSTEM_CLIENT_ID:cell-sharing-client}
+    secret: ${SYSTEM_CLIENT_SECRET:clientsecret}
+
 spring:
   application:
     name: hmpps-cell-sharing-risk-assessment-api
@@ -24,6 +32,12 @@ spring:
           jwk-set-uri: ${hmpps-auth.url}/.well-known/jwks.json
 
       client:
+        registration:
+          CELL_SHARING_RISK_ASSESSMENT_API:
+            provider: hmpps-auth
+            client-id: ${system.client.id}
+            client-secret: ${system.client.secret}
+            authorization-grant-type: client_credentials
         provider:
           hmpps-auth:
             token-uri: ${hmpps-auth.url}/oauth/token

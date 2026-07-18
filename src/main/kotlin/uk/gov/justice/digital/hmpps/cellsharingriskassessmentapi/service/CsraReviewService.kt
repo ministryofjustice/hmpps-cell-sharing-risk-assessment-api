@@ -6,8 +6,10 @@ import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.client.PrisonRegisterClient
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.client.PrisonerSearchClient
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraCurrentRating
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraEstablishment
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraPrisonRatingSummary
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraRatingBucket
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraRatingStatus
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraReview
@@ -16,11 +18,13 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraReviewH
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraReviewSummary
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraRiskToDetail
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraVulnerabilityDetail
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.HIGH_RESULTS
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.isHigh
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toDto
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toResults
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStage
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStageEntity
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraResult
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewNomisEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraAssessmentStageRepository
@@ -40,8 +44,33 @@ class CsraReviewService(
   private val csraAssessmentStageRepository: CsraAssessmentStageRepository,
   private val csraNextReviewRepository: CsraNextReviewRepository,
   private val prisonRegisterClient: PrisonRegisterClient,
+  private val prisonerSearchClient: PrisonerSearchClient,
 ) {
   fun getCsraReviewById(id: UUID): CsraReview? = csraReviewRepository.findByIdOrNull(id)?.toDto()
+
+  /**
+   * The CSRA rating counts for a prison's current roll (the homepage "CSRA ratings at <prison>" tiles).
+   *
+   * The roll comes from prisoner-search; each roll member's current rating comes from our own data
+   * (their latest review). "No rating" = roll − prisoners with a current high/standard rating, so it
+   * counts both prisoners with no CSRA record and those whose latest review has no saved rating.
+   */
+  fun getPrisonRatingSummary(prisonId: String): CsraPrisonRatingSummary {
+    val roll = prisonerSearchClient.getPrisonRoll(prisonId)
+    val counts = roll.chunked(RATING_COUNT_BATCH_SIZE)
+      .flatMap { csraReviewRepository.countCurrentRatingsByPrisonerNumberIn(it) }
+
+    val highRisk = counts.filter { it.currentResult in HIGH_RESULT_NAMES }.sumOf { it.count }.toInt()
+    val standardRisk = counts.filter { it.currentResult == CsraResult.STANDARD.name }.sumOf { it.count }.toInt()
+
+    return CsraPrisonRatingSummary(
+      prisonId = prisonId,
+      total = roll.size,
+      highRisk = highRisk,
+      standardRisk = standardRisk,
+      noRating = roll.size - highRisk - standardRisk,
+    )
+  }
 
   fun getCurrentRating(prisonerNumber: String): CsraCurrentRating {
     val review = csraReviewRepository.findFirstByPrisonerNumberOrderByAssessmentDateDescIdDesc(prisonerNumber)
@@ -181,4 +210,12 @@ class CsraReviewService(
     prisonId = prisonId,
     recordedDate = finalResultDate ?: assessmentDate,
   )
+
+  private companion object {
+    /** The stored [CsraResult] names that count as high risk, for matching the native count projection. */
+    private val HIGH_RESULT_NAMES: Set<String> = HIGH_RESULTS.map { it.name }.toSet()
+
+    /** Chunk the roll when querying counts so the `IN (...)` list stays a sane size for large prisons. */
+    private const val RATING_COUNT_BATCH_SIZE = 1000
+  }
 }

@@ -39,6 +39,24 @@ class CsraReviewRepositoryTest : TestBase() {
     createdBy = "NQP56Y",
   )
 
+  private fun ratedReview(
+    prisonerNumber: String,
+    assessmentDate: LocalDate,
+    interimResult: CsraResult? = null,
+    finalResult: CsraResult? = null,
+  ) = CsraReviewEntity(
+    prisonerNumber = prisonerNumber,
+    prisonId = "LEI",
+    assessmentDate = assessmentDate,
+    type = CsraType.CSRA_INITIAL_REVIEW,
+    interimResult = interimResult,
+    interimResultDate = interimResult?.let { assessmentDate },
+    finalResult = finalResult,
+    finalResultDate = finalResult?.let { assessmentDate },
+    createdAt = LocalDateTime.parse("2025-12-06T12:34:56"),
+    createdBy = "NQP56Y",
+  )
+
   @Test
   fun `persists and generates a UUID v7 id`() {
     val saved = repository.saveAndFlush(review("A1234BC", LocalDate.parse("2025-11-22")))
@@ -75,5 +93,31 @@ class CsraReviewRepositoryTest : TestBase() {
     assertThat(reviews).hasSize(2)
     assertThat(reviews.map { it.assessmentDate })
       .containsExactly(LocalDate.parse("2025-01-01"), LocalDate.parse("2024-01-01"))
+  }
+
+  @Test
+  fun `counts current ratings per prisoner using the latest review, bucketing null for in-progress`() {
+    // High: final HIGH, provisional HIGH_GENERAL, final HIGH_SPECIFIC
+    repository.save(ratedReview("H0001AA", LocalDate.parse("2026-03-01"), finalResult = CsraResult.HIGH))
+    repository.save(ratedReview("H0002AA", LocalDate.parse("2026-03-01"), interimResult = CsraResult.HIGH_GENERAL))
+    repository.save(ratedReview("H0003AA", LocalDate.parse("2026-03-01"), finalResult = CsraResult.HIGH_SPECIFIC))
+    // Standard
+    repository.save(ratedReview("S0001AA", LocalDate.parse("2026-03-01"), finalResult = CsraResult.STANDARD))
+    // In progress -> current rating null
+    repository.save(ratedReview("N0001AA", LocalDate.parse("2026-03-01")))
+    // Latest review wins: an old HIGH superseded by a newer STANDARD
+    repository.save(ratedReview("L0001AA", LocalDate.parse("2024-01-01"), finalResult = CsraResult.HIGH))
+    repository.save(ratedReview("L0001AA", LocalDate.parse("2026-02-01"), finalResult = CsraResult.STANDARD))
+    repository.flush()
+
+    val counts = repository.countCurrentRatingsByPrisonerNumberIn(
+      listOf("H0001AA", "H0002AA", "H0003AA", "S0001AA", "N0001AA", "L0001AA", "MISSING99"),
+    ).associate { it.currentResult to it.count }
+
+    assertThat(counts[CsraResult.HIGH.name]).isEqualTo(1)
+    assertThat(counts[CsraResult.HIGH_GENERAL.name]).isEqualTo(1)
+    assertThat(counts[CsraResult.HIGH_SPECIFIC.name]).isEqualTo(1)
+    assertThat(counts[CsraResult.STANDARD.name]).isEqualTo(2) // S0001AA + L0001AA (latest STANDARD)
+    assertThat(counts[null]).isEqualTo(1) // N0001AA in progress
   }
 }

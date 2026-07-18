@@ -27,4 +27,33 @@ interface CsraReviewRepository :
     """,
   )
   fun findSummaryRows(prisonerNumber: String): List<CsraSummaryRow>
+
+  /**
+   * For the given prisoners, counts how many have each current rating. A prisoner's current rating is
+   * their latest review's `COALESCE(final_result, interim_result)` (consistent with
+   * [findFirstByPrisonerNumberOrderByAssessmentDateDescIdDesc] / `getCurrentRating`). Prisoners whose
+   * latest review has no saved rating appear under a `null` currentResult; prisoners with no review at
+   * all are simply absent (they are "No rating", derived by the caller as roll − rated).
+   */
+  @Query(
+    value = """
+      SELECT current_result AS currentResult, COUNT(*) AS count
+      FROM (
+        SELECT DISTINCT ON (prisoner_number) COALESCE(final_result, interim_result) AS current_result
+        FROM csra_review
+        WHERE prisoner_number IN (:prisonerNumbers)
+        ORDER BY prisoner_number, assessment_date DESC, id DESC
+      ) latest
+      GROUP BY current_result
+    """,
+    nativeQuery = true,
+  )
+  fun countCurrentRatingsByPrisonerNumberIn(prisonerNumbers: Collection<String>): List<CurrentRatingCount>
+}
+
+/** Projection of [CsraReviewRepository.countCurrentRatingsByPrisonerNumberIn]: a current-rating value and its count. */
+interface CurrentRatingCount {
+  /** The stored [uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraResult] name, or null for an in-progress (unrated) latest review. */
+  val currentResult: String?
+  val count: Long
 }

@@ -11,6 +11,14 @@ hmpps-auth:
 prison-register:
   url: "http://localhost:8091"
 
+prisoner-search:
+  url: "http://localhost:8092"
+
+system:
+  client:
+    id: test-client-id
+    secret: test-client-secret
+
 springdoc:
   api-docs:
     enabled: true

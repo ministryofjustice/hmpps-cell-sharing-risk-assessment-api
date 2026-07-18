@@ -159,4 +159,34 @@ class CsraReviewResource(
     @PathVariable
     prisonerNumber: String,
   ) = csraReviewService.getCurrentRating(prisonerNumber = prisonerNumber)
+
+  @GetMapping("/prison/{prisonId}/rating-summary")
+  @ResponseStatus(HttpStatus.OK)
+  @Operation(
+    summary = "Returns CSRA rating counts for a prison's current roll",
+    description = "The counts behind the CSRA homepage tiles: prisoners with no rating, high risk, and " +
+      "standard risk, across everyone currently in the prison (roll from prisoner-search). Each " +
+      "prisoner is counted by their current rating (their latest review). Requires role ROLE_CSRA_REVIEW__R",
+    responses = [
+      ApiResponse(
+        responseCode = "200",
+        description = "Returns the prison's CSRA rating counts",
+      ),
+      ApiResponse(
+        responseCode = "401",
+        description = "Unauthorized to access this endpoint",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
+      ),
+      ApiResponse(
+        responseCode = "403",
+        description = "Missing required role. Requires the ROLE_CSRA_REVIEW__R role",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
+      ),
+    ],
+  )
+  fun getPrisonRatingSummary(
+    @Parameter(description = "The prison id", example = "LEI", required = true)
+    @PathVariable
+    prisonId: String,
+  ) = csraReviewService.getPrisonRatingSummary(prisonId = prisonId)
 }
