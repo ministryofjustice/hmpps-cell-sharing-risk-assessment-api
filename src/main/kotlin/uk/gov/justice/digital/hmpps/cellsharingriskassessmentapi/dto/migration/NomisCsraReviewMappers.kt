@@ -27,7 +27,8 @@ fun CsraAssessmentType.toCsraType(): CsraType = when (this) {
 
 /**
  * Maps a legacy NOMIS level to the new result model. NOMIS has no "high specific" level, so that
- * result is never produced by migration. PEND (pending) maps to no result.
+ * result is never produced by migration. PEND is a placeholder rather than a level, so it carries no
+ * result — see [nomisOutcome] for how a pending review can still yield a rating from another level.
  */
 fun CsraLevel?.toCsraResult(): CsraResult? = when (this) {
   CsraLevel.HI -> CsraResult.HIGH
@@ -35,18 +36,59 @@ fun CsraLevel?.toCsraResult(): CsraResult? = when (this) {
   CsraLevel.PEND, null -> null
 }
 
-// The final NOMIS outcome, preferring the approved level, then the reviewer's, then the calculated.
-private fun NomisCsraReview.finalCsraResult(): CsraResult? = (approvedLevel ?: reviewLevel ?: calculatedLevel).toCsraResult()
+/**
+ * The rating a NOMIS review resolves to, and whether it had been approved.
+ *
+ * NOMIS only treats a level as final once the approval step has signed it off. Until then it still shows
+ * a rating, taken from the reviewer's override or the calculated level. The new service has no approval
+ * step, so an unapproved level is kept as a *provisional* (interim) rating rather than discarded.
+ */
+data class NomisCsraOutcome(val result: CsraResult?, val approved: Boolean)
+
+// Ranked strongest first. PEND is absent deliberately: it can never win a head-to-head.
+private val LEVEL_PRIORITY = listOf(CsraLevel.HI, CsraLevel.STANDARD, CsraLevel.MED, CsraLevel.LOW)
+
+/**
+ * Resolves a NOMIS review to a rating, mirroring how NOMIS itself derives the CSRA shown on
+ * `/api/offenders/{offenderNo}` (prison-api `OffenderAssessment.getClassificationSummary`):
+ *
+ *  1. an approved level that is not PEND is the final, approved rating;
+ *  2. otherwise, where both the reviewer's level and the calculated level are set, the stronger of the
+ *     two wins (HI > STANDARD > MED > LOW), the reviewer's level taking precedence at equal rank;
+ *  3. otherwise the reviewer's level, if set — this is the case where NOMIS displays a bare "PEND";
+ *  4. otherwise the calculated level, if it is not PEND;
+ *  5. otherwise no rating at all.
+ *
+ * Steps 2-4 have not been through approval, so they resolve to an unapproved (provisional) outcome, as
+ * does anything on a review NOMIS still holds in provisional status.
+ */
+fun NomisCsraReview.nomisOutcome(): NomisCsraOutcome {
+  if (approvedLevel != null && approvedLevel != CsraLevel.PEND) {
+    // A provisional-status review has not completed approval whatever level it carries.
+    return NomisCsraOutcome(approvedLevel.toCsraResult(), approved = status != CsraStatus.P)
+  }
+
+  val level = when {
+    reviewLevel != null && calculatedLevel != null ->
+      LEVEL_PRIORITY.firstNotNullOfOrNull { rank -> rank.takeIf { it == reviewLevel || it == calculatedLevel } }
+    reviewLevel != null -> reviewLevel
+    calculatedLevel != CsraLevel.PEND -> calculatedLevel
+    else -> null
+  }
+  return NomisCsraOutcome(level.toCsraResult(), approved = false)
+}
 
 fun NomisCsraReview.toNewCsraReview(prisonerNumber: String): CsraReviewEntity {
-  val result = finalCsraResult()
+  val outcome = nomisOutcome()
   return CsraReviewEntity(
     prisonerNumber = prisonerNumber,
     prisonId = assessmentPrisonId,
     assessmentDate = assessmentDate,
     type = assessmentType.toCsraType(),
-    finalResult = result,
-    finalResultDate = result?.let { evaluationDate ?: assessmentDate },
+    interimResult = outcome.interimResult(),
+    interimResultDate = outcome.interimResult()?.let { assessmentDate },
+    finalResult = outcome.finalResult(),
+    finalResultDate = outcome.finalResult()?.let { evaluationDate ?: assessmentDate },
     // Migrated legacy reviews are historical, never in-progress (even result-less PEND rows).
     status = CsraReviewStatus.COMPLETE,
     createdAt = createdDateTime,
@@ -56,17 +98,24 @@ fun NomisCsraReview.toNewCsraReview(prisonerNumber: String): CsraReviewEntity {
 
 /** Applies an incoming NOMIS review to an existing record (used by sync updates). */
 fun CsraReviewEntity.updateFromNomis(prisonerNumber: String, review: NomisCsraReview, clock: Clock) {
-  val result = review.finalCsraResult()
+  val outcome = review.nomisOutcome()
   this.prisonerNumber = prisonerNumber
   this.prisonId = review.assessmentPrisonId
   this.assessmentDate = review.assessmentDate
   this.type = review.assessmentType.toCsraType()
-  this.finalResult = result
-  this.finalResultDate = result?.let { review.evaluationDate ?: review.assessmentDate }
+  this.interimResult = outcome.interimResult()
+  this.interimResultDate = outcome.interimResult()?.let { review.assessmentDate }
+  this.finalResult = outcome.finalResult()
+  this.finalResultDate = outcome.finalResult()?.let { review.evaluationDate ?: review.assessmentDate }
   this.status = CsraReviewStatus.COMPLETE
   this.lastModifiedAt = LocalDateTime.now(clock)
   this.lastModifiedBy = review.createdBy
 }
+
+// An approved NOMIS rating is a final result; an unapproved one is provisional, so it lands on the
+// interim result and reads back through the current-rating projection as provisional.
+private fun NomisCsraOutcome.finalResult() = result.takeIf { approved }
+private fun NomisCsraOutcome.interimResult() = result.takeIf { !approved }
 
 /**
  * Builds the adjacent NOMIS-only record for a freshly mapped [core] review, keeping the raw NOMIS
