@@ -40,7 +40,7 @@ import java.util.UUID
 @PreAuthorize("hasRole('ROLE_CSRA_REVIEW__R')")
 class CsraReviewResource(
   private val csraReviewService: CsraReviewService,
-) : EventBase() {
+) {
 
   @GetMapping("/{id}")
   @ResponseStatus(HttpStatus.OK)
