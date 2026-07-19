@@ -50,6 +50,8 @@ data class PrisonApiOffenderIn(
   val dateOfBirth: LocalDate? = null,
   /** NOMIS movement type: ADM / TRN / CRT / TAP. */
   val movementType: String,
+  /** NOMIS movement reason code, e.g. INT / TRNCRT / N. Absent on older prison-api versions. */
+  val movementReasonCode: String? = null,
   val movementDateTime: LocalDateTime? = null,
   /** The offender's internal location (reception or cell). */
   val location: String? = null,

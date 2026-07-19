@@ -44,6 +44,7 @@ class PrisonApiMockServer : WireMockServer(WIREMOCK_PORT) {
     val movementType: String,
     val movementDateTime: String,
     val location: String,
+    val movementReasonCode: String? = null,
   )
 
   /** Stub GET /api/movements/{agencyId}/in with the given IN-movements. */
@@ -58,6 +59,7 @@ class PrisonApiMockServer : WireMockServer(WIREMOCK_PORT) {
         "movementType":"${it.movementType}",
         "movementTime":"${it.movementDateTime.substringAfter('T')}",
         "movementDateTime":"${it.movementDateTime}",
+        ${it.movementReasonCode?.let { code -> """"movementReasonCode":"$code",""" } ?: ""}
         "location":"${it.location}"
       }
       """.trimIndent()
