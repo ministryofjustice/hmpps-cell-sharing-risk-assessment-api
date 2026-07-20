@@ -192,6 +192,31 @@ class CsraNomisSyncResourceTest : SqsIntegrationTestBase() {
     }
 
     @Test
+    fun `an unapproved NOMIS rating becomes the prisoner's provisional current rating`() {
+      // No approved level, so NOMIS has not signed this off; the calculated level is still the rating it
+      // shows, and the new service (which has no approval step) keeps it as provisional.
+      val pendingJson = reviewJson()
+        .replace("\"approvedLevel\": \"HI\",", "")
+        .replace("\"reviewLevel\": \"STANDARD\",", "")
+        .replace("\"calculatedLevel\": \"STANDARD\"", "\"calculatedLevel\": \"HI\"")
+
+      webTestClient.post().uri("/nomis-sync/sync/P1111PP")
+        .headers(setAuthorisation(roles = syncRole))
+        .contentType(MediaType.APPLICATION_JSON)
+        .body(BodyInserters.fromValue("""{ "review": $pendingJson }"""))
+        .exchange()
+        .expectStatus().isCreated
+
+      webTestClient.get().uri("/csra-review/prisoner/P1111PP/current-rating")
+        .headers(setAuthorisation(roles = listOf("ROLE_CSRA_REVIEW__R")))
+        .exchange()
+        .expectStatus().isOk
+        .expectBody()
+        .jsonPath("$.rating").isEqualTo("HIGH")
+        .jsonPath("$.provisional").isEqualTo(true)
+    }
+
+    @Test
     fun `only the prisoner's latest review sets the current next review date`() {
       fun sync(nextReviewDate: String, assessmentDate: String) {
         webTestClient.post().uri("/nomis-sync/sync/B2222BB")
