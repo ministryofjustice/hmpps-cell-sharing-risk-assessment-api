@@ -13,6 +13,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.S
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.toNewCsraReview
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.toNomisEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.updateFromNomis
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toDto
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraNextReviewEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraNextReviewRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraReviewNomisRepository
@@ -34,6 +35,7 @@ class CsraMigrationSyncService(
   private val csraReviewNomisRepository: CsraReviewNomisRepository,
   private val csraNextReviewRepository: CsraNextReviewRepository,
   private val csraCurrentRatingService: CsraCurrentRatingService,
+  private val eventPublishAndAuditService: EventPublishAndAuditService,
   private val telemetryClient: TelemetryClient,
   private val clock: Clock,
 ) {
@@ -93,6 +95,15 @@ class CsraMigrationSyncService(
 
     // Recompute the prisoner's current rating (the synced review may have gained or changed a rating).
     csraCurrentRatingService.refreshFromReviews(prisonerNumber)
+
+    // Announce the change so DPS consumers stay current. Stamped NOMIS so the sync service knows this is
+    // the echo of its own write and must not push it back to NOMIS. Unrated reviews publish nothing.
+    eventPublishAndAuditService.publishEvent(
+      eventType = if (created) CSRADomainEventType.CSRA_CREATED else CSRADomainEventType.CSRA_AMENDED,
+      csraReview = review.toDto(),
+      auditData = review.toDto(),
+      source = InformationSource.NOMIS,
+    )
 
     log.info("Synchronised CSRA review {} for {} (created={})", review.id, prisonerNumber, created)
     telemetryClient.trackEvent(

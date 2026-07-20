@@ -302,6 +302,10 @@ class CsraReviewService(
    * "recent arrivals" worklist). Arrivals come from prison-api movements (the source of truth); anyone no
    * longer in the establishment (released or moved on) is excluded via the prisoner-search roll. One row
    * per prisoner — their most recent arrival in the window.
+   *
+   * Only a genuine admission counts (see [CsraArrivalType.fromMovement]): a prisoner who popped out to
+   * court or on temporary absence and came back has not arrived, and must keep the date of the admission
+   * that actually brought them here.
    */
   fun getRecentArrivals(prisonId: String, days: Int, arrivalTypes: List<CsraArrivalType>?): CsraRecentArrivals {
     val today = LocalDate.now(clock)
@@ -310,7 +314,8 @@ class CsraReviewService(
 
     val arrivals = prisonApiClient.getArrivals(prisonId, fromDate.atStartOfDay())
       .mapNotNull { movement ->
-        val type = CsraArrivalType.fromMovementType(movement.movementType) ?: return@mapNotNull null
+        val type = CsraArrivalType.fromMovement(movement.movementType, movement.movementReasonCode)
+          ?: return@mapNotNull null
         val arrivedAt = movement.movementDateTime ?: return@mapNotNull null
         if (movement.offenderNo !in roll) return@mapNotNull null
         CsraArrivalRow(
