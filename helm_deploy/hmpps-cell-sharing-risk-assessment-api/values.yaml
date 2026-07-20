@@ -30,6 +30,12 @@ generic-service:
   namespace_secrets:
     hmpps-cell-sharing-risk-assessment-api-application-insights:
       APPLICATIONINSIGHTS_CONNECTION_STRING: "APPLICATIONINSIGHTS_CONNECTION_STRING"
+    # HMPPS Auth system client (client_credentials) for calling prisoner-search and prison-api.
+    # Needs ROLE_PRISONER_SEARCH (or ROLE_GLOBAL_SEARCH) and ROLE_ESTABLISHMENT_ROLL.
+    # Secret provisioned in cloud-platform-environments.
+    hmpps-cell-sharing-risk-assessment-api-client-creds:
+      SYSTEM_CLIENT_ID: "API_CLIENT_ID"
+      SYSTEM_CLIENT_SECRET: "API_CLIENT_SECRET"
     rds-postgresql-instance-output:
       DATABASE_ENDPOINT: "rds_instance_endpoint"
       DATABASE_NAME: "database_name"
