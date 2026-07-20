@@ -4,6 +4,12 @@ hmpps-auth:
 prison-register:
   url: "http://localhost:8091"
 
+prisoner-search:
+  url: "http://localhost:8092"
+
+prison-api:
+  url: "http://localhost:8093"
+
 spring:
 
   datasource:

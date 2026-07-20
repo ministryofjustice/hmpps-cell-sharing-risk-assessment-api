@@ -10,6 +10,7 @@ import org.springframework.transaction.annotation.Transactional
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.integration.TestBase
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraResult
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewEntity
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewStatus
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraType
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -35,6 +36,24 @@ class CsraReviewRepositoryTest : TestBase() {
     type = CsraType.RATING,
     finalResult = CsraResult.HIGH,
     finalResultDate = assessmentDate,
+    createdAt = LocalDateTime.parse("2025-12-06T12:34:56"),
+    createdBy = "NQP56Y",
+  )
+
+  private fun ratedReview(
+    prisonerNumber: String,
+    assessmentDate: LocalDate,
+    interimResult: CsraResult? = null,
+    finalResult: CsraResult? = null,
+  ) = CsraReviewEntity(
+    prisonerNumber = prisonerNumber,
+    prisonId = "LEI",
+    assessmentDate = assessmentDate,
+    type = CsraType.CSRA_INITIAL_REVIEW,
+    interimResult = interimResult,
+    interimResultDate = interimResult?.let { assessmentDate },
+    finalResult = finalResult,
+    finalResultDate = finalResult?.let { assessmentDate },
     createdAt = LocalDateTime.parse("2025-12-06T12:34:56"),
     createdBy = "NQP56Y",
   )
@@ -75,5 +94,48 @@ class CsraReviewRepositoryTest : TestBase() {
     assertThat(reviews).hasSize(2)
     assertThat(reviews.map { it.assessmentDate })
       .containsExactly(LocalDate.parse("2025-01-01"), LocalDate.parse("2024-01-01"))
+  }
+
+  @Test
+  fun `finds a prisoner's rated non-archived reviews, most recent first`() {
+    repository.save(ratedReview("R0001AA", LocalDate.parse("2024-01-01"), finalResult = CsraResult.HIGH))
+    repository.save(ratedReview("R0001AA", LocalDate.parse("2026-02-01"), finalResult = CsraResult.STANDARD)) // latest rated
+    repository.save(ratedReview("R0001AA", LocalDate.parse("2026-03-01"))) // in progress, unrated -> excluded
+    repository.save(
+      ratedReview("R0001AA", LocalDate.parse("2027-01-01"), finalResult = CsraResult.HIGH)
+        .apply { status = CsraReviewStatus.ARCHIVED }, // archived -> excluded
+    )
+    repository.flush()
+
+    val rated = repository.findRatedReviews("R0001AA", CsraReviewStatus.ARCHIVED)
+
+    // Most recent first, so the first is the current rating (STANDARD), excluding the unrated and archived rows.
+    assertThat(rated.map { it.finalResult ?: it.interimResult })
+      .containsExactly(CsraResult.STANDARD, CsraResult.HIGH)
+  }
+
+  @Test
+  fun `finds in-progress reviews of a type at a prison, excluding completed, other types and other prisons`() {
+    fun entity(prisonerNumber: String, type: CsraType, finalResult: CsraResult?, prisonId: String) = CsraReviewEntity(
+      prisonerNumber = prisonerNumber,
+      prisonId = prisonId,
+      assessmentDate = LocalDate.parse("2026-07-01"),
+      type = type,
+      finalResult = finalResult,
+      finalResultDate = finalResult?.let { LocalDate.parse("2026-07-01") },
+      createdAt = LocalDateTime.parse("2025-12-06T12:34:56"),
+      createdBy = "NQP56Y",
+    )
+    repository.save(entity("INPROG", CsraType.CSRA_INITIAL_REVIEW, null, "LEI")) // match
+    repository.save(entity("DONE", CsraType.CSRA_INITIAL_REVIEW, CsraResult.STANDARD, "LEI")) // completed
+    repository.save(entity("REVIEW", CsraType.CSRA_REVIEW, null, "LEI")) // wrong type
+    repository.save(entity("OTHERP", CsraType.CSRA_INITIAL_REVIEW, null, "MDI")) // wrong prison
+    repository.save(entity("LEGACY", CsraType.RATING, null, "LEI")) // legacy null-result, wrong type
+    repository.save(entity("CLOSED", CsraType.CSRA_INITIAL_REVIEW, null, "LEI").apply { status = CsraReviewStatus.CLOSED }) // no longer in progress
+    repository.flush()
+
+    val found = repository.findAllByPrisonIdAndTypeAndFinalResultIsNullAndStatus("LEI", CsraType.CSRA_INITIAL_REVIEW, CsraReviewStatus.IN_PROGRESS)
+
+    assertThat(found.map { it.prisonerNumber }).containsExactly("INPROG")
   }
 }

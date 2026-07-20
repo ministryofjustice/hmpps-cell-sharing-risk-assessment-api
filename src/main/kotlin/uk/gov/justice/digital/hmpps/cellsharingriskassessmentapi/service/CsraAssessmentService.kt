@@ -15,6 +15,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessm
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraNextReviewEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraResult
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewEntity
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewStatus
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraType
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraAssessmentStageRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraNextReviewRepository
@@ -40,6 +41,7 @@ class CsraAssessmentService(
   private val csraAssessmentStageRepository: CsraAssessmentStageRepository,
   private val csraNextReviewRepository: CsraNextReviewRepository,
   private val csraReviewService: CsraReviewService,
+  private val csraCurrentRatingService: CsraCurrentRatingService,
   private val eventPublishAndAuditService: EventPublishAndAuditService,
   private val authenticationHolder: HmppsAuthenticationHolder,
   private val clock: Clock,
@@ -49,7 +51,8 @@ class CsraAssessmentService(
   /** Starts a new draft assessment. Rejects if one is already in progress for the prisoner. */
   fun start(prisonerNumber: String): CsraCurrentRating {
     csraReviewRepository.findFirstByPrisonerNumberOrderByAssessmentDateDescIdDesc(prisonerNumber)
-      ?.takeIf { it.finalResult == null && it.interimResult == null }
+      // A review closed/archived on a move is no longer in progress and does not block a new one.
+      ?.takeIf { it.finalResult == null && it.interimResult == null && it.status != CsraReviewStatus.ARCHIVED }
       ?.let { throw CsraAssessmentInProgressException(prisonerNumber) }
 
     csraReviewRepository.save(
@@ -93,12 +96,16 @@ class CsraAssessmentService(
       CsraAssessmentStage.FINAL -> {
         review.finalResult = request.rating
         review.finalResultDate = today
+        review.status = CsraReviewStatus.COMPLETE
         upsertNextReview(prisonerNumber, review, request.rating, today)
       }
     }
     review.lastModifiedAt = now
     review.lastModifiedBy = username
     csraReviewRepository.saveAndFlush(review)
+
+    // A saved provisional/final rating becomes the prisoner's current rating.
+    csraCurrentRatingService.refreshFromReviews(prisonerNumber, username)
 
     eventPublishAndAuditService.publishEvent(
       eventType = if (created) CSRADomainEventType.CSRA_CREATED else CSRADomainEventType.CSRA_AMENDED,

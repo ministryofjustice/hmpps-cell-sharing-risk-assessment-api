@@ -11,6 +11,17 @@ hmpps-auth:
 prison-register:
   url: "http://localhost:8091"
 
+prisoner-search:
+  url: "http://localhost:8092"
+
+prison-api:
+  url: "http://localhost:8093"
+
+system:
+  client:
+    id: test-client-id
+    secret: test-client-secret
+
 springdoc:
   api-docs:
     enabled: true
@@ -42,6 +53,11 @@ hmpps.sqs:
       dlqName: ${random.uuid}
       subscribeTopicId: domainevents
       subscribeFilter: '{"eventType":[ {"prefix": "cell.sharing.risk.assessment"} ] }'
+    csra:
+      queueName: ${random.uuid}
+      dlqName: ${random.uuid}
+      subscribeTopicId: domainevents
+      subscribeFilter: '{"eventType":[ "prison-offender-events.prisoner.received" ] }'
   topics:
     domainevents:
       arn: arn:aws:sns:eu-west-2:000000000000:${random.uuid}
