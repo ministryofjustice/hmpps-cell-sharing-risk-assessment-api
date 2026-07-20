@@ -3,6 +3,8 @@ package uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.config
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.http.HttpHeaders
+import org.springframework.http.MediaType
 import org.springframework.security.oauth2.client.OAuth2AuthorizedClientManager
 import org.springframework.web.reactive.function.client.WebClient
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.SYSTEM_USERNAME
@@ -32,11 +34,14 @@ class WebClientConfiguration(
 
   // prisoner-search roll lookups require an access token, so this client is authenticated via
   // OAuth2 client-credentials using the service's own registration.
+  //
+  // The Content-Type default is not optional: prisoner-search rejects a request without one, even on a
+  // GET with no body, and reports it as a 500 "Content-Type is not supported" rather than a 415.
   @Bean
   fun prisonerSearchWebClient(
     authorizedClientManager: OAuth2AuthorizedClientManager,
     builder: WebClient.Builder,
-  ): WebClient = builder.authorisedWebClient(
+  ): WebClient = builder.defaultHeader(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_JSON_VALUE).authorisedWebClient(
     authorizedClientManager,
     registrationId = SYSTEM_USERNAME,
     url = prisonerSearchBaseUri,
