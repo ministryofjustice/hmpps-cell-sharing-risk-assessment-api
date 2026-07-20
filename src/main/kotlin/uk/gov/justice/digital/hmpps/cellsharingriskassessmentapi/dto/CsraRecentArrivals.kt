@@ -14,7 +14,7 @@ data class CsraRecentArrivals(
 
   @param:Schema(
     description = "Count of arrivals per type across the whole window (unaffected by the filter), for the " +
-      "filter checkbox counts; all four types are always present (zero when none)",
+      "filter checkbox counts; every type is always present (zero when none)",
   )
   val arrivalTypeCounts: Map<CsraArrivalType, Int>,
 
