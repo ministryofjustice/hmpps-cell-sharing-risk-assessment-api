@@ -2,6 +2,7 @@ package uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.integration.wi
 
 import com.github.tomakehurst.wiremock.WireMockServer
 import com.github.tomakehurst.wiremock.client.WireMock.aResponse
+import com.github.tomakehurst.wiremock.client.WireMock.equalTo
 import com.github.tomakehurst.wiremock.client.WireMock.get
 import com.github.tomakehurst.wiremock.client.WireMock.post
 import com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo
@@ -53,12 +54,16 @@ class PrisonerSearchMockServer : WireMockServer(WIREMOCK_PORT) {
 
   private fun stubRoll(prisonId: String, content: String, size: Int) {
     stubFor(
-      get(urlPathEqualTo("/prisoner-search/prison/$prisonId")).willReturn(
-        aResponse()
-          .withHeader("Content-Type", "application/json")
-          .withBody("""{"content":[$content],"totalElements":$size,"totalPages":1,"number":0}""")
-          .withStatus(200),
-      ),
+      // Real prisoner-search 500s on a GET without a Content-Type, so match on it: a request that
+      // stops sending one no longer matches this stub and the calling test fails.
+      get(urlPathEqualTo("/prisoner-search/prison/$prisonId"))
+        .withHeader("Content-Type", equalTo("application/json"))
+        .willReturn(
+          aResponse()
+            .withHeader("Content-Type", "application/json")
+            .withBody("""{"content":[$content],"totalElements":$size,"totalPages":1,"number":0}""")
+            .withStatus(200),
+        ),
     )
   }
 
