@@ -37,9 +37,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraReviews
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraRiskToDetail
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraSortDirection
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraVulnerabilityDetail
-import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.HIGH_RESULTS
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.isHigh
-import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toAssessmentBucket
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toDto
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toResults
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStage
@@ -47,8 +45,10 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessm
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraResult
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewNomisEntity
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewStatus
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraType
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraAssessmentStageRepository
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraCurrentRatingRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraNextReviewRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraReviewNomisRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraReviewRepository
@@ -65,6 +65,7 @@ class CsraReviewService(
   private val csraReviewNomisRepository: CsraReviewNomisRepository,
   private val csraAssessmentStageRepository: CsraAssessmentStageRepository,
   private val csraNextReviewRepository: CsraNextReviewRepository,
+  private val csraCurrentRatingRepository: CsraCurrentRatingRepository,
   private val prisonRegisterClient: PrisonRegisterClient,
   private val prisonerSearchClient: PrisonerSearchClient,
   private val prisonApiClient: PrisonApiClient,
@@ -81,11 +82,9 @@ class CsraReviewService(
    */
   fun getPrisonRatingSummary(prisonId: String): CsraPrisonRatingSummary {
     val roll = prisonerSearchClient.getPrisonRoll(prisonId)
-    val counts = roll.chunked(RATING_COUNT_BATCH_SIZE)
-      .flatMap { csraReviewRepository.countCurrentRatingsByPrisonerNumberIn(it) }
-
-    val highRisk = counts.filter { it.currentResult in HIGH_RESULT_NAMES }.sumOf { it.count }.toInt()
-    val standardRisk = counts.filter { it.currentResult == CsraResult.STANDARD.name }.sumOf { it.count }.toInt()
+    val ratings = currentRatingsFor(roll).values
+    val highRisk = ratings.count { it.rating?.isHigh() == true }
+    val standardRisk = ratings.count { it.rating == CsraResult.STANDARD }
 
     return CsraPrisonRatingSummary(
       prisonId = prisonId,
@@ -95,6 +94,12 @@ class CsraReviewService(
       noRating = roll.size - highRisk - standardRisk,
     )
   }
+
+  /** The current-rating projection rows for a set of prisoners, keyed by prisoner number. */
+  private fun currentRatingsFor(prisonerNumbers: List<String>) = prisonerNumbers
+    .chunked(RATING_COUNT_BATCH_SIZE)
+    .flatMap { csraCurrentRatingRepository.findAllByPrisonerNumberIn(it) }
+    .associateBy { it.prisonerNumber }
 
   /**
    * A paged, filtered, sorted list of a prison's current prisoners with their current CSRA rating
@@ -117,22 +122,18 @@ class CsraReviewService(
     size: Int,
   ): CsraPrisonPrisonerList {
     val members = prisonerSearchClient.getPrisonRollMembers(prisonId)
-    val currentByPrisoner = members.map { it.prisonerNumber }
-      .chunked(RATING_COUNT_BATCH_SIZE)
-      .flatMap { csraReviewRepository.findCurrentReviewsByPrisonerNumberIn(it) }
-      .associateBy { it.prisonerNumber }
+    val currentByPrisoner = currentRatingsFor(members.map { it.prisonerNumber })
 
     val prisoners = members.map { member ->
-      val row = currentByPrisoner[member.prisonerNumber]
-      val rating = (row?.finalResult ?: row?.interimResult)?.let { CsraResult.valueOf(it) }
+      val current = currentByPrisoner[member.prisonerNumber]
       CsraPrisonPrisoner(
         prisonerNumber = member.prisonerNumber,
         firstName = member.firstName,
         lastName = member.lastName,
-        rating = rating,
-        provisional = row != null && row.finalResult == null && row.interimResult != null,
-        assessmentType = if (rating != null) CsraType.valueOf(row!!.type).toAssessmentBucket() else null,
-        assessedOn = if (rating != null) (row!!.finalResultDate ?: row.assessmentDate) else null,
+        rating = current?.rating,
+        provisional = current?.provisional ?: false,
+        assessmentType = current?.assessmentType,
+        assessedOn = current?.ratingDate,
       )
     }
 
@@ -182,9 +183,7 @@ class CsraReviewService(
     direction: CsraSortDirection,
   ): CsraHighRiskDueForReview {
     val numbers = prisonerSearchClient.getPrisonRollMembers(prisonId)
-    val currentByPrisoner = numbers.map { it.prisonerNumber }.chunked(RATING_COUNT_BATCH_SIZE)
-      .flatMap { csraReviewRepository.findCurrentReviewsByPrisonerNumberIn(it) }
-      .associateBy { it.prisonerNumber }
+    val currentByPrisoner = currentRatingsFor(numbers.map { it.prisonerNumber })
     val nextReviewDateByPrisoner = numbers.map { it.prisonerNumber }.chunked(RATING_COUNT_BATCH_SIZE)
       .flatMap { csraNextReviewRepository.findAllByPrisonerNumberIn(it) }
       .mapNotNull { entity -> entity.nextReviewDate?.let { entity.prisonerNumber to it } }
@@ -192,20 +191,19 @@ class CsraReviewService(
 
     val dueSet = numbers.mapNotNull { member ->
       val reviewDueBy = nextReviewDateByPrisoner[member.prisonerNumber] ?: return@mapNotNull null
-      val row = currentByPrisoner[member.prisonerNumber] ?: return@mapNotNull null
-      val rating = (row.finalResult ?: row.interimResult)?.let { CsraResult.valueOf(it) } ?: return@mapNotNull null
+      val current = currentByPrisoner[member.prisonerNumber] ?: return@mapNotNull null
+      val rating = current.rating ?: return@mapNotNull null
       if (!rating.isHigh()) return@mapNotNull null
-      val provisional = row.finalResult == null && row.interimResult != null
       CsraHighRiskReviewRow(
         prisonerNumber = member.prisonerNumber,
         firstName = member.firstName,
         lastName = member.lastName,
         reviewDueBy = reviewDueBy,
-        ratingType = CsraHighRiskType.from(rating, provisional)!!,
+        ratingType = CsraHighRiskType.from(rating, current.provisional)!!,
         rating = rating,
-        provisional = provisional,
-        lastRatingSource = CsraType.valueOf(row.type).toAssessmentBucket(),
-        lastRatingDate = row.finalResultDate ?: row.assessmentDate,
+        provisional = current.provisional,
+        lastRatingSource = current.assessmentType!!,
+        lastRatingDate = current.ratingDate!!,
       )
     }
 
@@ -241,7 +239,8 @@ class CsraReviewService(
    * prisoner-search for the small in-progress set.
    */
   fun getAssessmentsInProgress(prisonId: String): CsraAssessmentsInProgress {
-    val reviews = csraReviewRepository.findAllByPrisonIdAndTypeAndFinalResultIsNull(prisonId, CsraType.CSRA_INITIAL_REVIEW)
+    val reviews = csraReviewRepository
+      .findAllByPrisonIdAndTypeAndFinalResultIsNullAndStatus(prisonId, CsraType.CSRA_INITIAL_REVIEW, CsraReviewStatus.IN_PROGRESS)
     val names = prisonerSearchClient.getPrisonerNames(reviews.map { it.prisonerNumber })
     val provisionalStageByReviewId = csraAssessmentStageRepository.findAllByCsraReviewIdIn(reviews.mapNotNull { it.id })
       .filter { it.stage == CsraAssessmentStage.PROVISIONAL }
@@ -281,7 +280,8 @@ class CsraReviewService(
    * prison with no final result. Names resolved from prisoner-search.
    */
   fun getReviewsInProgress(prisonId: String): CsraReviewsInProgress {
-    val reviews = csraReviewRepository.findAllByPrisonIdAndTypeAndFinalResultIsNull(prisonId, CsraType.CSRA_REVIEW)
+    val reviews = csraReviewRepository
+      .findAllByPrisonIdAndTypeAndFinalResultIsNullAndStatus(prisonId, CsraType.CSRA_REVIEW, CsraReviewStatus.IN_PROGRESS)
     val names = prisonerSearchClient.getPrisonerNames(reviews.map { it.prisonerNumber })
     val content = reviews.map { r ->
       val name = names[r.prisonerNumber]
@@ -342,9 +342,29 @@ class CsraReviewService(
     )
   }
 
+  /**
+   * A prisoner's current CSRA rating, read from the stateful `csra_current_rating` projection (R-06/R-07):
+   * the most recently saved rating, which persists across a newly started assessment and is reset to No
+   * rating on readmission. When there is no saved rating, an in-progress assessment (if any) is surfaced
+   * so the record still reads as "in progress"; otherwise "No rating".
+   */
   fun getCurrentRating(prisonerNumber: String): CsraCurrentRating {
-    val review = csraReviewRepository.findFirstByPrisonerNumberOrderByAssessmentDateDescIdDesc(prisonerNumber)
-      ?: return CsraCurrentRating(
+    val current = csraCurrentRatingRepository.findByPrisonerNumber(prisonerNumber)
+    if (current?.rating != null) {
+      val review = csraReviewRepository.findByIdOrNull(current.setByReviewId!!)
+      if (review != null) {
+        val status = if (current.provisional) CsraRatingStatus.PROVISIONAL else CsraRatingStatus.COMPLETE
+        return buildCurrentRating(prisonerNumber, review, status)
+      }
+    }
+
+    val inProgress = csraReviewRepository
+      .findAllByPrisonerNumberAndStatus(prisonerNumber, CsraReviewStatus.IN_PROGRESS)
+      .firstOrNull()
+    return if (inProgress != null) {
+      buildCurrentRating(prisonerNumber, inProgress, CsraRatingStatus.IN_PROGRESS)
+    } else {
+      CsraCurrentRating(
         prisonerNumber = prisonerNumber,
         status = CsraRatingStatus.NO_RATING,
         rating = null,
@@ -361,13 +381,10 @@ class CsraReviewService(
         startedBy = null,
         startedAt = null,
       )
-
-    val status = when {
-      review.finalResult != null -> CsraRatingStatus.COMPLETE
-      review.interimResult != null -> CsraRatingStatus.PROVISIONAL
-      else -> CsraRatingStatus.IN_PROGRESS
     }
+  }
 
+  private fun buildCurrentRating(prisonerNumber: String, review: CsraReviewEntity, status: CsraRatingStatus): CsraCurrentRating {
     val stages = csraAssessmentStageRepository.findAllByCsraReviewId(review.id!!)
     val finalStage = stages.firstOrNull { it.stage == CsraAssessmentStage.FINAL }
     val provisionalStage = stages.firstOrNull { it.stage == CsraAssessmentStage.PROVISIONAL }
@@ -482,10 +499,7 @@ class CsraReviewService(
   )
 
   private companion object {
-    /** The stored [CsraResult] names that count as high risk, for matching the native count projection. */
-    private val HIGH_RESULT_NAMES: Set<String> = HIGH_RESULTS.map { it.name }.toSet()
-
-    /** Chunk the roll when querying counts so the `IN (...)` list stays a sane size for large prisons. */
+    /** Chunk the roll when querying so the `IN (...)` list stays a sane size for large prisons. */
     private const val RATING_COUNT_BATCH_SIZE = 1000
 
     /** Severity ordering for the RATING sort: No rating < Standard < High < High-general < High-specific. */

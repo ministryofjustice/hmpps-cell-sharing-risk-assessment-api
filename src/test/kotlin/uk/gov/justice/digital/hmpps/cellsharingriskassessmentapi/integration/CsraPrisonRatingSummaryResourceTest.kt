@@ -44,7 +44,7 @@ class CsraPrisonRatingSummaryResourceTest : SqsIntegrationTestBase() {
       createdAt = LocalDateTime.parse("2026-01-02T09:00:00"),
       createdBy = "NQP56Y",
     ),
-  )
+  ).also { refreshCurrentRating(it.prisonerNumber) }
 
   @Test
   fun `returns 401 without a token`() {

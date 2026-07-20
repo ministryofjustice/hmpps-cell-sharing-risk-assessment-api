@@ -58,7 +58,7 @@ class CsraCurrentRatingResourceTest : SqsIntegrationTestBase() {
       createdAt = LocalDateTime.parse("2026-01-02T09:00:00"),
       createdBy = "NQP56Y",
     ),
-  )
+  ).also { refreshCurrentRating(it.prisonerNumber) }
 
   private fun stage(
     review: CsraReviewEntity,

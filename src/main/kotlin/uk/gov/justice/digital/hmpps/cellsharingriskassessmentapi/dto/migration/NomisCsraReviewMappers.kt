@@ -3,6 +3,7 @@ package uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraResult
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewNomisEntity
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewStatus
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraType
 import java.time.Clock
 import java.time.LocalDateTime
@@ -46,6 +47,8 @@ fun NomisCsraReview.toNewCsraReview(prisonerNumber: String): CsraReviewEntity {
     type = assessmentType.toCsraType(),
     finalResult = result,
     finalResultDate = result?.let { evaluationDate ?: assessmentDate },
+    // Migrated legacy reviews are historical, never in-progress (even result-less PEND rows).
+    status = CsraReviewStatus.COMPLETE,
     createdAt = createdDateTime,
     createdBy = createdBy,
   )
@@ -60,6 +63,7 @@ fun CsraReviewEntity.updateFromNomis(prisonerNumber: String, review: NomisCsraRe
   this.type = review.assessmentType.toCsraType()
   this.finalResult = result
   this.finalResultDate = result?.let { review.evaluationDate ?: review.assessmentDate }
+  this.status = CsraReviewStatus.COMPLETE
   this.lastModifiedAt = LocalDateTime.now(clock)
   this.lastModifiedBy = review.createdBy
 }

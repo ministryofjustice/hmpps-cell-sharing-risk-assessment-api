@@ -50,6 +50,17 @@ class CsraReviewEntity(
   var finalResult: CsraResult? = null,
   var finalResultDate: LocalDate? = null,
 
+  // Lifecycle state. New-model reviews start IN_PROGRESS; migrated legacy reviews are COMPLETE. A move
+  // may close (CLOSED, rating retained) or archive (ARCHIVED, no rating) an in-progress review.
+  @Enumerated(EnumType.STRING)
+  var status: CsraReviewStatus = CsraReviewStatus.IN_PROGRESS,
+
+  // Set when the review was closed/archived on admission (R-01/R-02).
+  @Enumerated(EnumType.STRING)
+  var closureReason: CsraClosureReason? = null,
+  var closedAt: LocalDateTime? = null,
+  var closedBy: String? = null,
+
   var createdAt: LocalDateTime,
   var createdBy: String,
   var lastModifiedAt: LocalDateTime? = null,
