@@ -62,4 +62,40 @@ class PrisonRegisterClientTest {
 
     assertThat(client.getPrisonNames()).isEmpty()
   }
+
+  @Test
+  fun `active prison ids exclude prisons prison-register no longer holds as operational`() {
+    stubPrisons(
+      """[
+        {"prisonId":"LEI","prisonName":"Leeds (HMP)","active":true},
+        {"prisonId":"MDI","prisonName":"Moorland (HMP)","active":false}
+      ]""",
+    )
+
+    assertThat(client.getActivePrisonIds()).containsExactly("LEI")
+  }
+
+  @Test
+  fun `a prison is treated as operational when prison-register omits the active flag`() {
+    stubPrisons("""[{"prisonId":"LEI","prisonName":"Leeds (HMP)"}]""")
+
+    assertThat(client.getActivePrisonIds()).containsExactly("LEI")
+  }
+
+  @Test
+  fun `names and active ids share one fetch`() {
+    stubPrisons("""[{"prisonId":"LEI","prisonName":"Leeds (HMP)","active":true}]""")
+
+    client.getPrisonNames()
+    client.getActivePrisonIds()
+
+    server.verify(1, getRequestedFor(urlEqualTo("/prisons")))
+  }
+
+  @Test
+  fun `returns no active prison ids when prison-register errors`() {
+    stubPrisons("", status = 500)
+
+    assertThat(client.getActivePrisonIds()).isEmpty()
+  }
 }
