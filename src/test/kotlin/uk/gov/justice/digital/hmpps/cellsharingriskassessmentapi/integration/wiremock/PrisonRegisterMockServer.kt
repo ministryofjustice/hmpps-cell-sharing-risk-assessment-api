@@ -36,10 +36,13 @@ class PrisonRegisterMockServer : WireMockServer(WIREMOCK_PORT) {
     private const val WIREMOCK_PORT = 8091
   }
 
-  /** Stub GET /prisons with the given prison id -> name pairs. */
-  fun stubGetPrisons(prisons: Map<String, String>) {
+  /**
+   * Stub GET /prisons with the given prison id -> name pairs. All prisons are returned as operational
+   * unless listed in [closed], which prison-register reports with active=false.
+   */
+  fun stubGetPrisons(prisons: Map<String, String>, closed: Set<String> = emptySet()) {
     val body = prisons.entries.joinToString(prefix = "[", postfix = "]") { (id, name) ->
-      """{"prisonId":"$id","prisonName":"$name","active":true}"""
+      """{"prisonId":"$id","prisonName":"$name","active":${id !in closed}}"""
     }
     stubFor(
       get(urlEqualTo("/prisons")).willReturn(
