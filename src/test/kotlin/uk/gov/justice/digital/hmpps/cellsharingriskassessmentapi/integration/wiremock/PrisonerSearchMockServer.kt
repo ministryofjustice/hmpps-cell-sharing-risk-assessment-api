@@ -52,6 +52,25 @@ class PrisonerSearchMockServer : WireMockServer(WIREMOCK_PORT) {
     stubRoll(prisonId, content, members.size)
   }
 
+  /**
+   * Stub the prison roll with the full detail the recent-arrivals screen needs: names, date of birth
+   * and current location.
+   */
+  fun stubGetPrisonRollWithDetail(prisonId: String, members: List<RollDetailStub>) {
+    val content = members.joinToString(",") {
+      """
+      {
+        "prisonerNumber":"${it.prisonerNumber}",
+        "firstName":"${it.firstName}",
+        "lastName":"${it.lastName}",
+        "dateOfBirth":"${it.dateOfBirth}",
+        "cellLocation":"${it.cellLocation}"
+      }
+      """.trimIndent()
+    }
+    stubRoll(prisonId, content, members.size)
+  }
+
   private fun stubRoll(prisonId: String, content: String, size: Int) {
     stubFor(
       // Real prisoner-search 500s on a GET without a Content-Type, so match on it: a request that
@@ -68,6 +87,14 @@ class PrisonerSearchMockServer : WireMockServer(WIREMOCK_PORT) {
   }
 
   data class RollMemberStub(val prisonerNumber: String, val firstName: String, val lastName: String)
+
+  data class RollDetailStub(
+    val prisonerNumber: String,
+    val firstName: String,
+    val lastName: String,
+    val dateOfBirth: String,
+    val cellLocation: String,
+  )
 
   /** Stub the bulk names lookup (POST /prisoner-search/prisoner-numbers) with the given members. */
   fun stubGetPrisonerNames(members: List<RollMemberStub>) {
