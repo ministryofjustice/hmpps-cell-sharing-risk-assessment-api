@@ -9,7 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.http.MediaType
 import org.springframework.test.web.reactive.server.expectBody
 import org.springframework.web.reactive.function.BodyInserters
-import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraCurrentRating
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentStarted
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraRatingStatus
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraAssessmentStageRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraNextReviewRepository
@@ -54,12 +54,12 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
     }
   """.trimIndent()
 
-  private fun start(prisonerNumber: String): CsraCurrentRating = webTestClient.post()
+  private fun start(prisonerNumber: String): CsraAssessmentStarted = webTestClient.post()
     .uri("/csra-review/prisoner/$prisonerNumber/assessment")
     .headers(setAuthorisation(roles = writeRole))
     .exchange()
     .expectStatus().isCreated
-    .expectBody<CsraCurrentRating>()
+    .expectBody<CsraAssessmentStarted>()
     .returnResult().responseBody!!
 
   private fun countAuditMessages() = auditQueue.sqsClient.countMessagesOnQueue(auditQueue.queueUrl).get()
@@ -83,17 +83,49 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
   fun `start creates an in-progress draft that records who started it`() {
     val started = start("W0000WW")
 
-    assertThat(started.status).isEqualTo(CsraRatingStatus.IN_PROGRESS)
-    assertThat(started.rating).isNull()
-    assertThat(started.startedBy).isNotNull()
-    assertThat(started.startedAt).isNotNull()
-    assertThat(started.reviewId).isNotNull()
+    assertThat(started.assessmentId).isNotNull()
+    assertThat(started.currentRating.status).isEqualTo(CsraRatingStatus.IN_PROGRESS)
+    assertThat(started.currentRating.rating).isNull()
+    assertThat(started.currentRating.startedBy).isNotNull()
+    assertThat(started.currentRating.startedAt).isNotNull()
+    assertThat(started.currentRating.reviewId).isEqualTo(started.assessmentId)
+  }
+
+  @Test
+  fun `start returns the new assessment id for a prisoner who already has a rating`() {
+    val prisoner = "R5555RR"
+    val firstAssessmentId = start(prisoner).assessmentId
+
+    webTestClient.put().uri("/csra-review/prisoner/$prisoner/assessment/$firstAssessmentId/final")
+      .headers(setAuthorisation(roles = writeRole))
+      .contentType(MediaType.APPLICATION_JSON)
+      .body(BodyInserters.fromValue(stageBody("STANDARD", "First assessment")))
+      .exchange()
+      .expectStatus().isOk
+
+    val started = start(prisoner)
+
+    // the id must identify the assessment just started, not the completed one that set the current rating
+    assertThat(started.assessmentId).isNotEqualTo(firstAssessmentId)
+    // the existing rating stands while the new assessment is in progress, so it still cites the earlier review
+    assertThat(started.currentRating.status).isEqualTo(CsraRatingStatus.COMPLETE)
+    assertThat(started.currentRating.reviewId).isEqualTo(firstAssessmentId)
+
+    // the new assessment is a real, addressable draft
+    webTestClient.put().uri("/csra-review/prisoner/$prisoner/assessment/${started.assessmentId}/provisional")
+      .headers(setAuthorisation(roles = writeRole))
+      .contentType(MediaType.APPLICATION_JSON)
+      .body(BodyInserters.fromValue(stageBody("HIGH_GENERAL", "Second assessment")))
+      .exchange()
+      .expectStatus().isOk
+
+    assertThat(csraAssessmentStageRepository.findAllByCsraReviewId(started.assessmentId)).hasSize(1)
   }
 
   @Test
   fun `start then provisional then final completes the assessment and emits created and amended events`() {
     val prisoner = "W1111WW"
-    val assessmentId = start(prisoner).reviewId!!
+    val assessmentId = start(prisoner).assessmentId
 
     webTestClient.put().uri("/csra-review/prisoner/$prisoner/assessment/$assessmentId/provisional")
       .headers(setAuthorisation(roles = writeRole))
@@ -135,7 +167,7 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
   @Test
   fun `a high-risk final rating sets the next review date twelve months on and stores risk-to and vulnerabilities`() {
     val prisoner = "H2222HH"
-    val assessmentId = start(prisoner).reviewId!!
+    val assessmentId = start(prisoner).assessmentId
 
     webTestClient.put().uri("/csra-review/prisoner/$prisoner/assessment/$assessmentId/final")
       .headers(setAuthorisation(roles = writeRole))
@@ -171,7 +203,7 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
   @Test
   fun `rejects a rating that conflicts with a mandatory high-risk offence`() {
     val prisoner = "M3333MM"
-    val assessmentId = start(prisoner).reviewId!!
+    val assessmentId = start(prisoner).assessmentId
 
     webTestClient.put().uri("/csra-review/prisoner/$prisoner/assessment/$assessmentId/provisional")
       .headers(setAuthorisation(roles = writeRole))

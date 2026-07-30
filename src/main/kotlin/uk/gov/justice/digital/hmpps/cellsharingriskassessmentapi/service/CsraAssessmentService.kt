@@ -5,6 +5,7 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.SYSTEM_USERNAME
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentStageRequest
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentStarted
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraCurrentRating
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.isHigh
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toDto
@@ -49,13 +50,13 @@ class CsraAssessmentService(
   private val username: String get() = authenticationHolder.username ?: SYSTEM_USERNAME
 
   /** Starts a new draft assessment. Rejects if one is already in progress for the prisoner. */
-  fun start(prisonerNumber: String): CsraCurrentRating {
+  fun start(prisonerNumber: String): CsraAssessmentStarted {
     csraReviewRepository.findFirstByPrisonerNumberOrderByAssessmentDateDescIdDesc(prisonerNumber)
       // A review closed/archived on a move is no longer in progress and does not block a new one.
       ?.takeIf { it.finalResult == null && it.interimResult == null && it.status != CsraReviewStatus.ARCHIVED }
       ?.let { throw CsraAssessmentInProgressException(prisonerNumber) }
 
-    csraReviewRepository.save(
+    val review = csraReviewRepository.saveAndFlush(
       CsraReviewEntity(
         prisonerNumber = prisonerNumber,
         assessmentDate = LocalDate.now(clock),
@@ -64,7 +65,12 @@ class CsraAssessmentService(
         createdBy = username,
       ),
     )
-    return csraReviewService.getCurrentRating(prisonerNumber)
+    // The current rating is left untouched by starting an assessment, so for an already-rated prisoner it
+    // still describes the earlier review — the new assessment must be identified by its own id.
+    return CsraAssessmentStarted(
+      assessmentId = review.id!!,
+      currentRating = csraReviewService.getCurrentRating(prisonerNumber),
+    )
   }
 
   fun submitProvisional(prisonerNumber: String, assessmentId: UUID, request: CsraAssessmentStageRequest) = submitStage(prisonerNumber, assessmentId, request, CsraAssessmentStage.PROVISIONAL)

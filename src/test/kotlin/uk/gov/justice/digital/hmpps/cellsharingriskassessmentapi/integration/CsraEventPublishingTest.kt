@@ -5,7 +5,7 @@ import org.junit.jupiter.api.Test
 import org.springframework.http.MediaType
 import org.springframework.test.web.reactive.server.expectBody
 import org.springframework.web.reactive.function.BodyInserters
-import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraCurrentRating
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentStarted
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.SyncResult
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.service.InformationSource
 
@@ -49,12 +49,12 @@ class CsraEventPublishingTest : SqsIntegrationTestBase() {
     }
   """.trimIndent()
 
-  private fun start(prisonerNumber: String): CsraCurrentRating = webTestClient.post()
+  private fun start(prisonerNumber: String): CsraAssessmentStarted = webTestClient.post()
     .uri("/csra-review/prisoner/$prisonerNumber/assessment")
     .headers(setAuthorisation(roles = writeRole))
     .exchange()
     .expectStatus().isCreated
-    .expectBody<CsraCurrentRating>()
+    .expectBody<CsraAssessmentStarted>()
     .returnResult().responseBody!!
 
   private fun submitProvisional(prisonerNumber: String, assessmentId: Any, rating: String = "STANDARD") {
@@ -88,7 +88,7 @@ class CsraEventPublishingTest : SqsIntegrationTestBase() {
   @Test
   fun `starting an assessment publishes nothing until a rating is saved`() {
     val prisoner = "E1111EE"
-    val assessmentId = start(prisoner).reviewId!!
+    val assessmentId = start(prisoner).assessmentId
 
     // The draft exists but nothing has been announced; the provisional rating below is the first event.
     submitProvisional(prisoner, assessmentId)
@@ -103,7 +103,7 @@ class CsraEventPublishingTest : SqsIntegrationTestBase() {
   @Test
   fun `a DPS rating is published with the prisoner number and a DPS source`() {
     val prisoner = "E2222EE"
-    val assessmentId = start(prisoner).reviewId!!
+    val assessmentId = start(prisoner).assessmentId
 
     submitProvisional(prisoner, assessmentId, rating = "HIGH_GENERAL")
 
