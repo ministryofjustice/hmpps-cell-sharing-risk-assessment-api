@@ -2,7 +2,9 @@ package uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.integration.wi
 
 import com.github.tomakehurst.wiremock.WireMockServer
 import com.github.tomakehurst.wiremock.client.WireMock.aResponse
+import com.github.tomakehurst.wiremock.client.WireMock.equalTo
 import com.github.tomakehurst.wiremock.client.WireMock.get
+import com.github.tomakehurst.wiremock.client.WireMock.matching
 import com.github.tomakehurst.wiremock.client.WireMock.urlPathEqualTo
 import org.junit.jupiter.api.extension.AfterAllCallback
 import org.junit.jupiter.api.extension.BeforeAllCallback
@@ -36,15 +38,20 @@ class PrisonApiMockServer : WireMockServer(WIREMOCK_PORT) {
     private const val WIREMOCK_PORT = 8093
   }
 
+  /**
+   * A movement from prison-api. The name/date-of-birth/location values prison-api sends are deliberately
+   * defaulted to obvious placeholders: the service takes those from the prisoner-search roll instead, so
+   * a test that saw these values in a response would be reading the wrong source.
+   */
   data class ArrivalStub(
     val offenderNo: String,
-    val firstName: String,
-    val lastName: String,
-    val dateOfBirth: String,
     val movementType: String,
     val movementDateTime: String,
-    val location: String,
     val movementReasonCode: String? = null,
+    val firstName: String = "MOVEMENT-FIRSTNAME",
+    val lastName: String = "MOVEMENT-LASTNAME",
+    val dateOfBirth: String = "1900-01-01",
+    val location: String = "MOVEMENT-LOCATION",
   )
 
   /** Stub GET /api/movements/{agencyId}/in with the given IN-movements. */
@@ -65,13 +72,19 @@ class PrisonApiMockServer : WireMockServer(WIREMOCK_PORT) {
       """.trimIndent()
     }
     stubFor(
-      get(urlPathEqualTo("/api/movements/$agencyId/in")).willReturn(
-        aResponse()
-          .withHeader("Content-Type", "application/json")
-          .withHeader("Total-Records", arrivals.size.toString())
-          .withBody("[$body]")
-          .withStatus(200),
-      ),
+      // The window must be bounded at both ends, so match on both query params: a request that stops
+      // sending toDateTime no longer matches this stub and the calling test fails.
+      get(urlPathEqualTo("/api/movements/$agencyId/in"))
+        .withQueryParam("fromDateTime", matching(".+"))
+        .withQueryParam("toDateTime", matching(".+"))
+        .withQueryParam("allMovements", equalTo("true"))
+        .willReturn(
+          aResponse()
+            .withHeader("Content-Type", "application/json")
+            .withHeader("Total-Records", arrivals.size.toString())
+            .withBody("[$body]")
+            .withStatus(200),
+        ),
     )
   }
 

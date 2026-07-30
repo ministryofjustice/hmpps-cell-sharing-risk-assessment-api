@@ -6,10 +6,17 @@ import java.time.LocalDateTime
 
 @Schema(description = "Prisoners who have arrived at a prison within the recent window and are still in the establishment")
 data class CsraRecentArrivals(
-  @param:Schema(description = "The arrivals matching the filter, most recent first")
-  val arrivals: List<CsraArrivalRow>,
+  @param:Schema(
+    description = "One section per calendar day in the window, most recent day first. Every day is " +
+      "present even when nobody arrived on it, so the screen can show its per-day empty state",
+  )
+  val days: List<CsraArrivalDay>,
 
-  @param:Schema(description = "The number of arrivals matching the filter", example = "10")
+  @param:Schema(
+    description = "The number of arrivals matching the filter across the whole window. Zero means no " +
+      "arrivals matched, which is what drives the filtered empty state",
+    example = "10",
+  )
   val totalResults: Int,
 
   @param:Schema(
@@ -23,6 +30,15 @@ data class CsraRecentArrivals(
 
   @param:Schema(description = "The last day of the window (inclusive, today)", example = "2026-07-09")
   val toDate: LocalDate,
+)
+
+@Schema(description = "One calendar day of the window, with the arrivals on that day")
+data class CsraArrivalDay(
+  @param:Schema(description = "The day", example = "2026-07-09")
+  val date: LocalDate,
+
+  @param:Schema(description = "The arrivals on this day matching the filter, latest first; empty when nobody arrived")
+  val arrivals: List<CsraArrivalRow>,
 )
 
 @Schema(description = "A prisoner who arrived at the prison")
@@ -45,6 +61,10 @@ data class CsraArrivalRow(
   @param:Schema(description = "When the prisoner arrived", example = "2026-07-09T14:03:00")
   val arrivedAt: LocalDateTime,
 
-  @param:Schema(description = "The prisoner's location on arrival (reception or a cell)", example = "Reception")
+  @param:Schema(
+    description = "Where the prisoner is now — a cell, or a location code such as RECP for reception. " +
+      "This is their current location, not where they were put on arrival",
+    example = "C-2-005",
+  )
   val location: String?,
 )

@@ -20,15 +20,25 @@ class PrisonApiClient(
   @param:Qualifier("prisonApiWebClient") private val webClient: WebClient,
 ) {
   /**
-   * All IN-movements (admissions, transfers in, court/temporary-absence returns) into [prisonId] since
-   * [fromDateTime]. `allMovements=true` includes prisoners currently out (e.g. at court) so an arrival in
-   * the window is not missed; callers exclude anyone no longer in the establishment separately.
+   * All IN-movements (admissions, transfers in, court/temporary-absence returns) into [prisonId] between
+   * [fromDateTime] and [toDateTime]. Everything this endpoint returns is by definition a movement *into*
+   * the prison, so there is no direction to filter on. `allMovements=true` includes prisoners currently
+   * out (e.g. at court) so an arrival in the window is not missed; callers exclude anyone no longer in
+   * the establishment separately.
    */
-  fun getArrivals(prisonId: String, fromDateTime: LocalDateTime): List<PrisonApiOffenderIn> = webClient
+  fun getArrivals(
+    prisonId: String,
+    fromDateTime: LocalDateTime,
+    toDateTime: LocalDateTime,
+  ): List<PrisonApiOffenderIn> = webClient
     .get()
     .uri(
-      "/api/movements/{agencyId}/in?fromDateTime={fromDateTime}&allMovements=true",
-      mapOf("agencyId" to prisonId, "fromDateTime" to fromDateTime.toString()),
+      "/api/movements/{agencyId}/in?fromDateTime={fromDateTime}&toDateTime={toDateTime}&allMovements=true",
+      mapOf(
+        "agencyId" to prisonId,
+        "fromDateTime" to fromDateTime.toString(),
+        "toDateTime" to toDateTime.toString(),
+      ),
     )
     .header("Page-Limit", PAGE_LIMIT.toString())
     .retrieve()
@@ -50,7 +60,10 @@ data class PrisonApiOffenderIn(
   val dateOfBirth: LocalDate? = null,
   /** NOMIS movement type: ADM / TRN / CRT / TAP. */
   val movementType: String,
-  /** NOMIS movement reason code, e.g. INT / TRNCRT / N. Absent on older prison-api versions. */
+  /**
+   * NOMIS movement reason code, e.g. INT / TRNCRT / N. Added to prison-api for this screen: it is what
+   * distinguishes an admission that is really a transfer from another establishment from a new arrival.
+   */
   val movementReasonCode: String? = null,
   val movementDateTime: LocalDateTime? = null,
   /** The offender's internal location (reception or cell). */
