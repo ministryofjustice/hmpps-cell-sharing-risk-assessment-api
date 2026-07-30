@@ -5,6 +5,7 @@ import org.springframework.beans.factory.annotation.Qualifier
 import org.springframework.stereotype.Component
 import org.springframework.web.reactive.function.client.WebClient
 import org.springframework.web.reactive.function.client.bodyToMono
+import java.time.LocalDate
 
 /**
  * Reads the current prison roll (the prisoner numbers of everyone currently in a prison) from
@@ -28,7 +29,9 @@ class PrisonerSearchClient(
     var page = 0
     do {
       val result = fetchPage(prisonId, page)
-      members += result.content.map { PrisonRollMember(it.prisonerNumber, it.firstName, it.lastName) }
+      members += result.content.map {
+        PrisonRollMember(it.prisonerNumber, it.firstName, it.lastName, it.dateOfBirth, it.cellLocation)
+      }
       page++
     } while (page < result.totalPages)
     return members
@@ -45,13 +48,21 @@ class PrisonerSearchClient(
       .bodyToMono<List<PrisonRollEntry>>()
       .block()
       .orEmpty()
-      .associate { it.prisonerNumber to PrisonRollMember(it.prisonerNumber, it.firstName, it.lastName) }
+      .associate {
+        it.prisonerNumber to PrisonRollMember(
+          it.prisonerNumber,
+          it.firstName,
+          it.lastName,
+          it.dateOfBirth,
+          it.cellLocation,
+        )
+      }
   }
 
   private fun fetchPage(prisonId: String, page: Int): PrisonRollPage = webClient
     .get()
     .uri(
-      "/prisoner-search/prison/{prisonId}?page={page}&size={size}&responseFields=prisonerNumber,firstName,lastName",
+      "/prisoner-search/prison/{prisonId}?page={page}&size={size}&responseFields=$ROLL_RESPONSE_FIELDS",
       mapOf("prisonId" to prisonId, "page" to page, "size" to PAGE_SIZE),
     )
     .retrieve()
@@ -60,16 +71,25 @@ class PrisonerSearchClient(
 
   private companion object {
     private const val PAGE_SIZE = 2000
+
+    /**
+     * Date of birth and cell location are here for the recent-arrivals screen; other roll callers simply
+     * ignore them. Keep this list tight — it is fetched a page of 2000 at a time.
+     */
+    private const val ROLL_RESPONSE_FIELDS = "prisonerNumber,firstName,lastName,dateOfBirth,cellLocation"
   }
 }
 
 data class PrisonerNumbersRequest(val prisonerNumbers: List<String>)
 
-/** A member of a prison's roll: their number and name. */
+/** A member of a prison's roll: their number, name and where they currently are. */
 data class PrisonRollMember(
   val prisonerNumber: String,
   val firstName: String?,
   val lastName: String?,
+  val dateOfBirth: LocalDate? = null,
+  /** Their current internal location: a cell, or a code such as RECP for reception. */
+  val cellLocation: String? = null,
 )
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -84,4 +104,6 @@ data class PrisonRollEntry(
   val prisonerNumber: String,
   val firstName: String? = null,
   val lastName: String? = null,
+  val dateOfBirth: LocalDate? = null,
+  val cellLocation: String? = null,
 )

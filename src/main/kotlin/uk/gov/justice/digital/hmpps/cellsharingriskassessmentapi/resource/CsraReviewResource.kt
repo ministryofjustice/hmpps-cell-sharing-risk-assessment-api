@@ -6,6 +6,7 @@ import io.swagger.v3.oas.annotations.media.Content
 import io.swagger.v3.oas.annotations.media.Schema
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.tags.Tag
+import jakarta.validation.constraints.Min
 import org.springframework.format.annotation.DateTimeFormat
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
@@ -379,9 +380,12 @@ class CsraReviewResource(
   @Operation(
     summary = "Returns prisoners who recently arrived at a prison",
     description = "Prisoners who arrived at the prison in the last N days (default 3) and are still in the " +
-      "establishment, most recent first, with their arrival type and time. Arrivals come from prison-api " +
-      "movements; anyone no longer in the establishment is excluded via the prisoner-search roll. One row " +
-      "per prisoner (their most recent arrival). Requires role ROLE_CSRA_REVIEW__R",
+      "establishment, grouped into a section per calendar day, most recent day first. Every day in the " +
+      "window is returned even when nobody arrived on it. Admissions, transfers in and returns from court " +
+      "or temporary absence all count as arrivals. Arrivals come from prison-api movements; anyone no " +
+      "longer in the establishment is excluded via the prisoner-search roll, which also supplies each " +
+      "prisoner's name and current location. One row per prisoner per day (their latest arrival that " +
+      "day). Requires role ROLE_CSRA_REVIEW__R",
     responses = [
       ApiResponse(responseCode = "200", description = "Returns the recent arrivals"),
       ApiResponse(
@@ -402,8 +406,12 @@ class CsraReviewResource(
     prisonId: String,
     @Parameter(description = "The number of days back to include (inclusive of today)", example = "3")
     @RequestParam(defaultValue = "3")
+    @Min(1)
     days: Int,
-    @Parameter(description = "Only include these arrival types")
+    @Parameter(
+      description = "Only include these arrival types. Omit for all arrivals; multiple types match any " +
+        "of them. The per-type counts are unaffected by this filter",
+    )
     @RequestParam(required = false)
     arrivalTypes: List<CsraArrivalType>?,
   ) = csraReviewService.getRecentArrivals(prisonId = prisonId, days = days, arrivalTypes = arrivalTypes)

@@ -8,6 +8,7 @@ import org.springframework.transaction.annotation.Transactional
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.client.PrisonApiClient
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.client.PrisonRegisterClient
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.client.PrisonerSearchClient
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraArrivalDay
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraArrivalRow
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraArrivalType
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentStartedRow
@@ -56,6 +57,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraSummaryRow
 import java.time.Clock
 import java.time.LocalDate
+import java.time.LocalTime
 import java.util.UUID
 
 @Service
@@ -300,46 +302,58 @@ class CsraReviewService(
   /**
    * Prisoners who arrived at [prisonId] in the last [days] days and are still in the establishment (the
    * "recent arrivals" worklist). Arrivals come from prison-api movements (the source of truth); anyone no
-   * longer in the establishment (released or moved on) is excluded via the prisoner-search roll. One row
-   * per prisoner — their most recent arrival in the window.
+   * longer in the establishment (released or moved on) is excluded via the prisoner-search roll.
    *
-   * Only a genuine admission counts (see [CsraArrivalType.fromMovement]): a prisoner who popped out to
-   * court or on temporary absence and came back has not arrived, and must keep the date of the admission
-   * that actually brought them here.
+   * Admissions, transfers in, and returns from court or temporary absence all count as arrivals — see
+   * [CsraArrivalType.fromMovement]. One row per prisoner *per day*: someone who arrived on two days
+   * appears under both, but a prisoner who bounced in and out on one day is shown once, at their latest
+   * arrival that day.
+   *
+   * Every day of the window is returned whether or not anyone arrived on it, because the screen shows an
+   * empty state under each date.
    */
   fun getRecentArrivals(prisonId: String, days: Int, arrivalTypes: List<CsraArrivalType>?): CsraRecentArrivals {
     val today = LocalDate.now(clock)
     val fromDate = today.minusDays((days - 1).toLong())
-    val roll = prisonerSearchClient.getPrisonRoll(prisonId).toSet()
+    // One roll lookup serves three purposes: who is still here, their names, and their current location.
+    val roll = prisonerSearchClient.getPrisonRollMembers(prisonId).associateBy { it.prisonerNumber }
 
-    val arrivals = prisonApiClient.getArrivals(prisonId, fromDate.atStartOfDay())
+    val arrivals = prisonApiClient.getArrivals(prisonId, fromDate.atStartOfDay(), today.atTime(LocalTime.MAX))
       .mapNotNull { movement ->
         val type = CsraArrivalType.fromMovement(movement.movementType, movement.movementReasonCode)
           ?: return@mapNotNull null
         val arrivedAt = movement.movementDateTime ?: return@mapNotNull null
-        if (movement.offenderNo !in roll) return@mapNotNull null
+        // prison-api is already bounded to the window; this keeps a stray movement from landing outside
+        // every day section, which would silently drop it from the response.
+        if (arrivedAt.toLocalDate() < fromDate || arrivedAt.toLocalDate() > today) return@mapNotNull null
+        val member = roll[movement.offenderNo] ?: return@mapNotNull null
         CsraArrivalRow(
           prisonerNumber = movement.offenderNo,
-          firstName = movement.firstName,
-          lastName = movement.lastName,
-          dateOfBirth = movement.dateOfBirth,
+          firstName = member.firstName,
+          lastName = member.lastName,
+          dateOfBirth = member.dateOfBirth,
           arrivalType = type,
           arrivedAt = arrivedAt,
-          location = movement.location,
+          location = member.cellLocation,
         )
       }
-      // One row per prisoner: their most recent arrival in the window.
-      .groupBy { it.prisonerNumber }
+      // One row per prisoner per day: their latest arrival on that day.
+      .groupBy { it.prisonerNumber to it.arrivedAt.toLocalDate() }
       .map { (_, rows) -> rows.maxBy { it.arrivedAt } }
 
     val arrivalTypeCounts = CsraArrivalType.entries.associateWith { type -> arrivals.count { it.arrivalType == type } }
 
-    val filtered = arrivals
-      .filter { arrivalTypes == null || it.arrivalType in arrivalTypes }
-      .sortedByDescending { it.arrivedAt }
+    val filtered = arrivals.filter { arrivalTypes == null || it.arrivalType in arrivalTypes }
+    val byDay = filtered.groupBy { it.arrivedAt.toLocalDate() }
+
+    // Days come from the window rather than the data, so a day nobody arrived on is still a section.
+    val dayList = generateSequence(today) { it.minusDays(1) }
+      .takeWhile { it >= fromDate }
+      .map { date -> CsraArrivalDay(date = date, arrivals = byDay[date].orEmpty().sortedByDescending { it.arrivedAt }) }
+      .toList()
 
     return CsraRecentArrivals(
-      arrivals = filtered,
+      days = dayList,
       totalResults = filtered.size,
       arrivalTypeCounts = arrivalTypeCounts,
       fromDate = fromDate,
