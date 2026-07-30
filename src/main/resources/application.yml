@@ -58,6 +58,16 @@ spring:
       connection-timeout: 1000
       validation-timeout: 500
 
+# springdoc hardcodes the swagger-ui version it was built against (springdoc.config.properties inside
+# springdoc-openapi-starter-common) and serves /swagger-ui/** from /webjars/swagger-ui/<that version>/.
+# The HMPPS gradle plugin pins the swagger-ui webjar ahead of springdoc to remediate a DOMPurify issue,
+# so springdoc looks for a directory that is not on the classpath and /swagger-ui/index.html 404s.
+# Keep this in step with the webjar the plugin resolves — check with:
+#   ./gradlew -q dependencies --configuration runtimeClasspath | grep swagger-ui
+springdoc:
+  swagger-ui:
+    version: 5.32.11
+
 server:
   port: 8080
   servlet:
