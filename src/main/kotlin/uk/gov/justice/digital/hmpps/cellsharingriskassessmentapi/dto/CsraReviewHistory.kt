@@ -71,12 +71,18 @@ data class CsraReviewSummary(
   @param:Schema(description = "The recorded rating (final result if present, otherwise the interim result)", example = "STANDARD")
   val rating: CsraResult,
 
-  @param:Schema(description = "The review/assessment comment, if any", example = "PNC checked. No issues found.")
+  @param:Schema(description = "The review/assessment comment, if any. Where `legacy` is present, prefer its assessmentComment and approvalComment — NOMIS records the two separately and this field resolves them to one.", example = "PNC checked. No issues found.")
   val reviewComment: String?,
 
   @param:Schema(description = "The prison the CSRA was recorded at", example = "LEI")
   val prisonId: String?,
 
+  @param:Schema(description = "The name of the prison the CSRA was recorded at, falling back to the id if it cannot be resolved", example = "Leeds (HMP)")
+  val prisonName: String?,
+
   @param:Schema(description = "The date the rating was recorded", example = "2025-10-11")
   val recordedDate: LocalDate,
+
+  @param:Schema(description = "Legacy NOMIS detail. Present only on reviews migrated from NOMIS, so its presence identifies the row as legacy.", required = false)
+  val legacy: CsraLegacyDetail? = null,
 )

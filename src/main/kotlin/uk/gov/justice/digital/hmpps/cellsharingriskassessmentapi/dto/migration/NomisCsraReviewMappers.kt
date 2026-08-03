@@ -55,36 +55,45 @@ data class NomisCsraOutcome(val result: CsraResult?, val settled: Boolean)
 private val LEVEL_PRIORITY = listOf(CsraLevel.HI, CsraLevel.STANDARD, CsraLevel.MED, CsraLevel.LOW)
 
 /**
- * Resolves a NOMIS review to a rating, mirroring how NOMIS itself derives the CSRA shown on
- * `/api/offenders/{offenderNo}` (prison-api `OffenderAssessment.getClassificationSummary`):
+ * Which of a NOMIS review's three levels is the one NOMIS itself would display, mirroring prison-api
+ * `OffenderAssessment.getClassificationSummary`:
  *
- *  1. an approved level that is not PEND is the final, approved rating;
+ *  1. an approved level that is not PEND wins outright;
  *  2. otherwise, where both the reviewer's level and the calculated level are set, the stronger of the
  *     two wins (HI > STANDARD > MED > LOW), the reviewer's level taking precedence at equal rank;
  *  3. otherwise the reviewer's level, if set — this is the case where NOMIS displays a bare "PEND";
  *  4. otherwise the calculated level, if it is not PEND;
- *  5. otherwise no rating at all.
+ *  5. otherwise no level at all.
  *
- * Whichever level wins, the outcome is settled unless NOMIS still holds the review in provisional status —
- * see [NomisCsraOutcome] for why approval does not decide this.
+ * This rule is also implemented in SQL by `V8__recalculate_nomis_csra_results.sql`, so the two must stay
+ * in step. It lives here once rather than being re-derived by each caller: [nomisOutcome] needs the
+ * resolved *result*, while the history read path needs the raw *level*, so that legacy LOW and MED rows
+ * can be displayed as such rather than as the STANDARD they resolve to.
  */
-fun NomisCsraReview.nomisOutcome(): NomisCsraOutcome {
-  // A review NOMIS still holds as provisional is unfinished whatever level it carries.
-  val settled = status != CsraStatus.P
+fun resolveNomisLevel(calculatedLevel: CsraLevel?, reviewLevel: CsraLevel?, approvedLevel: CsraLevel?): CsraLevel? {
+  if (approvedLevel != null && approvedLevel != CsraLevel.PEND) return approvedLevel
 
-  if (approvedLevel != null && approvedLevel != CsraLevel.PEND) {
-    return NomisCsraOutcome(approvedLevel.toCsraResult(), settled)
-  }
-
-  val level = when {
+  return when {
     reviewLevel != null && calculatedLevel != null ->
       LEVEL_PRIORITY.firstNotNullOfOrNull { rank -> rank.takeIf { it == reviewLevel || it == calculatedLevel } }
     reviewLevel != null -> reviewLevel
     calculatedLevel != CsraLevel.PEND -> calculatedLevel
     else -> null
   }
-  return NomisCsraOutcome(level.toCsraResult(), settled)
 }
+
+/** The level [resolveNomisLevel] picks for an already-persisted NOMIS record. */
+fun CsraReviewNomisEntity.resolvedLevel(): CsraLevel? = resolveNomisLevel(calculatedLevel, reviewLevel, approvedLevel)
+
+/**
+ * Resolves a NOMIS review to a rating and whether it is settled — see [resolveNomisLevel] for how the
+ * level is chosen, and [NomisCsraOutcome] for why approval does not decide whether it is settled.
+ */
+fun NomisCsraReview.nomisOutcome(): NomisCsraOutcome = NomisCsraOutcome(
+  result = resolveNomisLevel(calculatedLevel, reviewLevel, approvedLevel).toCsraResult(),
+  // A review NOMIS still holds as provisional is unfinished whatever level it carries.
+  settled = status != CsraStatus.P,
+)
 
 fun NomisCsraReview.toNewCsraReview(prisonerNumber: String): CsraReviewEntity {
   val outcome = nomisOutcome()
