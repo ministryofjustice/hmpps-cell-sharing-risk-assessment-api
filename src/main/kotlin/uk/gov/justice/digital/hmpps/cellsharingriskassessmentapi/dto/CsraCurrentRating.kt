@@ -3,6 +3,7 @@ package uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto
 import io.swagger.v3.oas.annotations.media.Schema
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraResult
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraRiskToCategory
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraType
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraVulnerabilityCategory
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -70,6 +71,46 @@ data class CsraCurrentRating(
 
   @param:Schema(description = "When the current assessment was started", example = "2026-06-26T11:20:00")
   val startedAt: LocalDateTime?,
+
+  @param:Schema(description = "Whether the rating came from an assessment or a review. Absent when there is no rating.", example = "CSRA_INITIAL_REVIEW")
+  val type: CsraType? = null,
+
+  @param:Schema(description = "The assessment or review currently in progress, if any. Absent when nothing is in progress.")
+  val inProgress: CsraInProgressReview? = null,
+)
+
+/**
+ * An assessment or review that is started but not yet complete, reported alongside — not instead of — the
+ * prisoner's current rating.
+ *
+ * The two can be the same record or different ones, and a consumer tells them apart by comparing this
+ * [reviewId] with [CsraCurrentRating.reviewId]:
+ *
+ * - **Equal** — the in-progress record is the one showing the current rating, i.e. it has saved an
+ *   interim/provisional rating that now stands. The screen reads "an interim rating has been entered,
+ *   complete the review to confirm a final rating".
+ * - **Different** — the rating comes from an earlier completed record and this one is still unrated. The
+ *   screen shows the old rating with a separate "review in progress" block.
+ *
+ * An in-progress record either carries no rating at all or its rating *is* the current rating, so no rating
+ * is repeated here.
+ */
+@Schema(description = "An assessment or review in progress, reported alongside the current rating")
+data class CsraInProgressReview(
+  @param:Schema(description = "The id of the in-progress assessment or review. Point 'Continue' and 'Cancel' at this.", example = "de91dfa7-821f-4552-a427-bf2f32eafeb0", requiredMode = Schema.RequiredMode.REQUIRED)
+  val reviewId: UUID,
+
+  @param:Schema(description = "Whether this is an assessment or a review — the card is captioned accordingly", example = "CSRA_INITIAL_REVIEW", requiredMode = Schema.RequiredMode.REQUIRED)
+  val type: CsraType,
+
+  @param:Schema(description = "The username that started it", example = "BPONDS")
+  val startedBy: String?,
+
+  @param:Schema(description = "When it was started", example = "2026-06-26T11:20:00")
+  val startedAt: LocalDateTime?,
+
+  @param:Schema(description = "The prison it was started at", example = "LEI")
+  val prisonId: String?,
 )
 
 @Schema(description = "A group the prisoner is a risk to, with optional free-text detail")

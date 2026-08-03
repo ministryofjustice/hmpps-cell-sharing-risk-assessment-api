@@ -22,6 +22,13 @@ interface CsraReviewRepository :
   fun findAllByPrisonerNumberAndStatus(prisonerNumber: String, status: CsraReviewStatus): List<CsraReviewEntity>
 
   /**
+   * The prisoner's most recent review in a given status. Ordered explicitly: a prisoner can hold more than
+   * one IN_PROGRESS review, and picking one by database row order makes the current-rating response
+   * non-deterministic.
+   */
+  fun findFirstByPrisonerNumberAndStatusOrderByAssessmentDateDescIdDesc(prisonerNumber: String, status: CsraReviewStatus): CsraReviewEntity?
+
+  /**
    * A prisoner's rated, non-[excludedStatus] reviews, most recent first — the first is the review that
    * sets the current rating (drives the csra_current_rating projection). Pass ARCHIVED for [excludedStatus].
    */
