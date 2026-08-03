@@ -30,7 +30,7 @@ dependencies {
   implementation("com.zaxxer:HikariCP:7.1.0")
   runtimeOnly("org.postgresql:postgresql:42.7.13")
   implementation("com.fasterxml.uuid:java-uuid-generator:5.2.0")
-  implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.3")
+  implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.1.0")
 
   testImplementation("uk.gov.justice.service.hmpps:hmpps-kotlin-spring-boot-starter-test:3.0.0")
   testImplementation("org.springframework.boot:spring-boot-starter-webclient-test")
