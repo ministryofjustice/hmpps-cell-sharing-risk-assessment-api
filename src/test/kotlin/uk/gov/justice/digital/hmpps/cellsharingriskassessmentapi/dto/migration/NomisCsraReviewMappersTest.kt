@@ -70,18 +70,29 @@ class NomisCsraReviewMappersTest {
   }
 
   @Test
-  fun `an unapproved level is kept as a provisional rating`() {
+  fun `a level that was never approved is still a final rating`() {
+    // Approval was a governance step, not a completion step, and in practice almost no NOMIS review
+    // carries an approved level — treating those as provisional made every migrated review provisional.
     val entity = review(approvedLevel = null, reviewLevel = CsraLevel.HI).toNewCsraReview("A1234BC")
 
-    assertThat(entity.interimResult).isEqualTo(CsraResult.HIGH)
-    assertThat(entity.interimResultDate).isEqualTo(LocalDate.parse("2025-11-22"))
-    assertThat(entity.finalResult).isNull()
-    assertThat(entity.finalResultDate).isNull()
+    assertThat(entity.finalResult).isEqualTo(CsraResult.HIGH)
+    assertThat(entity.finalResultDate).isEqualTo(LocalDate.parse("2025-11-22"))
+    assertThat(entity.interimResult).isNull()
+    assertThat(entity.interimResultDate).isNull()
   }
 
   @Test
-  fun `a review NOMIS still holds as provisional is not treated as approved`() {
+  fun `a review NOMIS still holds as provisional is the only provisional case`() {
     val entity = review(approvedLevel = CsraLevel.HI, status = CsraStatus.P).toNewCsraReview("A1234BC")
+
+    assertThat(entity.interimResult).isEqualTo(CsraResult.HIGH)
+    assertThat(entity.finalResult).isNull()
+  }
+
+  @Test
+  fun `an unapproved review NOMIS holds as provisional is also provisional`() {
+    val entity = review(approvedLevel = null, reviewLevel = CsraLevel.HI, status = CsraStatus.P)
+      .toNewCsraReview("A1234BC")
 
     assertThat(entity.interimResult).isEqualTo(CsraResult.HIGH)
     assertThat(entity.finalResult).isNull()
@@ -91,7 +102,7 @@ class NomisCsraReviewMappersTest {
   fun `a pending approved level no longer hides a rating on the other levels`() {
     val entity = review(approvedLevel = CsraLevel.PEND, calculatedLevel = CsraLevel.HI).toNewCsraReview("A1234BC")
 
-    assertThat(entity.interimResult).isEqualTo(CsraResult.HIGH)
+    assertThat(entity.finalResult).isEqualTo(CsraResult.HIGH)
   }
 
   @ParameterizedTest
@@ -109,14 +120,14 @@ class NomisCsraReviewMappersTest {
     calculatedLevel: CsraLevel,
     expected: CsraResult,
   ) {
-    assertThat(review(reviewLevel = reviewLevel, calculatedLevel = calculatedLevel).toNewCsraReview("A1234BC").interimResult)
+    assertThat(review(reviewLevel = reviewLevel, calculatedLevel = calculatedLevel).toNewCsraReview("A1234BC").finalResult)
       .isEqualTo(expected)
   }
 
   @Test
-  fun `a calculated level alone is a provisional rating unless it is PEND`() {
-    assertThat(review(calculatedLevel = CsraLevel.HI).toNewCsraReview("A1234BC").interimResult).isEqualTo(CsraResult.HIGH)
-    assertThat(review(calculatedLevel = CsraLevel.PEND).toNewCsraReview("A1234BC").interimResult).isNull()
+  fun `a calculated level alone is a rating unless it is PEND`() {
+    assertThat(review(calculatedLevel = CsraLevel.HI).toNewCsraReview("A1234BC").finalResult).isEqualTo(CsraResult.HIGH)
+    assertThat(review(calculatedLevel = CsraLevel.PEND).toNewCsraReview("A1234BC").finalResult).isNull()
   }
 
   @Test
@@ -171,11 +182,11 @@ class NomisCsraReviewMappersTest {
   }
 
   @Test
-  fun `approval of a previously provisional review clears the interim result`() {
-    val entity = review(reviewLevel = CsraLevel.HI).toNewCsraReview("A1234BC")
+  fun `a review leaving NOMIS provisional status clears the interim result`() {
+    val entity = review(reviewLevel = CsraLevel.HI, status = CsraStatus.P).toNewCsraReview("A1234BC")
     assertThat(entity.interimResult).isEqualTo(CsraResult.HIGH)
 
-    entity.updateFromNomis("A1234BC", review(reviewLevel = CsraLevel.HI, approvedLevel = CsraLevel.STANDARD), clock)
+    entity.updateFromNomis("A1234BC", review(reviewLevel = CsraLevel.STANDARD, status = CsraStatus.A), clock)
 
     assertThat(entity.finalResult).isEqualTo(CsraResult.STANDARD)
     assertThat(entity.interimResult).isNull()
@@ -227,9 +238,11 @@ class NomisCsraReviewMappersTest {
     val review = fullReview()
     val core = review.toNewCsraReview("A1234BC")
 
-    val nomis = review.toNomisEntity(core)
+    val nomis = review.toNomisEntity(core, clock)
 
     assertThat(nomis.csraReview).isSameAs(core)
+    // Our clock, not NOMIS's — createdAt on the core record is NOMIS's own timestamp.
+    assertThat(nomis.ingestedAt).isEqualTo(LocalDateTime.now(clock))
     assertThat(nomis.score).isEqualByComparingTo(BigDecimal("1000"))
     assertThat(nomis.status).isEqualTo(CsraStatus.A)
     assertThat(nomis.calculatedLevel).isEqualTo(CsraLevel.MED)
@@ -250,7 +263,8 @@ class NomisCsraReviewMappersTest {
   @Test
   fun `update of the adjacent record overwrites every additional field`() {
     val original = fullReview()
-    val nomis = original.toNomisEntity(original.toNewCsraReview("A1234BC"))
+    val nomis = original.toNomisEntity(original.toNewCsraReview("A1234BC"), clock)
+    nomis.ingestedAt = null
 
     nomis.updateFromNomis(
       fullReview().copy(
@@ -259,7 +273,11 @@ class NomisCsraReviewMappersTest {
         comment = "changed",
         reviewDetails = emptyList(),
       ),
+      clock,
     )
+
+    // Re-stamped on every write, so the column always reflects the most recent load.
+    assertThat(nomis.ingestedAt).isEqualTo(LocalDateTime.now(clock))
 
     assertThat(nomis.approvedLevel).isEqualTo(CsraLevel.STANDARD)
     assertThat(nomis.status).isEqualTo(CsraStatus.I)
