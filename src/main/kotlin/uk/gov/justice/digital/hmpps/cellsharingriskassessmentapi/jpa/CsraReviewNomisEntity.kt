@@ -20,6 +20,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.C
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.helper.GeneratedUuidV7
 import java.math.BigDecimal
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.util.UUID
 
 /**
@@ -72,6 +73,16 @@ class CsraReviewNomisEntity(
   @JdbcTypeCode(SqlTypes.JSON)
   @Column(name = "review_details", columnDefinition = "jsonb")
   var reviewDetails: List<CsraReviewDetailDto> = emptyList(),
+
+  /**
+   * When this row was last written by migration or sync — our wall clock, not NOMIS's.
+   *
+   * The core record's `createdAt` is NOMIS's own creation timestamp (which is why it goes back to 2006),
+   * and nothing else records when the data actually reached us. Without this, questions like "which
+   * migration run produced the current state" are unanswerable, which has already cost a day's
+   * investigation once. Null means the row predates this column.
+   */
+  var ingestedAt: LocalDateTime? = null,
 
   @Id
   @GeneratedUuidV7

@@ -192,9 +192,10 @@ class CsraNomisSyncResourceTest : SqsIntegrationTestBase() {
     }
 
     @Test
-    fun `an unapproved NOMIS rating becomes the prisoner's provisional current rating`() {
-      // No approved level, so NOMIS has not signed this off; the calculated level is still the rating it
-      // shows, and the new service (which has no approval step) keeps it as provisional.
+    fun `an unapproved NOMIS rating becomes the prisoner's final current rating`() {
+      // No approved level — which is true of every NOMIS review in practice, because approval was a
+      // governance step that was almost never used. The calculated level is the rating NOMIS shows, and
+      // it is settled: there is nothing left to complete, so it is final rather than provisional.
       val pendingJson = reviewJson()
         .replace("\"approvedLevel\": \"HI\",", "")
         .replace("\"reviewLevel\": \"STANDARD\",", "")
@@ -208,6 +209,30 @@ class CsraNomisSyncResourceTest : SqsIntegrationTestBase() {
         .expectStatus().isCreated
 
       webTestClient.get().uri("/csra-review/prisoner/P1111PP/current-rating")
+        .headers(setAuthorisation(roles = listOf("ROLE_CSRA_REVIEW__R")))
+        .exchange()
+        .expectStatus().isOk
+        .expectBody()
+        .jsonPath("$.rating").isEqualTo("HIGH")
+        .jsonPath("$.provisional").isEqualTo(false)
+    }
+
+    @Test
+    fun `a review NOMIS still holds as provisional becomes a provisional current rating`() {
+      val provisionalJson = reviewJson()
+        .replace("\"approvedLevel\": \"HI\",", "")
+        .replace("\"reviewLevel\": \"STANDARD\",", "")
+        .replace("\"calculatedLevel\": \"STANDARD\"", "\"calculatedLevel\": \"HI\"")
+        .replace("\"status\": \"A\"", "\"status\": \"P\"")
+
+      webTestClient.post().uri("/nomis-sync/sync/P2222PP")
+        .headers(setAuthorisation(roles = syncRole))
+        .contentType(MediaType.APPLICATION_JSON)
+        .body(BodyInserters.fromValue("""{ "review": $provisionalJson }"""))
+        .exchange()
+        .expectStatus().isCreated
+
+      webTestClient.get().uri("/csra-review/prisoner/P2222PP/current-rating")
         .headers(setAuthorisation(roles = listOf("ROLE_CSRA_REVIEW__R")))
         .exchange()
         .expectStatus().isOk
