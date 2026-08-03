@@ -30,8 +30,9 @@ class CsraReviewEntity(
 
   var prisonerNumber: String,
 
-  // The NOMIS agency id where the assessment took place. Nullable now (NOMIS does not always send
-  // it) but will always be recorded in the new service.
+  // The agency id where the assessment took place — for a multi-stage assessment, its latest stage (final
+  // if there is one, otherwise provisional). Nullable only because NOMIS does not always send it; the new
+  // service requires it on every write path, so a null here identifies a migrated row.
   var prisonId: String? = null,
 
   // The date the assessment was started.

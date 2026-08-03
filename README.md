@@ -25,13 +25,47 @@ Our security policy is located [here](https://github.com/ministryofjustice/hmpps
 
 OpenAPI / Swagger UI is available at `/swagger-ui/index.html` on a running instance (e.g. the [dev environment](https://cell-sharing-risk-assessment-api-dev.hmpps.service.justice.gov.uk/swagger-ui/index.html)).
 
-The API has two surfaces, each guarded by its own role:
+The API has four surfaces, each guarded by its own role.
 
-| Path | Purpose | Required role |
-| --- | --- | --- |
-| `GET /csra-review/{id}` | Read a CSRA review (DPS) | `ROLE_CSRA_REVIEW__R` |
-| `POST /nomis-sync/migrate/{prisonerNumber}` | Bulk migrate all of a prisoner's CSRA reviews from NOMIS | `ROLE_PRISONER_CSRA__SYNC__RW` |
-| `POST /nomis-sync/sync/{prisonerNumber}` | Upsert a single CSRA review changed in NOMIS (201 created / 200 updated) | `ROLE_PRISONER_CSRA__SYNC__RW` |
+**Reads** — `ROLE_CSRA_REVIEW__R`
+
+| Path | Purpose |
+| --- | --- |
+| `GET /csra-review/{id}` | A single CSRA review |
+| `GET /csra-review/prisoner/{prisonerNumber}/history` | A prisoner's paged, filterable CSRA history |
+| `GET /csra-review/prisoner/{prisonerNumber}/current-rating` | A prisoner's current rating, and any in-progress work |
+| `GET /csra-review/prison/{prisonId}/rating-summary` | Rating counts across the prison's roll |
+| `GET /csra-review/prison/{prisonId}/prisoners` | The roll with each prisoner's rating |
+| `GET /csra-review/prison/{prisonId}/high-risk-due-for-review` | High-risk prisoners with a review due |
+| `GET /csra-review/prison/{prisonId}/assessments-in-progress` | Initial assessments started but not completed |
+| `GET /csra-review/prison/{prisonId}/reviews-in-progress` | Reviews started but not completed |
+| `GET /csra-review/prison/{prisonId}/recent-arrivals` | Arrivals by day, for assessment triage |
+
+**Assessment writes** — `ROLE_CSRA_REVIEW__RW`
+
+| Path | Purpose |
+| --- | --- |
+| `POST /csra-review/prisoner/{prisonerNumber}/assessment` | Start a draft assessment. Requires `{"prisonId": "LEI"}` — the prison is what puts the draft on that prison's worklist |
+| `PUT /csra-review/prisoner/{prisonerNumber}/assessment/{assessmentId}/provisional` | Submit the provisional (Day 1) stage |
+| `PUT /csra-review/prisoner/{prisonerNumber}/assessment/{assessmentId}/final` | Submit the final (Day 2) stage |
+
+**NOMIS sync** — `ROLE_PRISONER_CSRA__SYNC__RW`
+
+| Path | Purpose |
+| --- | --- |
+| `POST /nomis-sync/migrate/{prisonerNumber}` | Bulk migrate all of a prisoner's CSRA reviews from NOMIS |
+| `POST /nomis-sync/sync/{prisonerNumber}` | Upsert a single CSRA review changed in NOMIS (201 created / 200 updated) |
+
+**Prison rollout admin** — `ROLE_PRISONER_CSRA__ADMIN`
+
+| Path | Purpose |
+| --- | --- |
+| `GET /active-agencies` | The prison ids CSRA is switched on for |
+| `GET /active-agencies/all` | Every operational prison with its on/off state |
+| `PUT /active-agencies/{agencyId}` | Switch a prison on or off (idempotent) |
+
+The switched-on prison ids are also published unauthenticated as `activeAgencies` on `/info`, which is how
+the DPS home page decides whether to show the CSRA tile.
 
 ## Building and testing
 

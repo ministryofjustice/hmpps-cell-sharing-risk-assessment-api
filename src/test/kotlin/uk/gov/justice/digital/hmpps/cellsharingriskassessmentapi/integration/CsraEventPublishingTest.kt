@@ -52,6 +52,8 @@ class CsraEventPublishingTest : SqsIntegrationTestBase() {
   private fun start(prisonerNumber: String): CsraAssessmentStarted = webTestClient.post()
     .uri("/csra-review/prisoner/$prisonerNumber/assessment")
     .headers(setAuthorisation(roles = writeRole))
+    .contentType(MediaType.APPLICATION_JSON)
+    .body(BodyInserters.fromValue("""{ "prisonId": "LEI" }"""))
     .exchange()
     .expectStatus().isCreated
     .expectBody<CsraAssessmentStarted>()

@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentStageRequest
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentStartRequest
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentStarted
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.service.CsraAssessmentService
 import uk.gov.justice.hmpps.kotlin.common.ErrorResponse
@@ -40,15 +41,22 @@ class CsraAssessmentResource(
   @ResponseStatus(HttpStatus.CREATED)
   @Operation(
     summary = "Starts a new initial CSRA assessment",
-    description = "Creates a draft assessment for the prisoner and records who started it. Returns the new " +
-      "assessment's id, which identifies it for the provisional and final stages, along with the prisoner's " +
-      "current rating — which is unchanged by starting an assessment and so may refer to an earlier review. " +
-      "Returns 409 if an assessment is already in progress. Requires role ROLE_CSRA_REVIEW__RW",
+    description = "Creates a draft assessment for the prisoner and records who started it and where. Returns " +
+      "the new assessment's id, which identifies it for the provisional and final stages, along with the " +
+      "prisoner's current rating — which is unchanged by starting an assessment and so may refer to an " +
+      "earlier review. The prison is required: it is what puts the draft on that prison's assessments-in-" +
+      "progress worklist. Returns 409 if an assessment is already in progress. Requires role " +
+      "ROLE_CSRA_REVIEW__RW",
     responses = [
       ApiResponse(
         responseCode = "201",
         description = "The draft assessment was started",
         content = [Content(mediaType = "application/json", schema = Schema(implementation = CsraAssessmentStarted::class))],
+      ),
+      ApiResponse(
+        responseCode = "400",
+        description = "Invalid request — no prison supplied",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
       ),
       ApiResponse(
         responseCode = "401",
@@ -71,7 +79,9 @@ class CsraAssessmentResource(
     @Parameter(description = "The prisoner number", example = "A1234BC", required = true)
     @PathVariable
     prisonerNumber: String,
-  ) = csraAssessmentService.start(prisonerNumber)
+    @RequestBody @Valid
+    request: CsraAssessmentStartRequest,
+  ) = csraAssessmentService.start(prisonerNumber, request)
 
   @PutMapping("/{assessmentId}/provisional")
   @ResponseStatus(HttpStatus.OK)

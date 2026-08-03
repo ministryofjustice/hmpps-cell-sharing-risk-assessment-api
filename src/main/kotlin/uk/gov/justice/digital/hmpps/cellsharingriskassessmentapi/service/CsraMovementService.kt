@@ -46,6 +46,10 @@ class CsraMovementService(
   private fun closeOrArchiveInProgress(prisonerNumber: String, prisonId: String?, movement: String) {
     val inProgress = csraReviewRepository.findAllByPrisonerNumberAndStatus(prisonerNumber, CsraReviewStatus.IN_PROGRESS)
     inProgress.forEach { review ->
+      // The review's own prisonId is deliberately left alone: it records where the assessment happened, not
+      // where the prisoner has turned up. Stamping the receiving prison here would attribute a Leeds
+      // assessment to Brixton in Brixton's history filter and rating summary. The review drops off both
+      // worklists on status alone, so there is nothing to gain by moving it.
       val outcome = if (review.interimResult != null) CsraReviewStatus.CLOSED else CsraReviewStatus.ARCHIVED
       review.status = outcome
       review.closureReason = CsraClosureReason.NOT_COMPLETED_PRISONER_TRANSFER
