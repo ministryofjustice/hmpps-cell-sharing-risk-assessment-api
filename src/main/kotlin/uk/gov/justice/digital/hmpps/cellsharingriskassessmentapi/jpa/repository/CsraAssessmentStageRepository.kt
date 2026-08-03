@@ -13,4 +13,6 @@ interface CsraAssessmentStageRepository : JpaRepository<CsraAssessmentStageEntit
   fun findAllByCsraReviewIdIn(csraReviewIds: Collection<UUID>): List<CsraAssessmentStageEntity>
 
   fun findByCsraReviewIdAndStage(csraReviewId: UUID, stage: CsraAssessmentStage): CsraAssessmentStageEntity?
+
+  fun existsByCsraReviewIdAndStage(csraReviewId: UUID, stage: CsraAssessmentStage): Boolean
 }
