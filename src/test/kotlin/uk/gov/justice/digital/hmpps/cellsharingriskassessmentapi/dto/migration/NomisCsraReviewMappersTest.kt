@@ -124,6 +124,35 @@ class NomisCsraReviewMappersTest {
       .isEqualTo(expected)
   }
 
+  @ParameterizedTest
+  @CsvSource(
+    nullValues = ["null"],
+    value = [
+      // The level itself, not the result — LOW and MED both resolve to STANDARD, so the table above
+      // cannot tell them apart, and the history screen needs exactly that distinction.
+      "LOW,null,null,LOW",
+      "MED,null,null,MED",
+      "MED,LOW,null,MED",
+      "LOW,MED,null,MED",
+      "HI,LOW,null,HI",
+      // an approved level that is not PEND wins outright
+      "LOW,null,STANDARD,STANDARD",
+      // PEND never wins a head-to-head, and an approved PEND does not hide the other levels
+      "HI,null,PEND,HI",
+      "null,PEND,null,PEND",
+      "PEND,null,null,null",
+      "null,null,null,null",
+    ],
+  )
+  fun `resolves which NOMIS level wins`(
+    calculatedLevel: CsraLevel?,
+    reviewLevel: CsraLevel?,
+    approvedLevel: CsraLevel?,
+    expected: CsraLevel?,
+  ) {
+    assertThat(resolveNomisLevel(calculatedLevel, reviewLevel, approvedLevel)).isEqualTo(expected)
+  }
+
   @Test
   fun `a calculated level alone is a rating unless it is PEND`() {
     assertThat(review(calculatedLevel = CsraLevel.HI).toNewCsraReview("A1234BC").finalResult).isEqualTo(CsraResult.HIGH)
