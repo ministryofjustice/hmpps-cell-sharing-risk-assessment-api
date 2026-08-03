@@ -2,6 +2,9 @@ package uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.integration
 
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraEvaluationResultCode
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraLevel
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraStatus
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.integration.wiremock.PrisonRegisterApiExtension.Companion.prisonRegister
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStage
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStageEntity
@@ -48,6 +51,31 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
 
   private fun withNomisComment(review: CsraReviewEntity, comment: String) {
     csraReviewNomisRepository.saveAndFlush(CsraReviewNomisEntity(csraReview = review, reviewComment = comment))
+  }
+
+  private fun withNomis(
+    review: CsraReviewEntity,
+    calculatedLevel: CsraLevel? = null,
+    reviewLevel: CsraLevel? = null,
+    approvedLevel: CsraLevel? = null,
+    evaluationResultCode: CsraEvaluationResultCode? = null,
+    evaluationDate: LocalDate? = null,
+    comment: String? = null,
+    reviewComment: String? = null,
+  ) {
+    csraReviewNomisRepository.saveAndFlush(
+      CsraReviewNomisEntity(
+        csraReview = review,
+        status = CsraStatus.A,
+        calculatedLevel = calculatedLevel,
+        reviewLevel = reviewLevel,
+        approvedLevel = approvedLevel,
+        evaluationResultCode = evaluationResultCode,
+        evaluationDate = evaluationDate,
+        comment = comment,
+        reviewComment = reviewComment,
+      ),
+    )
   }
 
   private fun withFinalStageComment(review: CsraReviewEntity, comment: String) {
@@ -124,6 +152,144 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
       .jsonPath("$.content[1].reviewComment").isEqualTo("PNC checked. No issues found.")
       .jsonPath("$.content[2].rating").isEqualTo("HIGH")
       .jsonPath("$.content[2].reviewComment").isEqualTo("Legacy high comment")
+  }
+
+  @Test
+  fun `a legacy LOW review keeps its raw level while still rating as standard`() {
+    prisonRegister.stubGetPrisons(mapOf("LEI" to "Leeds (HMP)"))
+    val low = review("L1111LL", LocalDate.parse("2010-03-13"), CsraResult.STANDARD, "LEI")
+    withNomis(
+      low,
+      calculatedLevel = CsraLevel.LOW,
+      comment = "Assessment comment",
+      reviewComment = "Approval comment",
+      evaluationResultCode = CsraEvaluationResultCode.APP,
+      evaluationDate = LocalDate.parse("2010-03-20"),
+    )
+
+    webTestClient.get().uri("/csra-review/prisoner/L1111LL/history")
+      .headers(setAuthorisation(roles = readRole))
+      .exchange()
+      .expectStatus().isOk
+      .expectBody()
+      // The rating the service reasons about is unchanged; the raw level is what the screen renders.
+      .jsonPath("$.content[0].rating").isEqualTo("STANDARD")
+      .jsonPath("$.content[0].prisonName").isEqualTo("Leeds (HMP)")
+      .jsonPath("$.content[0].legacy.level").isEqualTo("LOW")
+      .jsonPath("$.content[0].legacy.assessmentComment").isEqualTo("Assessment comment")
+      .jsonPath("$.content[0].legacy.assessmentDate").isEqualTo("2010-03-13")
+      .jsonPath("$.content[0].legacy.approvalComment").isEqualTo("Approval comment")
+      .jsonPath("$.content[0].legacy.approvalStatus").isEqualTo("APPROVED")
+      .jsonPath("$.content[0].legacy.approvalDate").isEqualTo("2010-03-20")
+  }
+
+  @Test
+  fun `a legacy MED review keeps its raw level`() {
+    val med = review("M1111MM", LocalDate.parse("2009-09-29"), CsraResult.STANDARD, "LEI")
+    withNomis(med, calculatedLevel = CsraLevel.MED)
+
+    webTestClient.get().uri("/csra-review/prisoner/M1111MM/history")
+      .headers(setAuthorisation(roles = readRole))
+      .exchange()
+      .expectStatus().isOk
+      .expectBody()
+      .jsonPath("$.content[0].rating").isEqualTo("STANDARD")
+      .jsonPath("$.content[0].legacy.level").isEqualTo("MED")
+  }
+
+  @Test
+  fun `an approved legacy review reports both its dates separately`() {
+    val approved = review("C1111CC", LocalDate.parse("2012-05-23"), CsraResult.HIGH, "LEI")
+    withNomis(
+      approved,
+      calculatedLevel = CsraLevel.STANDARD,
+      approvedLevel = CsraLevel.HI,
+      evaluationResultCode = CsraEvaluationResultCode.APP,
+      evaluationDate = LocalDate.parse("2012-06-01"),
+    )
+
+    webTestClient.get().uri("/csra-review/prisoner/C1111CC/history")
+      .headers(setAuthorisation(roles = readRole))
+      .exchange()
+      .expectStatus().isOk
+      .expectBody()
+      .jsonPath("$.content[0].legacy.approvalStatus").isEqualTo("APPROVED")
+      .jsonPath("$.content[0].legacy.level").isEqualTo("HI")
+      // The design shows the assessment and approval dates on separate lines, so they must not collapse.
+      .jsonPath("$.content[0].legacy.assessmentDate").isEqualTo("2012-05-23")
+      .jsonPath("$.content[0].legacy.approvalDate").isEqualTo("2012-06-01")
+  }
+
+  @Test
+  fun `a rejected legacy review reports not approved`() {
+    val rejected = review("R1111RR", LocalDate.parse("2011-10-24"), CsraResult.STANDARD, "LEI")
+    withNomis(
+      rejected,
+      calculatedLevel = CsraLevel.STANDARD,
+      evaluationResultCode = CsraEvaluationResultCode.REJ,
+    )
+
+    webTestClient.get().uri("/csra-review/prisoner/R1111RR/history")
+      .headers(setAuthorisation(roles = readRole))
+      .exchange()
+      .expectStatus().isOk
+      .expectBody()
+      .jsonPath("$.content[0].legacy.approvalStatus").isEqualTo("NOT_APPROVED")
+  }
+
+  @Test
+  fun `a legacy review that never went through approval carries no approval status`() {
+    // The prod-typical row: no NOMIS review carries approval data, so the screen shows no badge.
+    val plain = review("N1111NN", LocalDate.parse("2011-10-24"), CsraResult.STANDARD, "LEI")
+    withNomis(plain, calculatedLevel = CsraLevel.STANDARD, comment = "Assessment comment")
+
+    webTestClient.get().uri("/csra-review/prisoner/N1111NN/history")
+      .headers(setAuthorisation(roles = readRole))
+      .exchange()
+      .expectStatus().isOk
+      .expectBody()
+      .jsonPath("$.content[0].legacy.level").isEqualTo("STANDARD")
+      .jsonPath("$.content[0].legacy.approvalStatus").doesNotExist()
+      .jsonPath("$.content[0].legacy.approvalDate").doesNotExist()
+      .jsonPath("$.content[0].legacy.approvalComment").doesNotExist()
+  }
+
+  @Test
+  fun `a new-model review carries no legacy block at all`() {
+    prisonRegister.stubGetPrisons(mapOf("LEI" to "Leeds (HMP)"))
+    val dps = review("D1111DD", LocalDate.parse("2025-10-11"), CsraResult.HIGH_GENERAL, "LEI")
+    withFinalStageComment(dps, "Day 2 assessment complete.")
+
+    webTestClient.get().uri("/csra-review/prisoner/D1111DD/history")
+      .headers(setAuthorisation(roles = readRole))
+      .exchange()
+      .expectStatus().isOk
+      .expectBody()
+      .jsonPath("$.content[0].legacy").doesNotExist()
+      .jsonPath("$.content[0].reviewComment").isEqualTo("Day 2 assessment complete.")
+      .jsonPath("$.content[0].prisonName").isEqualTo("Leeds (HMP)")
+  }
+
+  @Test
+  fun `legacy LOW and MED rows still filter as standard`() {
+    val low = review("B1111BB", LocalDate.parse("2010-03-13"), CsraResult.STANDARD, "LEI")
+    withNomis(low, calculatedLevel = CsraLevel.LOW)
+    val med = review("B1111BB", LocalDate.parse("2009-09-29"), CsraResult.STANDARD, "LEI")
+    withNomis(med, calculatedLevel = CsraLevel.MED)
+
+    webTestClient.get().uri("/csra-review/prisoner/B1111BB/history?ratings=STANDARD")
+      .headers(setAuthorisation(roles = readRole))
+      .exchange()
+      .expectStatus().isOk
+      .expectBody()
+      .jsonPath("$.totalElements").isEqualTo(2)
+
+    webTestClient.get().uri("/csra-review/prisoner/B1111BB/history?ratings=HIGH")
+      .headers(setAuthorisation(roles = readRole))
+      .exchange()
+      .expectStatus().isOk
+      .expectBody()
+      .jsonPath("$.totalElements").isEqualTo(0)
   }
 
   @Test

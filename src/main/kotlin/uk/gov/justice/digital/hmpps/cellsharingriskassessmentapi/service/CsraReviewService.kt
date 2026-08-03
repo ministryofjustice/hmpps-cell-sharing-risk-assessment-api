@@ -40,6 +40,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraSortDir
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraVulnerabilityDetail
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.isHigh
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toDto
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toLegacyDetail
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toResults
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStage
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStageEntity
@@ -446,8 +447,10 @@ class CsraReviewService(
     val reviews = csraReviewRepository.findAll(spec, pageable)
 
     val reviewIds = reviews.content.mapNotNull { it.id }
-    val commentByReviewId = resolveComments(reviewIds)
-    val content = reviews.content.map { it.toSummary(commentByReviewId[it.id]) }
+    val stageComments = stageCommentsByReviewId(reviewIds)
+    val nomisByReviewId = nomisByReviewId(reviewIds)
+    val prisonNames = prisonRegisterClient.getPrisonNames()
+    val content = reviews.content.map { it.toSummary(stageComments[it.id], nomisByReviewId[it.id], prisonNames) }
 
     return CsraReviewHistory(
       summary = buildSummary(prisonerNumber),
@@ -485,19 +488,20 @@ class CsraReviewService(
   }
 
   /**
-   * Resolves the display comment for each review. The comment lives in a different place per row type:
-   * new-model reviews carry it on the FINAL (or, failing that, PROVISIONAL) assessment stage; migrated
-   * legacy reviews carry it on the adjacent NOMIS record. Loaded in batch to avoid N+1 queries.
+   * The comment a new-model review carries on its FINAL (or, failing that, PROVISIONAL) stage. Loaded in
+   * batch to avoid N+1 queries; legacy rows have no stages and fall back to their NOMIS record.
    */
-  private fun resolveComments(reviewIds: List<UUID>): Map<UUID, String?> {
+  private fun stageCommentsByReviewId(reviewIds: List<UUID>): Map<UUID, String?> {
     if (reviewIds.isEmpty()) return emptyMap()
     val stagesByReviewId = csraAssessmentStageRepository.findAllByCsraReviewIdIn(reviewIds)
       .groupBy { it.csraReview.id }
-    val nomisByReviewId = csraReviewNomisRepository.findAllByCsraReviewIdIn(reviewIds)
-      .associateBy { it.csraReview.id }
-    return reviewIds.associateWith { id ->
-      stageComment(stagesByReviewId[id]) ?: nomisComment(nomisByReviewId[id])
-    }
+    return reviewIds.associateWith { id -> stageComment(stagesByReviewId[id]) }
+  }
+
+  /** The adjacent NOMIS record for each migrated review on the page, in batch. Absent for new-model rows. */
+  private fun nomisByReviewId(reviewIds: List<UUID>): Map<UUID?, CsraReviewNomisEntity> {
+    if (reviewIds.isEmpty()) return emptyMap()
+    return csraReviewNomisRepository.findAllByCsraReviewIdIn(reviewIds).associateBy { it.csraReview.id }
   }
 
   private fun stageComment(stages: List<CsraAssessmentStageEntity>?): String? {
@@ -508,13 +512,19 @@ class CsraReviewService(
 
   private fun nomisComment(nomis: CsraReviewNomisEntity?): String? = nomis?.reviewComment ?: nomis?.comment
 
-  private fun CsraReviewEntity.toSummary(reviewComment: String?) = CsraReviewSummary(
+  private fun CsraReviewEntity.toSummary(
+    stageComment: String?,
+    nomis: CsraReviewNomisEntity?,
+    prisonNames: Map<String, String>,
+  ) = CsraReviewSummary(
     id = id!!,
     type = type,
     rating = finalResult ?: interimResult!!,
-    reviewComment = reviewComment,
+    reviewComment = stageComment ?: nomisComment(nomis),
     prisonId = prisonId,
+    prisonName = prisonId?.let { prisonNames[it] ?: it },
     recordedDate = finalResultDate ?: assessmentDate,
+    legacy = nomis?.toLegacyDetail(assessmentDate),
   )
 
   private companion object {
