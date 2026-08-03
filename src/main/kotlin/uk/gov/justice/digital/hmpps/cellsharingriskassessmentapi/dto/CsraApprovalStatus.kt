@@ -13,12 +13,14 @@ import io.swagger.v3.oas.annotations.media.Schema
  */
 @Schema(description = "What became of a legacy NOMIS review at the approval step. Absent when the review never went through approval, which is the common case.")
 enum class CsraApprovalStatus {
-  /** An approver confirmed the review, at the level it already carried. */
+  /** An approver confirmed the review. */
   APPROVED,
-
-  /** An approver confirmed the review but at a different level from the one it carried beforehand. */
-  LEVEL_CHANGED_AT_APPROVAL,
 
   /** An approver actively rejected the review. */
   NOT_APPROVED,
 }
+
+// There is deliberately no "level changed at approval" value, though the design shows one. Detecting it
+// would need NOMIS's approved level to compare against, and no review has one — zero rows across
+// 5,107,546 spanning dev and preprod. NOMIS approvals are being removed entirely (MAPA-251), so none
+// will ever appear. A state that cannot occur only invites consumers to build for it.

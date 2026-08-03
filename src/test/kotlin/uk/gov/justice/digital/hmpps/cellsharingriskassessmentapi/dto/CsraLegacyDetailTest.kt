@@ -98,21 +98,14 @@ class CsraLegacyDetailTest {
   }
 
   @Test
-  fun `an approved level differing from the level already held is a change at approval`() {
+  fun `an approved level that raised the rating is still simply approved`() {
+    // NOMIS records no approved level on any review — zero rows across 5.1M in dev and preprod — so
+    // there is no "level changed at approval" state to detect, and none is exposed.
     val detail = nomis(calculatedLevel = CsraLevel.STANDARD, approvedLevel = CsraLevel.HI)
       .toLegacyDetail(assessmentDate)
 
-    assertThat(detail.approvalStatus).isEqualTo(CsraApprovalStatus.LEVEL_CHANGED_AT_APPROVAL)
-    assertThat(detail.level).isEqualTo(CsraLevel.HI)
-  }
-
-  @Test
-  fun `a change is judged against the strongest level held before approval, not the reviewer's`() {
-    // Calculated HI beats reviewer LOW before approval, so approving HI changed nothing.
-    val detail = nomis(calculatedLevel = CsraLevel.HI, reviewLevel = CsraLevel.LOW, approvedLevel = CsraLevel.HI)
-      .toLegacyDetail(assessmentDate)
-
     assertThat(detail.approvalStatus).isEqualTo(CsraApprovalStatus.APPROVED)
+    assertThat(detail.level).isEqualTo(CsraLevel.HI)
   }
 
   @Test

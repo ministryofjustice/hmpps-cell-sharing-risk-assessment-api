@@ -3,7 +3,6 @@ package uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto
 import io.swagger.v3.oas.annotations.media.Schema
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraEvaluationResultCode
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraLevel
-import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.resolveNomisLevel
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.resolvedLevel
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewNomisEntity
 import java.time.LocalDate
@@ -62,25 +61,17 @@ fun CsraReviewNomisEntity.toLegacyDetail(assessmentDate: LocalDate) = CsraLegacy
 /**
  * Derives the approval badge, or null where the review never went through approval.
  *
- * "Level changed at approval" compares the approved level against the level the review would have carried
- * *without* it. Comparing against the reviewer's level alone would report a change on any row where the
- * calculated level happened to be the stronger of the two.
- *
  * A rejection wins outright: it is still a rejection where a level was also recorded. Note this affects
  * the badge only — the row's rating still follows NOMIS's own resolution rule, which ignores the result
  * code.
  *
  * An evaluation date on its own is deliberately not treated as evidence of approval; without an explicit
  * result code or approved level it says nothing about the outcome, and guessing would make the badge lie.
+ * That is why roughly a third of legacy rows carry no badge, which is correct rather than a gap.
  */
-private fun CsraReviewNomisEntity.approvalStatus(): CsraApprovalStatus? {
-  val approved = approvedLevel?.takeIf { it != CsraLevel.PEND }
-  val beforeApproval = resolveNomisLevel(calculatedLevel, reviewLevel, approvedLevel = null)
-
-  return when {
-    evaluationResultCode == CsraEvaluationResultCode.REJ -> CsraApprovalStatus.NOT_APPROVED
-    approved != null && beforeApproval != null && approved != beforeApproval -> CsraApprovalStatus.LEVEL_CHANGED_AT_APPROVAL
-    approved != null || evaluationResultCode == CsraEvaluationResultCode.APP -> CsraApprovalStatus.APPROVED
-    else -> null
-  }
+private fun CsraReviewNomisEntity.approvalStatus(): CsraApprovalStatus? = when {
+  evaluationResultCode == CsraEvaluationResultCode.REJ -> CsraApprovalStatus.NOT_APPROVED
+  evaluationResultCode == CsraEvaluationResultCode.APP -> CsraApprovalStatus.APPROVED
+  approvedLevel != null && approvedLevel != CsraLevel.PEND -> CsraApprovalStatus.APPROVED
+  else -> null
 }

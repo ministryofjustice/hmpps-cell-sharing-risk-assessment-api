@@ -198,10 +198,10 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
   }
 
   @Test
-  fun `a legacy review whose level changed at approval reports it, with both dates`() {
-    val changed = review("C1111CC", LocalDate.parse("2012-05-23"), CsraResult.HIGH, "LEI")
+  fun `an approved legacy review reports both its dates separately`() {
+    val approved = review("C1111CC", LocalDate.parse("2012-05-23"), CsraResult.HIGH, "LEI")
     withNomis(
-      changed,
+      approved,
       calculatedLevel = CsraLevel.STANDARD,
       approvedLevel = CsraLevel.HI,
       evaluationResultCode = CsraEvaluationResultCode.APP,
@@ -213,10 +213,28 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
       .exchange()
       .expectStatus().isOk
       .expectBody()
-      .jsonPath("$.content[0].legacy.approvalStatus").isEqualTo("LEVEL_CHANGED_AT_APPROVAL")
+      .jsonPath("$.content[0].legacy.approvalStatus").isEqualTo("APPROVED")
       .jsonPath("$.content[0].legacy.level").isEqualTo("HI")
+      // The design shows the assessment and approval dates on separate lines, so they must not collapse.
       .jsonPath("$.content[0].legacy.assessmentDate").isEqualTo("2012-05-23")
       .jsonPath("$.content[0].legacy.approvalDate").isEqualTo("2012-06-01")
+  }
+
+  @Test
+  fun `a rejected legacy review reports not approved`() {
+    val rejected = review("R1111RR", LocalDate.parse("2011-10-24"), CsraResult.STANDARD, "LEI")
+    withNomis(
+      rejected,
+      calculatedLevel = CsraLevel.STANDARD,
+      evaluationResultCode = CsraEvaluationResultCode.REJ,
+    )
+
+    webTestClient.get().uri("/csra-review/prisoner/R1111RR/history")
+      .headers(setAuthorisation(roles = readRole))
+      .exchange()
+      .expectStatus().isOk
+      .expectBody()
+      .jsonPath("$.content[0].legacy.approvalStatus").isEqualTo("NOT_APPROVED")
   }
 
   @Test
