@@ -129,8 +129,9 @@ private fun NomisCsraOutcome.interimResult() = result.takeIf { !settled }
  * Builds the adjacent NOMIS-only record for a freshly mapped [core] review, keeping the raw NOMIS
  * values (booking id and NOMIS sequence are intentionally not stored).
  */
-fun NomisCsraReview.toNomisEntity(core: CsraReviewEntity): CsraReviewNomisEntity = CsraReviewNomisEntity(
+fun NomisCsraReview.toNomisEntity(core: CsraReviewEntity, clock: Clock): CsraReviewNomisEntity = CsraReviewNomisEntity(
   csraReview = core,
+  ingestedAt = LocalDateTime.now(clock),
   score = score,
   status = status,
   calculatedLevel = calculatedLevel,
@@ -149,7 +150,8 @@ fun NomisCsraReview.toNomisEntity(core: CsraReviewEntity): CsraReviewNomisEntity
 )
 
 /** Applies an incoming NOMIS review to an existing adjacent NOMIS-only record (sync updates). */
-fun CsraReviewNomisEntity.updateFromNomis(review: NomisCsraReview) {
+fun CsraReviewNomisEntity.updateFromNomis(review: NomisCsraReview, clock: Clock) {
+  this.ingestedAt = LocalDateTime.now(clock)
   this.score = review.score
   this.status = review.status
   this.calculatedLevel = review.calculatedLevel

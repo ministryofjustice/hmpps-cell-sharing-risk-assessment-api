@@ -46,7 +46,7 @@ class CsraMigrationSyncService(
   fun migrate(prisonerNumber: String, reviews: List<NomisCsraReview>): List<CsraMigrationResponse> {
     val saved = reviews.map { review ->
       val savedReview = csraReviewRepository.save(review.toNewCsraReview(prisonerNumber))
-      csraReviewNomisRepository.save(review.toNomisEntity(savedReview))
+      csraReviewNomisRepository.save(review.toNomisEntity(savedReview, clock))
       review to savedReview
     }
 
@@ -72,7 +72,7 @@ class CsraMigrationSyncService(
     val created = csraReviewId == null
     val review = if (csraReviewId == null) {
       val saved = csraReviewRepository.save(request.review.toNewCsraReview(prisonerNumber))
-      csraReviewNomisRepository.save(request.review.toNomisEntity(saved))
+      csraReviewNomisRepository.save(request.review.toNomisEntity(saved, clock))
       saved
     } else {
       val existing = csraReviewRepository.findByIdOrNull(csraReviewId)
@@ -80,9 +80,9 @@ class CsraMigrationSyncService(
       existing.updateFromNomis(prisonerNumber, request.review, clock)
       val existingNomis = csraReviewNomisRepository.findByCsraReviewId(csraReviewId)
       if (existingNomis == null) {
-        csraReviewNomisRepository.save(request.review.toNomisEntity(existing))
+        csraReviewNomisRepository.save(request.review.toNomisEntity(existing, clock))
       } else {
-        existingNomis.updateFromNomis(request.review)
+        existingNomis.updateFromNomis(request.review, clock)
       }
       existing
     }

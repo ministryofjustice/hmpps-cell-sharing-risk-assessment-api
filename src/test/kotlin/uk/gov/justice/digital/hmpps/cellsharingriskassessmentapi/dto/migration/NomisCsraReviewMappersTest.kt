@@ -238,9 +238,11 @@ class NomisCsraReviewMappersTest {
     val review = fullReview()
     val core = review.toNewCsraReview("A1234BC")
 
-    val nomis = review.toNomisEntity(core)
+    val nomis = review.toNomisEntity(core, clock)
 
     assertThat(nomis.csraReview).isSameAs(core)
+    // Our clock, not NOMIS's — createdAt on the core record is NOMIS's own timestamp.
+    assertThat(nomis.ingestedAt).isEqualTo(LocalDateTime.now(clock))
     assertThat(nomis.score).isEqualByComparingTo(BigDecimal("1000"))
     assertThat(nomis.status).isEqualTo(CsraStatus.A)
     assertThat(nomis.calculatedLevel).isEqualTo(CsraLevel.MED)
@@ -261,7 +263,8 @@ class NomisCsraReviewMappersTest {
   @Test
   fun `update of the adjacent record overwrites every additional field`() {
     val original = fullReview()
-    val nomis = original.toNomisEntity(original.toNewCsraReview("A1234BC"))
+    val nomis = original.toNomisEntity(original.toNewCsraReview("A1234BC"), clock)
+    nomis.ingestedAt = null
 
     nomis.updateFromNomis(
       fullReview().copy(
@@ -270,7 +273,11 @@ class NomisCsraReviewMappersTest {
         comment = "changed",
         reviewDetails = emptyList(),
       ),
+      clock,
     )
+
+    // Re-stamped on every write, so the column always reflects the most recent load.
+    assertThat(nomis.ingestedAt).isEqualTo(LocalDateTime.now(clock))
 
     assertThat(nomis.approvedLevel).isEqualTo(CsraLevel.STANDARD)
     assertThat(nomis.status).isEqualTo(CsraStatus.I)
