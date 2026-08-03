@@ -37,13 +37,19 @@ fun CsraLevel?.toCsraResult(): CsraResult? = when (this) {
 }
 
 /**
- * The rating a NOMIS review resolves to, and whether it had been approved.
+ * The rating a NOMIS review resolves to, and whether it is settled.
  *
- * NOMIS only treats a level as final once the approval step has signed it off. Until then it still shows
- * a rating, taken from the reviewer's override or the calculated level. The new service has no approval
- * step, so an unapproved level is kept as a *provisional* (interim) rating rather than discarded.
+ * [settled] is *not* "went through the NOMIS approval step". Approval was a governance step rather than a
+ * completion step: the level NOMIS displays is the prisoner's rating whether or not a committee signed it
+ * off, and in practice almost nothing was ever signed off — no NOMIS review carries an approved level at
+ * all. Treating unapproved as provisional therefore made every migrated review provisional, which is not
+ * what "provisional" means here: in this service it marks an incomplete Day 1 assessment with work still
+ * outstanding, and a legacy NOMIS review has nothing left to complete.
+ *
+ * So a NOMIS level is settled, and lands on the final result. The one exception is a review NOMIS itself
+ * still holds in provisional status ([CsraStatus.P]), which is genuinely unfinished.
  */
-data class NomisCsraOutcome(val result: CsraResult?, val approved: Boolean)
+data class NomisCsraOutcome(val result: CsraResult?, val settled: Boolean)
 
 // Ranked strongest first. PEND is absent deliberately: it can never win a head-to-head.
 private val LEVEL_PRIORITY = listOf(CsraLevel.HI, CsraLevel.STANDARD, CsraLevel.MED, CsraLevel.LOW)
@@ -59,13 +65,15 @@ private val LEVEL_PRIORITY = listOf(CsraLevel.HI, CsraLevel.STANDARD, CsraLevel.
  *  4. otherwise the calculated level, if it is not PEND;
  *  5. otherwise no rating at all.
  *
- * Steps 2-4 have not been through approval, so they resolve to an unapproved (provisional) outcome, as
- * does anything on a review NOMIS still holds in provisional status.
+ * Whichever level wins, the outcome is settled unless NOMIS still holds the review in provisional status —
+ * see [NomisCsraOutcome] for why approval does not decide this.
  */
 fun NomisCsraReview.nomisOutcome(): NomisCsraOutcome {
+  // A review NOMIS still holds as provisional is unfinished whatever level it carries.
+  val settled = status != CsraStatus.P
+
   if (approvedLevel != null && approvedLevel != CsraLevel.PEND) {
-    // A provisional-status review has not completed approval whatever level it carries.
-    return NomisCsraOutcome(approvedLevel.toCsraResult(), approved = status != CsraStatus.P)
+    return NomisCsraOutcome(approvedLevel.toCsraResult(), settled)
   }
 
   val level = when {
@@ -75,7 +83,7 @@ fun NomisCsraReview.nomisOutcome(): NomisCsraOutcome {
     calculatedLevel != CsraLevel.PEND -> calculatedLevel
     else -> null
   }
-  return NomisCsraOutcome(level.toCsraResult(), approved = false)
+  return NomisCsraOutcome(level.toCsraResult(), settled)
 }
 
 fun NomisCsraReview.toNewCsraReview(prisonerNumber: String): CsraReviewEntity {
@@ -112,10 +120,10 @@ fun CsraReviewEntity.updateFromNomis(prisonerNumber: String, review: NomisCsraRe
   this.lastModifiedBy = review.createdBy
 }
 
-// An approved NOMIS rating is a final result; an unapproved one is provisional, so it lands on the
-// interim result and reads back through the current-rating projection as provisional.
-private fun NomisCsraOutcome.finalResult() = result.takeIf { approved }
-private fun NomisCsraOutcome.interimResult() = result.takeIf { !approved }
+// A settled NOMIS rating is a final result. Only a review NOMIS still holds in provisional status lands on
+// the interim result and reads back through the current-rating projection as provisional.
+private fun NomisCsraOutcome.finalResult() = result.takeIf { settled }
+private fun NomisCsraOutcome.interimResult() = result.takeIf { !settled }
 
 /**
  * Builds the adjacent NOMIS-only record for a freshly mapped [core] review, keeping the raw NOMIS
