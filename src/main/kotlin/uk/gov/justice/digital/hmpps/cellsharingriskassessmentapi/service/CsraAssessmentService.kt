@@ -1,5 +1,6 @@
 package uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.service
 
+import jakarta.validation.ValidationException
 import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -10,6 +11,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessm
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraCurrentRating
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.isHigh
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toDto
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStage
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStageEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStageRiskToEntity
@@ -88,6 +90,7 @@ class CsraAssessmentService(
   ): CsraCurrentRating {
     val review = loadInitialReview(prisonerNumber, assessmentId)
     validateMandatoryHigh(request)
+    validateOffenceEvidence(request)
 
     // The first rating on a review is a "created" event; a subsequent one (e.g. final after provisional)
     // is an "amend". Decided before this submission is applied.
@@ -146,6 +149,22 @@ class CsraAssessmentService(
   }
 
   /**
+   * At most one evidence record per offence — the screen asks "where did you find evidence of X?" once per
+   * offence answered Yes. Rejected here rather than left to the unique index, which would surface a
+   * duplicate as a 500; silently keeping one of the pair would instead lose the assessor's text.
+   */
+  private fun validateOffenceEvidence(request: CsraAssessmentStageRequest) {
+    val duplicated = request.offenceEvidence
+      .groupingBy { it.offence }
+      .eachCount()
+      .filterValues { it > 1 }
+      .keys
+    if (duplicated.isNotEmpty()) {
+      throw ValidationException("More than one evidence record supplied for ${duplicated.sorted().joinToString()}")
+    }
+  }
+
+  /**
    * The review's headline prison is where its latest stage took place: the FINAL stage once one exists,
    * otherwise the PROVISIONAL. Amending the provisional after the final must therefore leave the review at
    * the prison the final assessment happened in.
@@ -192,11 +211,18 @@ class CsraAssessmentService(
       offenceKidnapHostage = request.offenceKidnapHostage
       officerSpokeToPrisoner = request.officerSpokeToPrisoner
       likelyToHarmCellmate = request.likelyToHarmCellmate
+      likelyToHarmCellmateDetail = request.likelyToHarmCellmateDetail
       significantlyVulnerable = request.significantlyVulnerable
+      significantlyVulnerableDetail = request.significantlyVulnerableDetail
       causeForConcernSharing = request.causeForConcernSharing
+      causeForConcernSharingDetail = request.causeForConcernSharingDetail
       otherHighRiskIndicators = request.otherHighRiskIndicators
+      otherHighRiskIndicatorsDetail = request.otherHighRiskIndicatorsDetail
       seenByHealthcare = request.seenByHealthcare
       healthcareIncreasedRisk = request.healthcareIncreasedRisk
+      healthcareIncreasedRiskDetail = request.healthcareIncreasedRiskDetail
+      offenceEvidence.clear()
+      offenceEvidence.addAll(request.offenceEvidence.map { it.toEntity(this) })
       riskTo.clear()
       riskTo.addAll(request.riskTo.map { CsraAssessmentStageRiskToEntity(stage = this, category = it.category, details = it.details) })
       vulnerabilities.clear()

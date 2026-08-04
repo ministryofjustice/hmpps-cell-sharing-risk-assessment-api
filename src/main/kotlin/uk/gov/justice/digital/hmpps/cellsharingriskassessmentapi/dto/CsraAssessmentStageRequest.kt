@@ -60,6 +60,10 @@ data class CsraAssessmentStageRequest(
   @param:Schema(description = "Evidence of kidnap, hostage taking or false imprisonment")
   val offenceKidnapHostage: Boolean? = null,
 
+  @param:Schema(description = "The evidence behind each offence answered Yes — where it was found and what it was. At most one entry per offence.")
+  @field:Valid
+  val offenceEvidence: List<CsraOffenceEvidence> = emptyList(),
+
   // Prisoner conversation and vulnerability
   @param:Schema(description = "Whether an officer has had a conversation with the prisoner about sharing a cell")
   val officerSpokeToPrisoner: Boolean? = null,
@@ -67,15 +71,27 @@ data class CsraAssessmentStageRequest(
   @param:Schema(description = "Whether the prisoner is likely to cause harm to a cellmate")
   val likelyToHarmCellmate: Boolean? = null,
 
+  @param:Schema(description = "Details of the risk, captured when likelyToHarmCellmate is true", example = "Has threatened previous cellmates.")
+  val likelyToHarmCellmateDetail: String? = null,
+
   @param:Schema(description = "Whether the prisoner is significantly vulnerable to assault by others")
   val significantlyVulnerable: Boolean? = null,
+
+  @param:Schema(description = "Details of the risk, captured when significantlyVulnerable is true", example = "Prisoner says they have autism and struggles with social interactions.")
+  val significantlyVulnerableDetail: String? = null,
 
   // Officer observation / other indicators
   @param:Schema(description = "Whether observed behaviour gives cause for concern about sharing a cell")
   val causeForConcernSharing: Boolean? = null,
 
+  @param:Schema(description = "Details of the risk, captured when causeForConcernSharing is true", example = "Aggressive towards staff on the wing.")
+  val causeForConcernSharingDetail: String? = null,
+
   @param:Schema(description = "Whether there are any other indicators the prisoner is high risk")
   val otherHighRiskIndicators: Boolean? = null,
+
+  @param:Schema(description = "Details of the risk, captured when otherHighRiskIndicators is true", example = "Intelligence report received from the security team.")
+  val otherHighRiskIndicatorsDetail: String? = null,
 
   // Healthcare assessment
   @param:Schema(description = "Whether the prisoner has been seen by healthcare")
@@ -83,6 +99,9 @@ data class CsraAssessmentStageRequest(
 
   @param:Schema(description = "Whether healthcare identified signs of increased risk")
   val healthcareIncreasedRisk: Boolean? = null,
+
+  @param:Schema(description = "A brief summary of why healthcare consider the prisoner an increased risk, captured when healthcareIncreasedRisk is true", example = "Diagnosed autism; shared accommodation likely to cause significant distress.")
+  val healthcareIncreasedRiskDetail: String? = null,
 
   @param:Schema(description = "For a high-risk rating, who the prisoner is a risk to")
   @field:Valid
