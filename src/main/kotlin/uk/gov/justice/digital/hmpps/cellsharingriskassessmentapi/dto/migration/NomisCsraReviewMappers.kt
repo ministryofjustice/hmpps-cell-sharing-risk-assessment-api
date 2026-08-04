@@ -150,6 +150,8 @@ fun NomisCsraReview.toNomisEntity(core: CsraReviewEntity, clock: Clock): CsraRev
   reviewCommitteeCode = reviewCommitteeCode,
   evaluationDate = evaluationDate,
   evaluationResultCode = evaluationResultCode,
+  // Kept per review as well as in csra_next_review, which only holds the prisoner's current date.
+  nextReviewDate = nextReviewDate,
   comment = comment,
   reviewComment = reviewComment,
   reviewCommitteeComment = reviewCommitteeComment,
@@ -170,6 +172,7 @@ fun CsraReviewNomisEntity.updateFromNomis(review: NomisCsraReview, clock: Clock)
   this.reviewCommitteeCode = review.reviewCommitteeCode
   this.evaluationDate = review.evaluationDate
   this.evaluationResultCode = review.evaluationResultCode
+  this.nextReviewDate = review.nextReviewDate
   this.comment = review.comment
   this.reviewComment = review.reviewComment
   this.reviewCommitteeComment = review.reviewCommitteeComment

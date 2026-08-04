@@ -69,7 +69,7 @@ fun CsraReviewNomisEntity.toLegacyDetail(assessmentDate: LocalDate) = CsraLegacy
  * result code or approved level it says nothing about the outcome, and guessing would make the badge lie.
  * That is why roughly a third of legacy rows carry no badge, which is correct rather than a gap.
  */
-private fun CsraReviewNomisEntity.approvalStatus(): CsraApprovalStatus? = when {
+internal fun CsraReviewNomisEntity.approvalStatus(): CsraApprovalStatus? = when {
   evaluationResultCode == CsraEvaluationResultCode.REJ -> CsraApprovalStatus.NOT_APPROVED
   evaluationResultCode == CsraEvaluationResultCode.APP -> CsraApprovalStatus.APPROVED
   approvedLevel != null && approvedLevel != CsraLevel.PEND -> CsraApprovalStatus.APPROVED

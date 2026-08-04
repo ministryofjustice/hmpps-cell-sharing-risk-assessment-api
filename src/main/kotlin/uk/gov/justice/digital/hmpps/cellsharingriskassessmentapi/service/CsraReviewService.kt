@@ -30,7 +30,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraRatingB
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraRatingFilter
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraRatingStatus
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraRecentArrivals
-import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraReview
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraReviewDetail
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraReviewHistory
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraReviewHistorySummary
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraReviewInProgressRow
@@ -40,7 +40,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraRiskToD
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraSortDirection
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraVulnerabilityDetail
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.isHigh
-import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toDto
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toDetail
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toLegacyDetail
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toResults
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStage
@@ -75,7 +75,18 @@ class CsraReviewService(
   private val prisonApiClient: PrisonApiClient,
   private val clock: Clock,
 ) {
-  fun getCsraReviewById(id: UUID): CsraReview? = csraReviewRepository.findByIdOrNull(id)?.toDto()
+  /**
+   * A single review with its full detail, including the legacy NOMIS question/answer set where the review
+   * came from migration. The legacy block is absent for a DPS-created review, which is how a consumer tells
+   * the two apart.
+   */
+  fun getCsraReviewById(id: UUID): CsraReviewDetail? {
+    val review = csraReviewRepository.findByIdOrNull(id) ?: return null
+    val nomis = csraReviewNomisRepository.findByCsraReviewId(id)
+    // Cached in-process and degrades to the bare id, so this cannot fail the read.
+    val prisonName = review.prisonId?.let { prisonRegisterClient.getPrisonNames()[it] ?: it }
+    return review.toDetail(nomis, prisonName)
+  }
 
   /**
    * The CSRA rating counts for a prison's current roll (the homepage "CSRA ratings at <prison>" tiles).

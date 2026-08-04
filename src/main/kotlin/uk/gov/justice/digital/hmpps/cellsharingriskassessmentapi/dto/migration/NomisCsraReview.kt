@@ -155,15 +155,26 @@ enum class CsraStatus {
   P,
 }
 
+/**
+ * Assessment committee code, NOMIS reference domain `ASSESS_COMM`.
+ *
+ * [displayName] is the wording NOMIS itself shows, served alongside the code so every consumer renders the
+ * same label — prison-api likewise serves `approvalCommitteeName` next to `approvalCommitteeCode`.
+ *
+ * Only [RECP] and [REVIEW] are confirmed, read off the live DPS profile screen. **The other five are
+ * best-effort expansions and must be checked against `REFERENCE_CODES` (domain `ASSESS_COMM`) in preprod
+ * before release** — they are not seeded in prison-api's or hmpps-nomis-prisoner-api's test data, so there
+ * is nowhere in source to verify them.
+ */
 @Schema(description = "Assessment committee code (NOMIS reference domain ASSESS_COMM)")
-enum class CsraCommitteeCode {
-  GOV,
-  MED,
-  OCA,
-  RECP,
-  REVIEW,
-  SECSTATE,
-  SECUR,
+enum class CsraCommitteeCode(val displayName: String) {
+  GOV("Governor"),
+  MED("Medical"),
+  OCA("Observation, Classification and Allocation"),
+  RECP("Reception"),
+  REVIEW("Review Board"),
+  SECSTATE("Secretary of State"),
+  SECUR("Security"),
 }
 
 @Schema(description = "Approved or rejected indicator")

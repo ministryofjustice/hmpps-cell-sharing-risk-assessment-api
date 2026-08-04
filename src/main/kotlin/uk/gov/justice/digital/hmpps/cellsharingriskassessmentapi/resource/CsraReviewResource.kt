@@ -47,7 +47,11 @@ class CsraReviewResource(
   @ResponseStatus(HttpStatus.OK)
   @Operation(
     summary = "Returns CSRA review for this ID",
-    description = "Requires role ROLE_CSRA_REVIEW__R",
+    description = "Returns a single review with its full detail. For a review migrated from NOMIS this " +
+      "includes a legacy block carrying the question/answer set captured at migration, the committee and " +
+      "approval data, and the level NOMIS itself displays. The legacy block is absent for a review " +
+      "created in DPS, and its presence is how a consumer tells the two apart. Requires role " +
+      "ROLE_CSRA_REVIEW__R",
     responses = [
       ApiResponse(
         responseCode = "200",
