@@ -15,6 +15,8 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.integration.wir
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.integration.wiremock.PrisonerSearchApiExtension.Companion.prisonerSearch
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.integration.wiremock.PrisonerSearchMockServer.RollMemberStub
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStage
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraOffence
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraAssessmentStageOffenceEvidenceRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraAssessmentStageRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraNextReviewRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraReviewRepository
@@ -28,6 +30,9 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
 
   @Autowired
   private lateinit var csraAssessmentStageRepository: CsraAssessmentStageRepository
+
+  @Autowired
+  private lateinit var offenceEvidenceRepository: CsraAssessmentStageOffenceEvidenceRepository
 
   @Autowired
   private lateinit var csraNextReviewRepository: CsraNextReviewRepository
@@ -73,6 +78,23 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
     .expectStatus().isCreated
     .expectBody<CsraAssessmentStarted>()
     .returnResult().responseBody!!
+
+  /** A minimal STANDARD provisional body carrying only the offence evidence under test. */
+  private fun evidenceBody(offenceEvidence: String) = """
+    {
+      "rating": "STANDARD",
+      "prisonId": "LEI",
+      "assessmentComment": "Evidence recorded.",
+      "offenceEvidence": $offenceEvidence
+    }
+  """.trimIndent()
+
+  private fun submitProvisional(prisonerNumber: String, assessmentId: UUID, body: String) = webTestClient.put()
+    .uri("/csra-review/prisoner/$prisonerNumber/assessment/$assessmentId/provisional")
+    .headers(setAuthorisation(roles = writeRole))
+    .contentType(MediaType.APPLICATION_JSON)
+    .body(BodyInserters.fromValue(body))
+    .exchange()
 
   private fun reviewPrison(assessmentId: UUID) = csraReviewRepository.findById(assessmentId).orElseThrow().prisonId
 
@@ -349,6 +371,175 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
       .jsonPath("$.assessmentStarted.length()").isEqualTo(1)
       .jsonPath("$.assessmentStarted[0].prisonerNumber").isEqualTo(prisoner)
       .jsonPath("$.assessmentStarted[0].firstName").isEqualTo("Ellis")
+  }
+
+  @Test
+  fun `stores the evidence behind each offence answered yes`() {
+    val prisoner = "V6666VV"
+    val assessmentId = start(prisoner).assessmentId
+
+    submitProvisional(
+      prisoner,
+      assessmentId,
+      """
+      {
+        "rating": "STANDARD",
+        "prisonId": "LEI",
+        "assessmentComment": "Historic offences, no current concern.",
+        "offenceArson": true,
+        "offencePrejudiceMotivated": true,
+        "offenceEvidence": [
+          {
+            "offence": "ARSON",
+            "sources": ["PNC", "WARRANT"],
+            "details": "Convicted of arson in 2018."
+          },
+          {
+            "offence": "PREJUDICE_MOTIVATED",
+            "sources": ["DPS", "OTHER"],
+            "otherSourceDetail": "Security intelligence report",
+            "details": "Alerts have history of racist incidents."
+          }
+        ]
+      }
+      """.trimIndent(),
+    ).expectStatus().isOk
+
+    val stageId = csraAssessmentStageRepository.findByCsraReviewIdAndStage(assessmentId, CsraAssessmentStage.PROVISIONAL)!!.id!!
+    val evidence = offenceEvidenceRepository.findAllByStageId(stageId).associateBy { it.offence }
+    assertThat(evidence).hasSize(2)
+
+    with(evidence[CsraOffence.ARSON]!!) {
+      assertThat(pnc).isTrue()
+      assertThat(warrant).isTrue()
+      assertThat(dps).isFalse()
+      assertThat(per).isFalse()
+      assertThat(other).isFalse()
+      assertThat(otherSourceDetail).isNull()
+      assertThat(details).isEqualTo("Convicted of arson in 2018.")
+    }
+    with(evidence[CsraOffence.PREJUDICE_MOTIVATED]!!) {
+      assertThat(dps).isTrue()
+      assertThat(other).isTrue()
+      assertThat(pnc).isFalse()
+      assertThat(otherSourceDetail).isEqualTo("Security intelligence report")
+      assertThat(details).isEqualTo("Alerts have history of racist incidents.")
+    }
+  }
+
+  @Test
+  fun `re-submitting a stage replaces its offence evidence rather than adding to it`() {
+    // The evidence is a child collection on a stage that upsert already permits re-submitting, so an
+    // assessor correcting an answer must not leave the superseded record behind.
+    val prisoner = "V7777VV"
+    val assessmentId = start(prisoner).assessmentId
+
+    submitProvisional(
+      prisoner,
+      assessmentId,
+      evidenceBody("""[{"offence":"ARSON","sources":["PNC"],"details":"first pass"}]"""),
+    ).expectStatus().isOk
+
+    submitProvisional(
+      prisoner,
+      assessmentId,
+      evidenceBody("""[{"offence":"KIDNAP_HOSTAGE","sources":["PER"],"details":"corrected"}]"""),
+    ).expectStatus().isOk
+
+    val stageId = csraAssessmentStageRepository.findByCsraReviewIdAndStage(assessmentId, CsraAssessmentStage.PROVISIONAL)!!.id!!
+    val evidence = offenceEvidenceRepository.findAllByStageId(stageId)
+    assertThat(evidence).hasSize(1)
+    assertThat(evidence.single().offence).isEqualTo(CsraOffence.KIDNAP_HOSTAGE)
+    assertThat(evidence.single().details).isEqualTo("corrected")
+  }
+
+  @Test
+  fun `clearing the offence evidence removes the stored records`() {
+    val prisoner = "V8888VV"
+    val assessmentId = start(prisoner).assessmentId
+
+    submitProvisional(
+      prisoner,
+      assessmentId,
+      evidenceBody("""[{"offence":"ARSON","sources":["PNC"],"details":"answered in error"}]"""),
+    ).expectStatus().isOk
+
+    submitProvisional(prisoner, assessmentId, evidenceBody("[]")).expectStatus().isOk
+
+    val stageId = csraAssessmentStageRepository.findByCsraReviewIdAndStage(assessmentId, CsraAssessmentStage.PROVISIONAL)!!.id!!
+    assertThat(offenceEvidenceRepository.findAllByStageId(stageId)).isEmpty()
+  }
+
+  @Test
+  fun `rejects more than one evidence record for the same offence`() {
+    val prisoner = "V9999VV"
+    val assessmentId = start(prisoner).assessmentId
+
+    submitProvisional(
+      prisoner,
+      assessmentId,
+      evidenceBody(
+        """
+        [{"offence":"ARSON","sources":["PNC"],"details":"one"},
+         {"offence":"ARSON","sources":["DPS"],"details":"two"}]
+        """.trimIndent(),
+      ),
+    ).expectStatus().isBadRequest
+  }
+
+  @Test
+  fun `stores the free-text detail captured on a yes answer`() {
+    val prisoner = "D1212DD"
+    val assessmentId = start(prisoner).assessmentId
+
+    submitProvisional(
+      prisoner,
+      assessmentId,
+      """
+      {
+        "rating": "STANDARD",
+        "prisonId": "LEI",
+        "assessmentComment": "Standard risk.",
+        "likelyToHarmCellmate": true,
+        "likelyToHarmCellmateDetail": "Has threatened previous cellmates.",
+        "significantlyVulnerable": true,
+        "significantlyVulnerableDetail": "Says they have autism and struggle socially.",
+        "causeForConcernSharing": true,
+        "causeForConcernSharingDetail": "Aggressive towards staff on the wing.",
+        "otherHighRiskIndicators": true,
+        "otherHighRiskIndicatorsDetail": "Intelligence report from the security team.",
+        "seenByHealthcare": true,
+        "healthcareIncreasedRisk": true,
+        "healthcareIncreasedRiskDetail": "Shared accommodation likely to cause significant distress."
+      }
+      """.trimIndent(),
+    ).expectStatus().isOk
+
+    with(csraAssessmentStageRepository.findByCsraReviewIdAndStage(assessmentId, CsraAssessmentStage.PROVISIONAL)!!) {
+      assertThat(likelyToHarmCellmateDetail).isEqualTo("Has threatened previous cellmates.")
+      assertThat(significantlyVulnerableDetail).isEqualTo("Says they have autism and struggle socially.")
+      assertThat(causeForConcernSharingDetail).isEqualTo("Aggressive towards staff on the wing.")
+      assertThat(otherHighRiskIndicatorsDetail).isEqualTo("Intelligence report from the security team.")
+      assertThat(healthcareIncreasedRiskDetail).isEqualTo("Shared accommodation likely to cause significant distress.")
+    }
+  }
+
+  @Test
+  fun `a stage submitted without any of the detail fields stores none`() {
+    val prisoner = "D1313DD"
+    val assessmentId = start(prisoner).assessmentId
+
+    submitProvisional(prisoner, assessmentId, stageBody("STANDARD", "No detail supplied.")).expectStatus().isOk
+
+    val stage = csraAssessmentStageRepository.findByCsraReviewIdAndStage(assessmentId, CsraAssessmentStage.PROVISIONAL)!!
+    with(stage) {
+      assertThat(likelyToHarmCellmateDetail).isNull()
+      assertThat(significantlyVulnerableDetail).isNull()
+      assertThat(causeForConcernSharingDetail).isNull()
+      assertThat(otherHighRiskIndicatorsDetail).isNull()
+      assertThat(healthcareIncreasedRiskDetail).isNull()
+    }
+    assertThat(offenceEvidenceRepository.findAllByStageId(stage.id!!)).isEmpty()
   }
 
   @Test

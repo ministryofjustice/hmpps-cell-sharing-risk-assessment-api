@@ -56,18 +56,27 @@ class CsraAssessmentStageEntity(
   var offenceArson: Boolean? = null,
   var offenceKidnapHostage: Boolean? = null,
 
-  // Prisoner conversation and vulnerability
+  // Prisoner conversation and vulnerability. A Yes to either of the latter two reveals a free-text
+  // "provide details of the risk" box; officerSpokeToPrisoner is a plain yes/no and has no detail.
   var officerSpokeToPrisoner: Boolean? = null,
   var likelyToHarmCellmate: Boolean? = null,
+  var likelyToHarmCellmateDetail: String? = null,
   var significantlyVulnerable: Boolean? = null,
+  var significantlyVulnerableDetail: String? = null,
 
   // Officer observation / other indicators
   var causeForConcernSharing: Boolean? = null,
+  var causeForConcernSharingDetail: String? = null,
   var otherHighRiskIndicators: Boolean? = null,
+  var otherHighRiskIndicatorsDetail: String? = null,
 
   // Healthcare assessment
   var seenByHealthcare: Boolean? = null,
   var healthcareIncreasedRisk: Boolean? = null,
+  var healthcareIncreasedRiskDetail: String? = null,
+
+  @OneToMany(mappedBy = "stage", cascade = [CascadeType.ALL], orphanRemoval = true)
+  val offenceEvidence: MutableList<CsraAssessmentStageOffenceEvidenceEntity> = mutableListOf(),
 
   @OneToMany(mappedBy = "stage", cascade = [CascadeType.ALL], orphanRemoval = true)
   val riskTo: MutableList<CsraAssessmentStageRiskToEntity> = mutableListOf(),
