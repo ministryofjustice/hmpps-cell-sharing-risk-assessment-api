@@ -60,6 +60,15 @@ class CsraReviewNomisEntity(
 
   var evaluationDate: LocalDate? = null,
 
+  /**
+   * The next review date NOMIS recorded on *this* review.
+   *
+   * Distinct from [uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraNextReviewEntity],
+   * which holds the single date currently in force per prisoner. Null for rows migrated before the column
+   * existed — never substitute the per-prisoner date, which would date-stamp a historic review with today's.
+   */
+  var nextReviewDate: LocalDate? = null,
+
   @Enumerated(EnumType.STRING)
   var evaluationResultCode: CsraEvaluationResultCode? = null,
 
@@ -70,9 +79,16 @@ class CsraReviewNomisEntity(
   var placementPrisonId: String? = null,
   var reviewPlacementPrisonId: String? = null,
 
+  /**
+   * The question/answer tree exactly as NOMIS supplied it.
+   *
+   * Nullable because the column is: every write path stores `[]` rather than null, but `review_details` has
+   * been nullable since V2 and a row written by hand or by a data fix would otherwise put a null into a
+   * non-null property and fail the whole read with a 500. Read it through [reviewDetailsOrEmpty].
+   */
   @JdbcTypeCode(SqlTypes.JSON)
   @Column(name = "review_details", columnDefinition = "jsonb")
-  var reviewDetails: List<CsraReviewDetailDto> = emptyList(),
+  var reviewDetails: List<CsraReviewDetailDto>? = emptyList(),
 
   /**
    * When this row was last written by migration or sync — our wall clock, not NOMIS's.
@@ -97,4 +113,7 @@ class CsraReviewNomisEntity(
   }
 
   override fun hashCode(): Int = javaClass.hashCode()
+
+  /** The stored question/answer tree, treating a null column as "nothing captured". */
+  val reviewDetailsOrEmpty: List<CsraReviewDetailDto> get() = reviewDetails.orEmpty()
 }

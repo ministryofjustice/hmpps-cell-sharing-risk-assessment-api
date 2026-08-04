@@ -287,6 +287,8 @@ class NomisCsraReviewMappersTest {
     assertThat(nomis.placementPrisonId).isEqualTo("MDI")
     assertThat(nomis.reviewPlacementPrisonId).isEqualTo("WWI")
     assertThat(nomis.reviewDetails).isEqualTo(reviewDetails)
+    // Kept per review as well as in csra_next_review, which only holds the prisoner's current date.
+    assertThat(nomis.nextReviewDate).isEqualTo(LocalDate.parse("2026-05-22"))
   }
 
   @Test
@@ -301,6 +303,7 @@ class NomisCsraReviewMappersTest {
         status = CsraStatus.I,
         comment = "changed",
         reviewDetails = emptyList(),
+        nextReviewDate = null,
       ),
       clock,
     )
@@ -312,5 +315,7 @@ class NomisCsraReviewMappersTest {
     assertThat(nomis.status).isEqualTo(CsraStatus.I)
     assertThat(nomis.comment).isEqualTo("changed")
     assertThat(nomis.reviewDetails).isEmpty()
+    // Cleared as well as set — a review whose next review date was removed in NOMIS must not keep the old one.
+    assertThat(nomis.nextReviewDate).isNull()
   }
 }
