@@ -180,4 +180,34 @@ class CsraPrisonPrisonersResourceTest : SqsIntegrationTestBase() {
       .jsonPath("$.content[0].prisonerNumber").isEqualTo("PN04")
       .jsonPath("$.content[1].prisonerNumber").isEqualTo("PN06")
   }
+
+  @Test
+  fun `sorts by rating ascending - no rating, standard, high, high-specific, high-general, high-general provisional`() {
+    // Expected order: No rating (PN01, PN06) < Standard (PN02) < High-specific (PN03)
+    // < High-general (PN04) < High-general provisional (PN05).
+    // Ties within the same rank are broken by prisoner number.
+    get("?sort=RATING&direction=ASC")
+      .expectStatus().isOk
+      .expectBody()
+      .jsonPath("$.content[0].prisonerNumber").isEqualTo("PN01") // no rating
+      .jsonPath("$.content[1].prisonerNumber").isEqualTo("PN06") // no rating (in-progress)
+      .jsonPath("$.content[2].prisonerNumber").isEqualTo("PN02") // STANDARD
+      .jsonPath("$.content[3].prisonerNumber").isEqualTo("PN03") // HIGH_SPECIFIC
+      .jsonPath("$.content[4].prisonerNumber").isEqualTo("PN04") // HIGH_GENERAL
+      .jsonPath("$.content[5].prisonerNumber").isEqualTo("PN05") // HIGH_GENERAL (provisional)
+  }
+
+  @Test
+  fun `sorts by rating descending`() {
+    // Reverse of ASC; ties within the same rank still broken by prisoner number ascending.
+    get("?sort=RATING&direction=DESC")
+      .expectStatus().isOk
+      .expectBody()
+      .jsonPath("$.content[0].prisonerNumber").isEqualTo("PN05") // HIGH_GENERAL (provisional)
+      .jsonPath("$.content[1].prisonerNumber").isEqualTo("PN04") // HIGH_GENERAL
+      .jsonPath("$.content[2].prisonerNumber").isEqualTo("PN03") // HIGH_SPECIFIC
+      .jsonPath("$.content[3].prisonerNumber").isEqualTo("PN02") // STANDARD
+      .jsonPath("$.content[4].prisonerNumber").isEqualTo("PN01") // no rating
+      .jsonPath("$.content[5].prisonerNumber").isEqualTo("PN06") // no rating (in-progress)
+  }
 }

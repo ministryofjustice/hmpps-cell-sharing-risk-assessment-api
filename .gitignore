@@ -75,3 +75,7 @@ sonar-project.properties
 #Everything else:
 .DS_Store
 /.snyk
+bin
+
+# VS Code
+.vscode
