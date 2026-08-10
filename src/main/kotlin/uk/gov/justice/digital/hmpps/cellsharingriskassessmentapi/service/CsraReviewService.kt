@@ -178,7 +178,7 @@ class CsraReviewService(
       CsraPrisonerSortField.NAME -> compareBy({ it.lastName?.lowercase() }, { it.firstName?.lowercase() })
       CsraPrisonerSortField.ASSESSMENT_TYPE -> compareBy { it.assessmentType }
       CsraPrisonerSortField.ASSESSED_ON -> compareBy { it.assessedOn }
-      CsraPrisonerSortField.RATING -> compareBy { ratingSortOrder(it.rating) }
+      CsraPrisonerSortField.RATING -> compareBy { ratingSortOrder(it.rating, it.provisional) }
     }
     return if (direction == CsraSortDirection.DESC) base.reversed() else base
   }
@@ -568,13 +568,17 @@ class CsraReviewService(
     /** Chunk the roll when querying so the `IN (...)` list stays a sane size for large prisons. */
     private const val RATING_COUNT_BATCH_SIZE = 1000
 
-    /** Severity ordering for the RATING sort: No rating < Standard < High < High-general < High-specific. */
-    private fun ratingSortOrder(rating: CsraResult?): Int = when (rating) {
+    /**
+     * Severity ordering for the RATING sort:
+     * No rating < Standard < High < High-specific < High-specific (provisional)
+     * < High-general < High-general (provisional).
+     */
+    private fun ratingSortOrder(rating: CsraResult?, provisional: Boolean): Int = when (rating) {
       null -> 0
       CsraResult.STANDARD -> 1
       CsraResult.HIGH -> 2
-      CsraResult.HIGH_GENERAL -> 3
-      CsraResult.HIGH_SPECIFIC -> 4
+      CsraResult.HIGH_SPECIFIC -> if (provisional) 4 else 3
+      CsraResult.HIGH_GENERAL -> if (provisional) 6 else 5
     }
   }
 }
