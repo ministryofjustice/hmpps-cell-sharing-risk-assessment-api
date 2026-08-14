@@ -260,6 +260,8 @@ class CsraReviewService(
     val names = prisonerSearchClient.getPrisonerNames(ours.map { it.prisonerNumber })
     val reviews = ours.stillAt(prisonId, names)
     val provisionalStageByReviewId = csraAssessmentStageRepository.findAllByCsraReviewIdIn(reviews.mapNotNull { it.id })
+      // PROVISIONAL only, deliberately: a review's INTERIM stage cannot reach here anyway, because these
+      // rows are already filtered to CSRA_INITIAL_REVIEW. Reviews belong on the reviews-in-progress list.
       .filter { it.stage == CsraAssessmentStage.PROVISIONAL }
       .associateBy { it.csraReview.id }
 
@@ -449,8 +451,12 @@ class CsraReviewService(
   ): CsraCurrentRating {
     val stages = csraAssessmentStageRepository.findAllByCsraReviewId(review.id!!)
     val finalStage = stages.firstOrNull { it.stage == CsraAssessmentStage.FINAL }
-    val provisionalStage = stages.firstOrNull { it.stage == CsraAssessmentStage.PROVISIONAL }
-    // The stage that produced the current rating: the final stage once complete, otherwise the provisional.
+    // A review's first stage is INTERIM where an assessment's is PROVISIONAL; a given review carries one or
+    // the other, never both, so the order these are coalesced in does not matter.
+    val provisionalStage = stages.firstOrNull {
+      it.stage == CsraAssessmentStage.PROVISIONAL || it.stage == CsraAssessmentStage.INTERIM
+    }
+    // The stage that produced the current rating: the final stage once complete, otherwise the first stage.
     val ratingStage = finalStage ?: provisionalStage
     // Migrated legacy reviews have no stages; their comment lives on the adjacent NOMIS record.
     val nomis = if (stages.isEmpty()) csraReviewNomisRepository.findByCsraReviewId(review.id!!) else null
@@ -542,7 +548,7 @@ class CsraReviewService(
   }
 
   /**
-   * The comment a new-model review carries on its FINAL (or, failing that, PROVISIONAL) stage. Loaded in
+   * The comment a new-model review carries on its FINAL (or, failing that, first) stage. Loaded in
    * batch to avoid N+1 queries; legacy rows have no stages and fall back to their NOMIS record.
    */
   private fun stageCommentsByReviewId(reviewIds: List<UUID>): Map<UUID, String?> {
@@ -561,7 +567,10 @@ class CsraReviewService(
   private fun stageComment(stages: List<CsraAssessmentStageEntity>?): String? {
     if (stages.isNullOrEmpty()) return null
     return stages.firstOrNull { it.stage == CsraAssessmentStage.FINAL }?.assessmentComment
-      ?: stages.firstOrNull { it.stage == CsraAssessmentStage.PROVISIONAL }?.assessmentComment
+      // PROVISIONAL (assessment) and INTERIM (review) are the same slot for this purpose.
+      ?: stages.firstOrNull {
+        it.stage == CsraAssessmentStage.PROVISIONAL || it.stage == CsraAssessmentStage.INTERIM
+      }?.assessmentComment
   }
 
   private fun nomisComment(nomis: CsraReviewNomisEntity?): String? = nomis?.reviewComment ?: nomis?.comment

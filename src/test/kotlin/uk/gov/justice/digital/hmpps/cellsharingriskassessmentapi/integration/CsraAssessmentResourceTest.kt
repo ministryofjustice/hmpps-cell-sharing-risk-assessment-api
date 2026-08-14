@@ -260,6 +260,47 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
   }
 
   @Test
+  fun `rejects NONE combined with a real risk category`() {
+    // The rule is shared with the review journey: NONE means "no identified risk to any of these groups",
+    // which cannot coexist with naming one.
+    val prisoner = "N5555NN"
+    val assessmentId = start(prisoner).assessmentId
+
+    webTestClient.put().uri("/csra-review/prisoner/$prisoner/assessment/$assessmentId/final")
+      .headers(setAuthorisation(roles = writeRole))
+      .contentType(MediaType.APPLICATION_JSON)
+      .body(
+        BodyInserters.fromValue(
+          stageBody(
+            rating = "HIGH_SPECIFIC",
+            comment = "Contradictory risk answers.",
+            riskTo = """[{"category":"NONE"},{"category":"DIFFERENT_ETHNICITY"}]""",
+            vulnerabilities = """[{"category":"NONE"}]""",
+          ),
+        ),
+      )
+      .exchange()
+      .expectStatus().isBadRequest
+      .expectBody()
+      .jsonPath("$.errorCode").isEqualTo("RiskCategoriesInvalid")
+  }
+
+  @Test
+  fun `rejects a high-risk specific rating with no risk categories at all`() {
+    val prisoner = "N6666NN"
+    val assessmentId = start(prisoner).assessmentId
+
+    webTestClient.put().uri("/csra-review/prisoner/$prisoner/assessment/$assessmentId/final")
+      .headers(setAuthorisation(roles = writeRole))
+      .contentType(MediaType.APPLICATION_JSON)
+      .body(BodyInserters.fromValue(stageBody(rating = "HIGH_SPECIFIC", comment = "No groups recorded.")))
+      .exchange()
+      .expectStatus().isBadRequest
+      .expectBody()
+      .jsonPath("$.errorCode").isEqualTo("RiskCategoriesInvalid")
+  }
+
+  @Test
   fun `rejects starting a second assessment while one is in progress`() {
     val prisoner = "P4444PP"
     start(prisoner)

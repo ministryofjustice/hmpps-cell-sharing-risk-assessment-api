@@ -49,6 +49,18 @@ The API has four surfaces, each guarded by its own role.
 | `PUT /csra-review/prisoner/{prisonerNumber}/assessment/{assessmentId}/provisional` | Submit the provisional (Day 1) stage |
 | `PUT /csra-review/prisoner/{prisonerNumber}/assessment/{assessmentId}/final` | Submit the final (Day 2) stage |
 
+**Review writes** — `ROLE_CSRA_REVIEW__RW`
+
+A separate journey from the initial assessment, not the same one with different questions: mandatory
+high-risk offences are advisory rather than enforced, and the next review date is chosen by the reviewer
+rather than computed as twelve months on.
+
+| Path | Purpose |
+| --- | --- |
+| `POST /csra-review/prisoner/{prisonerNumber}/review` | Start a draft review. Requires `{"prisonId": "LEI"}` — the prison is what puts the draft on that prison's worklist |
+| `PUT /csra-review/prisoner/{prisonerNumber}/review/{reviewId}/interim` | Submit the interim stage |
+| `PUT /csra-review/prisoner/{prisonerNumber}/review/{reviewId}/final` | Submit the final stage, completing the review |
+
 **NOMIS sync** — `ROLE_PRISONER_CSRA__SYNC__RW`
 
 | Path | Purpose |

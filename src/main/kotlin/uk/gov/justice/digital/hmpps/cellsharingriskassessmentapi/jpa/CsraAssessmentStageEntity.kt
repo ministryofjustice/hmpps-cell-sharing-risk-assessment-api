@@ -17,12 +17,21 @@ import java.time.LocalDateTime
 import java.util.UUID
 
 /**
- * The captured answer set for one stage of a new (DPS) initial CSRA assessment.
+ * The captured answer set for one stage of a new (DPS) CSRA — both the initial assessment journey and the
+ * review journey, which share this table.
  *
- * Has a 1:0..2 relationship with [CsraReviewEntity]: a review may have a PROVISIONAL (Day 1) and/or a
- * FINAL (Day 2) stage, unique per [stage]. Answer columns are deliberately typed and nullable — a null
- * means "not answered", which Day 1 legitimately allows. The stage's rating is not duplicated here; it
- * is derived from the review's interim (provisional) / final result, the single source of truth.
+ * Has a 1:0..2 relationship with [CsraReviewEntity]: an assessment may have a PROVISIONAL (Day 1) and/or a
+ * FINAL (Day 2) stage, a review an INTERIM and/or a FINAL, unique per [stage]. The stage's rating is not
+ * duplicated here; it is derived from the review's interim (provisional) / final result, the single source
+ * of truth.
+ *
+ * **A null answer column means one of two things.** It has always meant "not answered", which a first
+ * stage legitimately allows. Since the review journey joined the table it also means "not applicable to
+ * this journey" — an assessment never populates [reviewReason], [mdtChairName] or the offence detail
+ * columns, and a review never populates [officerSpokeToPrisoner], [causeForConcernSharing],
+ * [seenByHealthcare] or the four evidence booleans. The two are indistinguishable at column level, so
+ * anything counting unanswered questions must first narrow by the parent review's [CsraReviewEntity.type]
+ * (and, in time, [questionSetVersion]).
  */
 @Entity
 @Table(name = "csra_assessment_stage")
@@ -47,14 +56,22 @@ class CsraAssessmentStageEntity(
   var warrantChecked: Boolean? = null,
   var pncChecked: Boolean? = null,
 
-  // Offence flags — "is there any evidence of…" (null = not answered)
+  // Offence flags — "is there any evidence of…" (null = not answered). The paired detail columns are the
+  // review journey's free text on a Yes; an assessment records its evidence in offenceEvidence instead.
   var offenceMurderManslaughter: Boolean? = null,
+  var offenceMurderManslaughterDetail: String? = null,
   var offenceAssistingSuicide: Boolean? = null,
+  var offenceAssistingSuicideDetail: String? = null,
   var offenceSexualAssault: Boolean? = null,
+  var offenceSexualAssaultDetail: String? = null,
   var offenceRepeatedViolence: Boolean? = null,
+  var offenceRepeatedViolenceDetail: String? = null,
   var offencePrejudiceMotivated: Boolean? = null,
+  var offencePrejudiceMotivatedDetail: String? = null,
   var offenceArson: Boolean? = null,
+  var offenceArsonDetail: String? = null,
   var offenceKidnapHostage: Boolean? = null,
+  var offenceKidnapHostageDetail: String? = null,
 
   // Prisoner conversation and vulnerability. A Yes to either of the latter two reveals a free-text
   // "provide details of the risk" box; officerSpokeToPrisoner is a plain yes/no and has no detail.
@@ -75,8 +92,19 @@ class CsraAssessmentStageEntity(
   var healthcareIncreasedRisk: Boolean? = null,
   var healthcareIncreasedRiskDetail: String? = null,
 
+  // Review only: why the review was held, and the free-text name of who chaired the multidisciplinary
+  // meeting. Captured on every confirm screen including Standard risk, so not a high-risk-only field.
+  @Enumerated(EnumType.STRING)
+  var reviewReason: CsraReviewReason? = null,
+  var mdtChairName: String? = null,
+
   @OneToMany(mappedBy = "stage", cascade = [CascadeType.ALL], orphanRemoval = true)
   val offenceEvidence: MutableList<CsraAssessmentStageOffenceEvidenceEntity> = mutableListOf(),
+
+  // Review only: the multi-select of named evidence sources. The assessment journey's equivalent is the
+  // four *Checked booleans above.
+  @OneToMany(mappedBy = "stage", cascade = [CascadeType.ALL], orphanRemoval = true)
+  val evidenceSources: MutableList<CsraAssessmentStageEvidenceSourceEntity> = mutableListOf(),
 
   @OneToMany(mappedBy = "stage", cascade = [CascadeType.ALL], orphanRemoval = true)
   val riskTo: MutableList<CsraAssessmentStageRiskToEntity> = mutableListOf(),
