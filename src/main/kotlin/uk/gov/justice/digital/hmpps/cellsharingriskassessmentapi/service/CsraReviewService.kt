@@ -335,9 +335,8 @@ class CsraReviewService(
    * longer in the establishment (released or moved on) is excluded via the prisoner-search roll.
    *
    * Admissions, transfers in, and returns from court or temporary absence all count as arrivals — see
-   * [CsraArrivalType.fromMovement]. One row per prisoner *per day*: someone who arrived on two days
-   * appears under both, but a prisoner who bounced in and out on one day is shown once, at their latest
-   * arrival that day.
+   * [CsraArrivalType.fromMovement]. One row per prisoner across the whole window: if someone arrived
+   * several times, they are shown once at their latest arrival.
    *
    * Every day of the window is returned whether or not anyone arrived on it, because the screen shows an
    * empty state under each date.
@@ -367,8 +366,8 @@ class CsraReviewService(
           location = member.cellLocation,
         )
       }
-      // One row per prisoner per day: their latest arrival on that day.
-      .groupBy { it.prisonerNumber to it.arrivedAt.toLocalDate() }
+      // One row per prisoner across the window: their latest arrival.
+      .groupBy { it.prisonerNumber }
       .map { (_, rows) -> rows.maxBy { it.arrivedAt } }
 
     val arrivalTypeCounts = CsraArrivalType.entries.associateWith { type -> arrivals.count { it.arrivalType == type } }
@@ -411,7 +410,7 @@ class CsraReviewService(
       ?.let { csraReviewRepository.findByIdOrNull(it) }
 
     if (ratingReview != null) {
-      val status = if (current!!.provisional) CsraRatingStatus.PROVISIONAL else CsraRatingStatus.COMPLETE
+      val status = if (current.provisional) CsraRatingStatus.PROVISIONAL else CsraRatingStatus.COMPLETE
       return buildCurrentRating(prisonerNumber, ratingReview, status, inProgress)
     }
 
