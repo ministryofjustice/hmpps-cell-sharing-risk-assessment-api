@@ -28,7 +28,7 @@ data class CsraAssessmentStartedRow(
   @param:Schema(description = "The prisoner's last name", example = "Kettleby")
   val lastName: String?,
 
-  @param:Schema(description = "The date the assessment was started", example = "2026-07-06")
+  @param:Schema(description = "The date the assessment was started (when the assessor began it)", example = "2026-07-06")
   val startedOn: LocalDate,
 
   @param:Schema(description = "The username of who started the assessment", example = "JBLOGGS")

@@ -35,12 +35,15 @@ class CsraAssessmentsInProgressResourceTest : SqsIntegrationTestBase() {
 
   private fun review(
     prisonerNumber: String,
-    assessmentDate: LocalDate,
+    startedAt: LocalDateTime,
     type: CsraType = CsraType.CSRA_INITIAL_REVIEW,
     interimResult: CsraResult? = null,
     finalResult: CsraResult? = null,
     prisonId: String = "LEI",
     createdBy: String = "JBLOGGS",
+    // Deliberately a month after the start date: the screen reports when the assessment was *started*, so a
+    // response that read assessmentDate instead would fail rather than coincidentally pass.
+    assessmentDate: LocalDate = startedAt.toLocalDate().plusMonths(1),
   ) = csraReviewRepository.saveAndFlush(
     CsraReviewEntity(
       prisonerNumber = prisonerNumber,
@@ -51,17 +54,17 @@ class CsraAssessmentsInProgressResourceTest : SqsIntegrationTestBase() {
       interimResultDate = interimResult?.let { assessmentDate },
       finalResult = finalResult,
       finalResultDate = finalResult?.let { assessmentDate },
-      createdAt = LocalDateTime.parse("2026-01-02T09:00:00"),
+      createdAt = startedAt,
       createdBy = createdBy,
     ),
   )
 
   private fun seed() {
     // Started, no rating
-    review("AS01", LocalDate.parse("2026-07-06"), createdBy = "JBLOGGS")
-    review("AS02", LocalDate.parse("2026-07-05"), createdBy = "SCARTER")
+    review("AS01", LocalDateTime.parse("2026-07-06T11:20:00"), createdBy = "JBLOGGS")
+    review("AS02", LocalDateTime.parse("2026-07-05T08:45:00"), createdBy = "SCARTER")
     // Provisional rating entered, with a provisional stage carrying "assessed by/on"
-    val provisional = review("PR01", LocalDate.parse("2026-07-06"), interimResult = CsraResult.HIGH_SPECIFIC, createdBy = "JBLOGGS")
+    val provisional = review("PR01", LocalDateTime.parse("2026-07-06T09:00:00"), interimResult = CsraResult.HIGH_SPECIFIC, createdBy = "JBLOGGS")
     csraAssessmentStageRepository.saveAndFlush(
       CsraAssessmentStageEntity(
         csraReview = provisional,
@@ -72,16 +75,21 @@ class CsraAssessmentsInProgressResourceTest : SqsIntegrationTestBase() {
       ),
     )
     // Decoys
-    review("CMP", LocalDate.parse("2026-07-01"), finalResult = CsraResult.STANDARD) // completed
-    review("REV", LocalDate.parse("2026-07-02"), type = CsraType.CSRA_REVIEW) // a review, not an assessment
-    review("OTHER", LocalDate.parse("2026-07-06"), prisonId = "BXI") // in progress at another prison
-    review("LEG", LocalDate.parse("2026-07-02"), type = CsraType.RATING) // legacy null-result
+    review("CMP", LocalDateTime.parse("2026-07-01T09:00:00"), finalResult = CsraResult.STANDARD) // completed
+    review("REV", LocalDateTime.parse("2026-07-02T09:00:00"), type = CsraType.CSRA_REVIEW) // a review, not an assessment
+    review("OTHER", LocalDateTime.parse("2026-07-06T09:00:00"), prisonId = "BXI") // in progress at another prison
+    review("LEG", LocalDateTime.parse("2026-07-02T09:00:00"), type = CsraType.RATING) // legacy null-result
+    review("ASOUT", LocalDateTime.parse("2026-07-04T09:00:00")) // started here, since released
+    review("ASGONE", LocalDateTime.parse("2026-07-04T09:00:00")) // started here, unknown to prisoner-search
 
     prisonerSearch.stubGetPrisonerNames(
       listOf(
-        RollMemberStub("AS01", "Simon", "Kettleby"),
-        RollMemberStub("AS02", "Gareth", "Winrow"),
-        RollMemberStub("PR01", "Daniel", "Havers"),
+        RollMemberStub("AS01", "Simon", "Kettleby", prisonId = "LEI"),
+        RollMemberStub("AS02", "Gareth", "Winrow", prisonId = "LEI"),
+        RollMemberStub("PR01", "Daniel", "Havers", prisonId = "LEI"),
+        // Released: prisoner-search reports the released as OUT.
+        RollMemberStub("ASOUT", "Mubashir", "Khan", prisonId = "OUT"),
+        // ASGONE is absent from the response entirely.
       ),
     )
   }
@@ -126,6 +134,17 @@ class CsraAssessmentsInProgressResourceTest : SqsIntegrationTestBase() {
       .jsonPath("$.provisionalRatingEntered[0].assessedBy").isEqualTo("MSTANLEY")
       .jsonPath("$.provisionalRatingEntered[0].rating").isEqualTo("HIGH_SPECIFIC")
       .jsonPath("$.provisionalRatingEntered[0].reviewId").isNotEmpty
+  }
+
+  @Test
+  fun `excludes prisoners who have left the establishment`() {
+    // The tidy-up that closes in-progress work only runs on the next admission, so a released prisoner's
+    // assessment is still IN_PROGRESS against this prison. It must not reach the worklist.
+    get()
+      .expectStatus().isOk
+      .expectBody()
+      .jsonPath("$.assessmentStarted[?(@.prisonerNumber == 'ASOUT')]").doesNotExist()
+      .jsonPath("$.assessmentStarted[?(@.prisonerNumber == 'ASGONE')]").doesNotExist()
   }
 
   @Test

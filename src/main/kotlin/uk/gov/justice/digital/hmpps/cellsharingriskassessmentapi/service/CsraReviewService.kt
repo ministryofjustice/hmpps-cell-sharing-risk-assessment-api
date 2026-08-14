@@ -7,6 +7,7 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.client.PrisonApiClient
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.client.PrisonRegisterClient
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.client.PrisonRollMember
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.client.PrisonerSearchClient
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraArrivalDay
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraArrivalRow
@@ -249,14 +250,15 @@ class CsraReviewService(
 
   /**
    * A prison's in-progress CSRA initial assessments (the "assessments in progress" worklist), split into
-   * those started with no rating yet and those with a provisional rating awaiting a final. Driven solely
-   * by our data (new-model assessments at this prison with no final result); names are resolved from
-   * prisoner-search for the small in-progress set.
+   * those started with no rating yet and those with a provisional rating awaiting a final. Driven by our
+   * data (new-model assessments at this prison with no final result), then narrowed to prisoners who are
+   * still here: the one prisoner-search lookup resolves names and confirms current establishment.
    */
   fun getAssessmentsInProgress(prisonId: String): CsraAssessmentsInProgress {
-    val reviews = csraReviewRepository
+    val ours = csraReviewRepository
       .findAllByPrisonIdAndTypeAndFinalResultIsNullAndStatus(prisonId, CsraType.CSRA_INITIAL_REVIEW, CsraReviewStatus.IN_PROGRESS)
-    val names = prisonerSearchClient.getPrisonerNames(reviews.map { it.prisonerNumber })
+    val names = prisonerSearchClient.getPrisonerNames(ours.map { it.prisonerNumber })
+    val reviews = ours.stillAt(prisonId, names)
     val provisionalStageByReviewId = csraAssessmentStageRepository.findAllByCsraReviewIdIn(reviews.mapNotNull { it.id })
       .filter { it.stage == CsraAssessmentStage.PROVISIONAL }
       .associateBy { it.csraReview.id }
@@ -268,7 +270,7 @@ class CsraReviewService(
         prisonerNumber = r.prisonerNumber,
         firstName = name?.firstName,
         lastName = name?.lastName,
-        startedOn = r.assessmentDate,
+        startedOn = r.createdAt.toLocalDate(),
         startedBy = r.createdBy,
       )
     }.sortedWith(compareBy({ it.startedOn }, { it.lastName?.lowercase() }, { it.firstName?.lowercase() }))
@@ -292,25 +294,40 @@ class CsraReviewService(
 
   /**
    * A prison's in-progress CSRA reviews (the "reviews in progress" worklist): new-model reviews at this
-   * prison with no final result. Names resolved from prisoner-search.
+   * prison with no final result, narrowed to prisoners who are still here. The one prisoner-search lookup
+   * resolves names and confirms current establishment.
    */
   fun getReviewsInProgress(prisonId: String): CsraReviewsInProgress {
-    val reviews = csraReviewRepository
+    val ours = csraReviewRepository
       .findAllByPrisonIdAndTypeAndFinalResultIsNullAndStatus(prisonId, CsraType.CSRA_REVIEW, CsraReviewStatus.IN_PROGRESS)
-    val names = prisonerSearchClient.getPrisonerNames(reviews.map { it.prisonerNumber })
-    val content = reviews.map { r ->
+    val names = prisonerSearchClient.getPrisonerNames(ours.map { it.prisonerNumber })
+    val content = ours.stillAt(prisonId, names).map { r ->
       val name = names[r.prisonerNumber]
       CsraReviewInProgressRow(
         reviewId = r.id!!,
         prisonerNumber = r.prisonerNumber,
         firstName = name?.firstName,
         lastName = name?.lastName,
-        startedOn = r.assessmentDate,
+        startedOn = r.createdAt.toLocalDate(),
         startedBy = r.createdBy,
       )
     }.sortedWith(compareBy({ it.startedOn }, { it.lastName?.lowercase() }, { it.firstName?.lowercase() }))
     return CsraReviewsInProgress(content = content, totalResults = content.size)
   }
+
+  /**
+   * Keeps only the reviews whose prisoner is currently in [prisonId], per prisoner-search.
+   *
+   * Our own `prison_id` records where the work was started, and the tidy-up that closes or archives
+   * in-progress work only runs on the prisoner's *next admission* (R-01/R-02). Someone released and never
+   * readmitted would otherwise sit on the worklist for ever with nothing anyone could do about them.
+   * prisoner-search reports the released as `OUT` and those in transit as `TRN`, so plain equality drops
+   * both, along with anyone missing from the response entirely.
+   */
+  private fun List<CsraReviewEntity>.stillAt(
+    prisonId: String,
+    members: Map<String, PrisonRollMember>,
+  ) = filter { members[it.prisonerNumber]?.prisonId == prisonId }
 
   /**
    * Prisoners who arrived at [prisonId] in the last [days] days and are still in the establishment (the

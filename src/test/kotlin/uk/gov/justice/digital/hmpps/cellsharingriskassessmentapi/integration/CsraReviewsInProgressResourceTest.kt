@@ -29,11 +29,14 @@ class CsraReviewsInProgressResourceTest : SqsIntegrationTestBase() {
 
   private fun review(
     prisonerNumber: String,
-    assessmentDate: LocalDate,
+    startedAt: LocalDateTime,
     type: CsraType = CsraType.CSRA_REVIEW,
     finalResult: CsraResult? = null,
     prisonId: String = "LEI",
     createdBy: String = "SCARTER",
+    // Deliberately a month after the start date: the screen reports when the review was *started*, so a
+    // response that read assessmentDate instead would fail rather than coincidentally pass.
+    assessmentDate: LocalDate = startedAt.toLocalDate().plusMonths(1),
   ) = csraReviewRepository.saveAndFlush(
     CsraReviewEntity(
       prisonerNumber = prisonerNumber,
@@ -42,23 +45,28 @@ class CsraReviewsInProgressResourceTest : SqsIntegrationTestBase() {
       type = type,
       finalResult = finalResult,
       finalResultDate = finalResult?.let { assessmentDate },
-      createdAt = LocalDateTime.parse("2026-01-02T09:00:00"),
+      createdAt = startedAt,
       createdBy = createdBy,
     ),
   )
 
   private fun seed() {
-    review("RV01", LocalDate.parse("2026-07-03"), createdBy = "SCARTER")
-    review("RV02", LocalDate.parse("2026-07-06"), createdBy = "MSTANLEY")
+    review("RV01", LocalDateTime.parse("2026-07-03T09:15:00"), createdBy = "SCARTER")
+    review("RV02", LocalDateTime.parse("2026-07-06T14:40:00"), createdBy = "MSTANLEY")
     // Decoys
-    review("RVDONE", LocalDate.parse("2026-07-01"), finalResult = CsraResult.HIGH) // completed review
-    review("ASMT", LocalDate.parse("2026-07-02"), type = CsraType.CSRA_INITIAL_REVIEW) // an assessment, not a review
-    review("RVOTHER", LocalDate.parse("2026-07-06"), prisonId = "BXI") // in progress at another prison
+    review("RVDONE", LocalDateTime.parse("2026-07-01T09:00:00"), finalResult = CsraResult.HIGH) // completed review
+    review("ASMT", LocalDateTime.parse("2026-07-02T09:00:00"), type = CsraType.CSRA_INITIAL_REVIEW) // an assessment
+    review("RVOTHER", LocalDateTime.parse("2026-07-06T09:00:00"), prisonId = "BXI") // in progress at another prison
+    review("RVOUT", LocalDateTime.parse("2026-07-04T09:00:00")) // started here, since released
+    review("RVGONE", LocalDateTime.parse("2026-07-05T09:00:00")) // started here, unknown to prisoner-search
 
     prisonerSearch.stubGetPrisonerNames(
       listOf(
-        RollMemberStub("RV01", "Simon", "Kettleby"),
-        RollMemberStub("RV02", "Gareth", "Winrow"),
+        RollMemberStub("RV01", "Simon", "Kettleby", prisonId = "LEI"),
+        RollMemberStub("RV02", "Gareth", "Winrow", prisonId = "LEI"),
+        // Released: prisoner-search reports the released as OUT.
+        RollMemberStub("RVOUT", "Mubashir", "Khan", prisonId = "OUT"),
+        // RVGONE is absent from the response entirely.
       ),
     )
   }
@@ -90,10 +98,33 @@ class CsraReviewsInProgressResourceTest : SqsIntegrationTestBase() {
       .jsonPath("$.content[0].prisonerNumber").isEqualTo("RV01")
       .jsonPath("$.content[0].firstName").isEqualTo("Simon")
       .jsonPath("$.content[0].lastName").isEqualTo("Kettleby")
-      .jsonPath("$.content[0].startedOn").isEqualTo("2026-07-03")
       .jsonPath("$.content[0].startedBy").isEqualTo("SCARTER")
       .jsonPath("$.content[0].reviewId").isNotEmpty
       .jsonPath("$.content[1].prisonerNumber").isEqualTo("RV02")
+  }
+
+  @Test
+  fun `reports the date the review was started, not the assessment date`() {
+    webTestClient.get().uri("/csra-review/prison/LEI/reviews-in-progress")
+      .headers(setAuthorisation(roles = readRole))
+      .exchange()
+      .expectStatus().isOk
+      .expectBody()
+      .jsonPath("$.content[0].startedOn").isEqualTo("2026-07-03")
+      .jsonPath("$.content[1].startedOn").isEqualTo("2026-07-06")
+  }
+
+  @Test
+  fun `excludes prisoners who have left the establishment`() {
+    // The tidy-up that closes in-progress work only runs on the next admission, so a released prisoner's
+    // review is still IN_PROGRESS against this prison. It must not reach the worklist.
+    webTestClient.get().uri("/csra-review/prison/LEI/reviews-in-progress")
+      .headers(setAuthorisation(roles = readRole))
+      .exchange()
+      .expectStatus().isOk
+      .expectBody()
+      .jsonPath("$.content[?(@.prisonerNumber == 'RVOUT')]").doesNotExist()
+      .jsonPath("$.content[?(@.prisonerNumber == 'RVGONE')]").doesNotExist()
   }
 
   @Test

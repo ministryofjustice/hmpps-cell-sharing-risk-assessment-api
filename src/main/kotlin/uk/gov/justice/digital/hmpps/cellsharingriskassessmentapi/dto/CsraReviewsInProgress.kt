@@ -27,7 +27,7 @@ data class CsraReviewInProgressRow(
   @param:Schema(description = "The prisoner's last name", example = "Kettleby")
   val lastName: String?,
 
-  @param:Schema(description = "The date the review was started", example = "2026-07-03")
+  @param:Schema(description = "The date the review was started (when the reviewer began it)", example = "2026-07-03")
   val startedOn: LocalDate,
 
   @param:Schema(description = "The username of who started the review", example = "SCARTER")

@@ -37,7 +37,13 @@ class PrisonerSearchClient(
     return members
   }
 
-  /** The names of the given prisoners, keyed by prisoner number. Empty input skips the call. */
+  /**
+   * The names of the given prisoners, keyed by prisoner number. Empty input skips the call.
+   *
+   * [PrisonRollMember.prisonId] carries where each prisoner is *now*, which lets prison-scoped worklists
+   * drop anyone who has since left without paying for a full roll fetch. This request asks for no
+   * `responseFields`, so the prison comes back in the payload either way.
+   */
   fun getPrisonerNames(prisonerNumbers: Collection<String>): Map<String, PrisonRollMember> {
     if (prisonerNumbers.isEmpty()) return emptyMap()
     return webClient
@@ -55,6 +61,7 @@ class PrisonerSearchClient(
           it.lastName,
           it.dateOfBirth,
           it.cellLocation,
+          it.prisonId,
         )
       }
   }
@@ -90,6 +97,12 @@ data class PrisonRollMember(
   val dateOfBirth: LocalDate? = null,
   /** Their current internal location: a cell, or a code such as RECP for reception. */
   val cellLocation: String? = null,
+  /**
+   * The establishment they are in *now* — `OUT` once released, `TRN` while in transit. Only populated by
+   * [PrisonerSearchClient.getPrisonerNames]; the roll fetch leaves it null because that call is already
+   * scoped to a single prison by its URL.
+   */
+  val prisonId: String? = null,
 )
 
 @JsonIgnoreProperties(ignoreUnknown = true)
@@ -106,4 +119,5 @@ data class PrisonRollEntry(
   val lastName: String? = null,
   val dateOfBirth: LocalDate? = null,
   val cellLocation: String? = null,
+  val prisonId: String? = null,
 )
