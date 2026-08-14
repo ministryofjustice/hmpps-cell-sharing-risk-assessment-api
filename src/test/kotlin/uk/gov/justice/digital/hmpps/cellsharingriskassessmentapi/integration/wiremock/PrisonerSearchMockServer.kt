@@ -86,7 +86,16 @@ class PrisonerSearchMockServer : WireMockServer(WIREMOCK_PORT) {
     )
   }
 
-  data class RollMemberStub(val prisonerNumber: String, val firstName: String, val lastName: String)
+  /**
+   * [prisonId] is where the prisoner is *now* — `OUT` once released, `TRN` in transit. Only the bulk names
+   * lookup returns it; the roll stubs leave it off, as the real roll endpoint does.
+   */
+  data class RollMemberStub(
+    val prisonerNumber: String,
+    val firstName: String,
+    val lastName: String,
+    val prisonId: String? = null,
+  )
 
   data class RollDetailStub(
     val prisonerNumber: String,
@@ -99,7 +108,8 @@ class PrisonerSearchMockServer : WireMockServer(WIREMOCK_PORT) {
   /** Stub the bulk names lookup (POST /prisoner-search/prisoner-numbers) with the given members. */
   fun stubGetPrisonerNames(members: List<RollMemberStub>) {
     val body = members.joinToString(",") {
-      """{"prisonerNumber":"${it.prisonerNumber}","firstName":"${it.firstName}","lastName":"${it.lastName}"}"""
+      val prisonId = it.prisonId?.let { id -> ""","prisonId":"$id"""" }.orEmpty()
+      """{"prisonerNumber":"${it.prisonerNumber}","firstName":"${it.firstName}","lastName":"${it.lastName}"$prisonId}"""
     }
     stubFor(
       post(urlPathEqualTo("/prisoner-search/prisoner-numbers")).willReturn(

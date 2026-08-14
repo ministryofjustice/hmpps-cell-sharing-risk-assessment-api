@@ -359,7 +359,8 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
     // screen. WWI is used by no other test in this class, so the worklist can be asserted exactly.
     val prisoner = "E1111EE"
     hmppsAuth.stubGrantToken()
-    prisonerSearch.stubGetPrisonerNames(listOf(RollMemberStub(prisoner, "Ellis", "Enderby")))
+    // The worklist only shows prisoners prisoner-search still places at the prison, so they must be at WWI.
+    prisonerSearch.stubGetPrisonerNames(listOf(RollMemberStub(prisoner, "Ellis", "Enderby", prisonId = "WWI")))
 
     start(prisoner, prisonId = "WWI")
 
