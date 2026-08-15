@@ -133,6 +133,36 @@ The core record holds only the data common to both the new DPS assessment journe
 
 Schema is managed entirely by Flyway (no Hibernate auto-DDL). Add changes as new versioned scripts under `src/main/resources/db/migration/` (`V{n}__description.sql`) and never edit a migration that has already been applied.
 
+### Table and column descriptions
+
+Every table and column is described in the database itself, by `COMMENT ON` statements in
+`V14__schema_comments.sql`, so SchemaSpy, the CSV export and any Glue crawl read one source of truth.
+Each column description ends with a sensitivity classification:
+
+| Tag | Meaning |
+| --- | --- |
+| `[Sensitivity: NONE]` | Not personal data in itself — keys, timestamps, process flags |
+| `[Sensitivity: PERSONAL]` | Identifies or locates a person (prisoner *or* staff), or is a risk judgement about them |
+| `[Sensitivity: SPECIAL-CATEGORY]` | UK GDPR Article 9 data, or offence data under Article 10 |
+| `[Sensitivity: OFFICIAL-SENSITIVE]` | Not personal data, but damaging if disclosed |
+
+**A third of this schema is special category data**, which is worth knowing before extracting any of it.
+A CSRA asks directly about offending, about healthcare, and about whether someone belongs to a group
+defined by disability, mental health, sexual orientation, gender reassignment, ethnicity or religion.
+Two consequences:
+
+- The seven offence questions are offence data **whichever way they are answered** — a recorded "No" is
+  still offence data about that person.
+- Every free-text `*_detail` column should be assumed to contain more than its question asks. They are
+  classified on that basis rather than on the question label.
+
+The tag describes the column's own content, not the row's: every row belongs to a prisoner, so the whole
+record is personal data about them however a column is tagged — which is what matters for a subject
+access request.
+
+**Any new table or column needs a `COMMENT ON`** in a migration — `SchemaCommentsTest` fails the build
+otherwise. A later migration can add to or replace any comment at any time.
+
 ## Deployment
 
 The service is deployed to the MOJ Cloud Platform via Helm. Charts and per-environment values live in `helm_deploy/` (`values-dev.yaml`, `values-preprod.yaml`, `values-prod.yaml`), and deployment runs through the GitHub Actions workflows in `.github/workflows/`. The product ID is `DPS126`.
