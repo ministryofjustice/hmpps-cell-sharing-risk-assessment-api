@@ -82,7 +82,7 @@ class CsraRecentArrivalsResourceTest : SqsIntegrationTestBase() {
       .exchange()
       .expectStatus().isOk
       .expectBody()
-      .jsonPath("$.totalResults").isEqualTo(9)
+      .jsonPath("$.totalResults").isEqualTo(8)
       .jsonPath("$.fromDate").isEqualTo("2023-12-03")
       .jsonPath("$.toDate").isEqualTo("2023-12-05")
       .jsonPath("$.days.length()").isEqualTo(3)
@@ -98,8 +98,7 @@ class CsraRecentArrivalsResourceTest : SqsIntegrationTestBase() {
       .jsonPath("$.days[0].arrivals[4].prisonerNumber").isEqualTo("A0008")
       .jsonPath("$.days[1].arrivals.length()").isEqualTo(3)
       .jsonPath("$.days[1].arrivals[0].prisonerNumber").isEqualTo("A0002")
-      .jsonPath("$.days[2].arrivals.length()").isEqualTo(1)
-      .jsonPath("$.days[2].arrivals[0].prisonerNumber").isEqualTo("A0004")
+      .jsonPath("$.days[2].arrivals.length()").isEqualTo(0)
   }
 
   @Test
@@ -116,9 +115,9 @@ class CsraRecentArrivalsResourceTest : SqsIntegrationTestBase() {
       .jsonPath("$.days[0].arrivals[0].arrivedAt").isEqualTo("2023-12-05T14:03:00")
       // the roll says RECP; the movement said MOVEMENT-LOCATION
       .jsonPath("$.days[0].arrivals[0].location").isEqualTo("RECP")
-      // someone who arrived days ago shows where they are now, not where they arrived
-      .jsonPath("$.days[2].arrivals[0].prisonerNumber").isEqualTo("A0004")
-      .jsonPath("$.days[2].arrivals[0].location").isEqualTo("B-1-045")
+      // an earlier-day entry (not today's list) still takes the prisoner's current location from the roll
+      .jsonPath("$.days[1].arrivals[0].prisonerNumber").isEqualTo("A0002")
+      .jsonPath("$.days[1].arrivals[0].location").isEqualTo("A-1-002")
   }
 
   @Test
@@ -145,7 +144,7 @@ class CsraRecentArrivalsResourceTest : SqsIntegrationTestBase() {
       // ADM with no reason code at all falls back to a new admission
       .jsonPath("$.days[1].arrivals[2].prisonerNumber").isEqualTo("A0007")
       .jsonPath("$.days[1].arrivals[2].arrivalType").isEqualTo("NEW_ADMISSION")
-      .jsonPath("$.arrivalTypeCounts.NEW_ADMISSION").isEqualTo(3)
+      .jsonPath("$.arrivalTypeCounts.NEW_ADMISSION").isEqualTo(2)
       .jsonPath("$.arrivalTypeCounts.TRANSFER_IN").isEqualTo(3)
       .jsonPath("$.arrivalTypeCounts.COURT_RETURN").isEqualTo(2)
       .jsonPath("$.arrivalTypeCounts.TEMPORARY_ABSENCE_RETURN").isEqualTo(1)
@@ -153,20 +152,17 @@ class CsraRecentArrivalsResourceTest : SqsIntegrationTestBase() {
   }
 
   @Test
-  fun `shows a prisoner who arrived on two days under each of them`() {
+  fun `shows a prisoner only on their most recent arrival day`() {
     webTestClient.get().uri("/csra-review/prison/LEI/recent-arrivals?days=3")
       .headers(setAuthorisation(roles = readRole))
       .exchange()
       .expectStatus().isOk
       .expectBody()
-      // admitted on the 3rd
-      .jsonPath("$.days[2].arrivals[0].prisonerNumber").isEqualTo("A0004")
-      .jsonPath("$.days[2].arrivals[0].arrivalType").isEqualTo("NEW_ADMISSION")
-      .jsonPath("$.days[2].arrivals[0].arrivedAt").isEqualTo("2023-12-03T10:00:00")
-      // and back from court on the 5th
+      // admitted on the 3rd and back from court on the 5th: only the latest is kept
       .jsonPath("$.days[0].arrivals[3].prisonerNumber").isEqualTo("A0004")
       .jsonPath("$.days[0].arrivals[3].arrivalType").isEqualTo("COURT_RETURN")
       .jsonPath("$.days[0].arrivals[3].arrivedAt").isEqualTo("2023-12-05T09:00:00")
+      .jsonPath("$.days[2].arrivals.length()").isEqualTo(0)
   }
 
   @Test
@@ -195,6 +191,34 @@ class CsraRecentArrivalsResourceTest : SqsIntegrationTestBase() {
   }
 
   @Test
+  fun `shows only the latest arrival when a prisoner arrived on different days`() {
+    prisonerSearch.stubGetPrisonRollWithDetail(
+      "MDI",
+      listOf(RollDetailStub("B0002", "Aaron", "Cole", "1984-08-12", "A-1-002")),
+    )
+    prisonApi.stubGetArrivals(
+      "MDI",
+      listOf(
+        ArrivalStub("B0002", "ADM", "2023-12-04T10:00:00", "N"),
+        ArrivalStub("B0002", "CRT", "2023-12-05T09:15:00"),
+      ),
+    )
+
+    webTestClient.get().uri("/csra-review/prison/MDI/recent-arrivals?days=3")
+      .headers(setAuthorisation(roles = readRole))
+      .exchange()
+      .expectStatus().isOk
+      .expectBody()
+      .jsonPath("$.totalResults").isEqualTo(1)
+      .jsonPath("$.days[0].arrivals.length()").isEqualTo(1)
+      .jsonPath("$.days[0].arrivals[0].prisonerNumber").isEqualTo("B0002")
+      .jsonPath("$.days[0].arrivals[0].arrivedAt").isEqualTo("2023-12-05T09:15:00")
+      .jsonPath("$.days[0].arrivals[0].arrivalType").isEqualTo("COURT_RETURN")
+      .jsonPath("$.days[1].arrivals.length()").isEqualTo(0)
+      .jsonPath("$.days[2].arrivals.length()").isEqualTo(0)
+  }
+
+  @Test
   fun `excludes a prisoner who is no longer on the roll`() {
     webTestClient.get().uri("/csra-review/prison/LEI/recent-arrivals?days=3")
       .headers(setAuthorisation(roles = readRole))
@@ -220,7 +244,7 @@ class CsraRecentArrivalsResourceTest : SqsIntegrationTestBase() {
       .jsonPath("$.days[1].arrivals.length()").isEqualTo(0)
       .jsonPath("$.days[2].arrivals.length()").isEqualTo(0)
       // counts ignore the filter
-      .jsonPath("$.arrivalTypeCounts.NEW_ADMISSION").isEqualTo(3)
+      .jsonPath("$.arrivalTypeCounts.NEW_ADMISSION").isEqualTo(2)
       .jsonPath("$.arrivalTypeCounts.TRANSFER_IN").isEqualTo(3)
   }
 
