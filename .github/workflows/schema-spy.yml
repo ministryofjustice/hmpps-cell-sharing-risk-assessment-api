@@ -79,6 +79,12 @@ jobs:
           user: ${{ inputs.database_user }}
           password: ${{ inputs.database_password }}
 
+      # After the first run, enable GitHub Pages on the repo (Settings > Pages, deploy from the gh-pages
+      # branch, root) and add an empty .nojekyll file to the *root* of gh-pages. Without it Pages tries to
+      # run a Jekyll build over the SchemaSpy output, which this repo's Actions policy does not allow, and
+      # the site never publishes - Settings > Pages says "Actions is currently unavailable for your
+      # repository, and your Pages site requires a Jekyll build step". A root .nojekyll survives later
+      # deployments because this step only replaces schema-spy-report/.
       - name: Publish to GitHub Pages
         if: ${{ inputs.publish }}
         uses: JamesIves/github-pages-deploy-action@d92aa235d04922e8f08b40ce78cc5442fcfbfa2f # v4.8.0
