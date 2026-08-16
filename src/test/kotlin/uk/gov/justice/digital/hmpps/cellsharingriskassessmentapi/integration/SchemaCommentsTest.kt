@@ -11,8 +11,13 @@ import org.springframework.jdbc.core.JdbcTemplate
  * Descriptions live in the database as COMMENT ON statements so SchemaSpy, the CSV export and any Glue
  * crawl share one source of truth. Nothing else would notice a new column arriving undocumented, and in
  * this schema an undocumented column is quite likely to be special category data.
+ *
+ * Extends [SqsIntegrationTestBase] rather than [IntegrationTestBase] even though it needs nothing from
+ * SQS: the application context wires HmppsQueueService, and only this base starts LocalStack. CI runs
+ * without a LocalStack service container, so an IntegrationTestBase context fails to start there - which
+ * is also why every other integration test in this repo extends the SQS base.
  */
-class SchemaCommentsTest : IntegrationTestBase() {
+class SchemaCommentsTest : SqsIntegrationTestBase() {
 
   @Autowired
   private lateinit var jdbcTemplate: JdbcTemplate
@@ -74,6 +79,6 @@ class SchemaCommentsTest : IntegrationTestBase() {
   ) { rs, _ -> ColumnComment(rs.getString("name"), rs.getString("comment")) }
 
   private companion object {
-    val SENSITIVITY = Regex("""\[Sensitivity: (NONE|PERSONAL|SPECIAL-CATEGORY|OFFICIAL-SENSITIVE)]$""")
+    val SENSITIVITY = Regex("""\[Sensitivity: (NONE|PERSONAL|STAFF|SPECIAL-CATEGORY|OFFICIAL-SENSITIVE)]$""")
   }
 }

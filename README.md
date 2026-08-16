@@ -142,9 +142,14 @@ Each column description ends with a sensitivity classification:
 | Tag | Meaning |
 | --- | --- |
 | `[Sensitivity: NONE]` | Not personal data in itself — keys, timestamps, process flags |
-| `[Sensitivity: PERSONAL]` | Identifies or locates a person (prisoner *or* staff), or is a risk judgement about them |
+| `[Sensitivity: PERSONAL]` | Personal data about a prisoner — identifies or locates them, or is a risk judgement about them |
+| `[Sensitivity: STAFF]` | Personal data about a member of staff, typically the username that acted |
 | `[Sensitivity: SPECIAL-CATEGORY]` | UK GDPR Article 9 data, or offence data under Article 10 |
 | `[Sensitivity: OFFICIAL-SENSITIVE]` | Not personal data, but damaging if disclosed |
+
+`STAFF` is still personal data, and still in scope for a staff member's own subject access request. It is
+separated from `PERSONAL` so an extract about prisoners can be reasoned about without staff columns
+inflating the count, and so staff data can be dropped or pseudonymised independently.
 
 **A third of this schema is special category data**, which is worth knowing before extracting any of it.
 A CSRA asks directly about offending, about healthcare, and about whether someone belongs to a group

@@ -8,11 +8,19 @@
 -- Every column comment ends with a sensitivity classification:
 --
 --   [Sensitivity: NONE]                - not personal data in itself (keys, timestamps, process flags)
---   [Sensitivity: PERSONAL]            - identifies or locates a person (prisoner *or* staff), or is a
---                                        risk judgement about them
+--   [Sensitivity: PERSONAL]            - personal data about a prisoner: identifies or locates them, or
+--                                        is a risk judgement about them
+--   [Sensitivity: STAFF]               - personal data about a member of staff, typically the username
+--                                        that performed an action
 --   [Sensitivity: SPECIAL-CATEGORY]    - UK GDPR Article 9 data (health, sexuality, religion, race,
 --                                        gender reassignment) or criminal offence data under Article 10
 --   [Sensitivity: OFFICIAL-SENSITIVE]  - not personal data, but damaging if disclosed
+--
+-- STAFF is still personal data and still in scope for a staff member's own subject access request. It is
+-- separated from PERSONAL so that an extract about prisoners can be reasoned about without staff columns
+-- inflating the count, and so staff data can be dropped or pseudonymised independently. Note that
+-- mdt_chair_name is STAFF rather than PERSONAL despite being free text: it names whoever chaired the
+-- meeting, not the prisoner.
 --
 -- Three things to understand before using these classifications:
 --
@@ -50,11 +58,11 @@ COMMENT ON COLUMN csra_review.final_result_date IS 'Date the final rating was is
 COMMENT ON COLUMN csra_review.status IS 'Lifecycle state. IN_PROGRESS (started, no final rating), COMPLETE (final rating recorded, and the state of every migrated review), CLOSED (in progress with a rating that still stands, closed out by a move), ARCHIVED (in progress with no rating, hidden from the service but retained for investigation). [Sensitivity: NONE]';
 COMMENT ON COLUMN csra_review.closure_reason IS 'Why an in-progress review was closed or archived - currently only NOT_COMPLETED_PRISONER_TRANSFER. Its presence indicates the prisoner moved establishment mid-assessment. [Sensitivity: PERSONAL]';
 COMMENT ON COLUMN csra_review.closed_at IS 'When the review was closed or archived. Null while it is still open or was completed normally. [Sensitivity: NONE]';
-COMMENT ON COLUMN csra_review.closed_by IS 'Username that closed or archived the review, or the system user when a prisoner movement did it. Identifies a member of staff. [Sensitivity: PERSONAL]';
+COMMENT ON COLUMN csra_review.closed_by IS 'Username that closed or archived the review, or the system user when a prisoner movement did it. Identifies a member of staff. [Sensitivity: STAFF]';
 COMMENT ON COLUMN csra_review.created_at IS 'When the review record was created. For migrated rows this is NOMIS''s own creation timestamp, which is why values go back to 2006 - see csra_review_nomis.ingested_at for when the data actually reached this service. [Sensitivity: NONE]';
-COMMENT ON COLUMN csra_review.created_by IS 'Username that created the review, or the system user for migrated and synchronised rows. Identifies a member of staff. [Sensitivity: PERSONAL]';
+COMMENT ON COLUMN csra_review.created_by IS 'Username that created the review, or the system user for migrated and synchronised rows. Identifies a member of staff. [Sensitivity: STAFF]';
 COMMENT ON COLUMN csra_review.last_modified_at IS 'When the review was last changed. Null if it has not been changed since creation. [Sensitivity: NONE]';
-COMMENT ON COLUMN csra_review.last_modified_by IS 'Username that last changed the review. Identifies a member of staff. [Sensitivity: PERSONAL]';
+COMMENT ON COLUMN csra_review.last_modified_by IS 'Username that last changed the review. Identifies a member of staff. [Sensitivity: STAFF]';
 
 ------------------------------------------------------------------------------------------------
 -- csra_assessment_stage - the captured answers for a new (DPS) assessment or review
@@ -65,7 +73,7 @@ COMMENT ON TABLE csra_assessment_stage IS 'The answers captured at one stage of 
 COMMENT ON COLUMN csra_assessment_stage.id IS 'Primary key. Time-ordered UUID v7. [Sensitivity: NONE]';
 COMMENT ON COLUMN csra_assessment_stage.csra_review_id IS 'Foreign key to csra_review - the assessment or review this stage belongs to. Unique per stage. [Sensitivity: NONE]';
 COMMENT ON COLUMN csra_assessment_stage.stage IS 'Which stage this is. PROVISIONAL (initial assessment, Day 1), INTERIM (review, first sitting) or FINAL (completes either journey). A review carries PROVISIONAL or INTERIM, never both. [Sensitivity: NONE]';
-COMMENT ON COLUMN csra_assessment_stage.completed_by IS 'Username of the assessor who submitted this stage. Identifies a member of staff. [Sensitivity: PERSONAL]';
+COMMENT ON COLUMN csra_assessment_stage.completed_by IS 'Username of the assessor who submitted this stage. Identifies a member of staff. [Sensitivity: STAFF]';
 COMMENT ON COLUMN csra_assessment_stage.completed_at IS 'When this stage was submitted. Null while it is still a draft. [Sensitivity: NONE]';
 COMMENT ON COLUMN csra_assessment_stage.prison_id IS 'Agency code where this stage was completed. Indicates where the prisoner was held at the time. [Sensitivity: PERSONAL]';
 COMMENT ON COLUMN csra_assessment_stage.assessment_comment IS 'The assessor''s free-text comment on the assessment. Unstructured and unbounded - in practice describes offending, behaviour, health and third parties, so treat as special category regardless of what any individual comment happens to say. [Sensitivity: SPECIAL-CATEGORY]';
@@ -106,7 +114,7 @@ COMMENT ON COLUMN csra_assessment_stage.healthcare_increased_risk IS 'Did health
 COMMENT ON COLUMN csra_assessment_stage.healthcare_increased_risk_detail IS 'Free text describing what healthcare identified, shown when the answer is Yes. Data concerning health. [Sensitivity: SPECIAL-CATEGORY]';
 
 COMMENT ON COLUMN csra_assessment_stage.review_reason IS 'Why the review was held - SCHEDULED_LONG_TERM_HIGH_RISK_REVIEW, SHORT_TERM_HIGH_RISK_REVIEW, NEW_OR_ADDITIONAL_INFORMATION or RECENT_CHANGE_IN_BEHAVIOUR_OR_THINKING. Captured on every review including Standard risk. Review journey only; an initial assessment leaves it null. Some values are a statement about the prisoner''s behaviour. [Sensitivity: PERSONAL]';
-COMMENT ON COLUMN csra_assessment_stage.mdt_chair_name IS 'Free-text name of whoever chaired the multidisciplinary meeting. A name typed by hand, with no staff lookup behind it. Review journey only. [Sensitivity: PERSONAL]';
+COMMENT ON COLUMN csra_assessment_stage.mdt_chair_name IS 'Free-text name of whoever chaired the multidisciplinary meeting. A name typed by hand, with no staff lookup behind it. Review journey only. [Sensitivity: STAFF]';
 
 ------------------------------------------------------------------------------------------------
 -- csra_assessment_stage_offence_evidence - evidence behind a Yes to an offence question
@@ -195,7 +203,7 @@ COMMENT ON COLUMN csra_current_rating.rating_date IS 'The date the current ratin
 COMMENT ON COLUMN csra_current_rating.set_by_review_id IS 'The csra_review that set this rating, for loading the fuller detail. Null when the rating was reset to "No rating" on readmission. [Sensitivity: NONE]';
 COMMENT ON COLUMN csra_current_rating.set_reason IS 'Why the rating was last set - RATING_SAVED, or NO_RATING_ON_READMISSION when a readmission after release cleared it. The latter indicates the prisoner was released and returned to custody. [Sensitivity: PERSONAL]';
 COMMENT ON COLUMN csra_current_rating.set_at IS 'When the rating was last set. [Sensitivity: NONE]';
-COMMENT ON COLUMN csra_current_rating.set_by IS 'Username that last set the rating, or the system user when a movement event did it. Identifies a member of staff. [Sensitivity: PERSONAL]';
+COMMENT ON COLUMN csra_current_rating.set_by IS 'Username that last set the rating, or the system user when a movement event did it. Identifies a member of staff. [Sensitivity: STAFF]';
 
 ------------------------------------------------------------------------------------------------
 -- csra_next_review - the per-prisoner next review due date
@@ -208,7 +216,7 @@ COMMENT ON COLUMN csra_next_review.prisoner_number IS 'NOMIS offender number (no
 COMMENT ON COLUMN csra_next_review.next_review_date IS 'When the prisoner''s CSRA is next due for review - twelve months on from a high-risk final rating, chosen by the reviewer on the review journey, and cleared when a rating no longer requires one. Its presence therefore indicates a high-risk rating. [Sensitivity: PERSONAL]';
 COMMENT ON COLUMN csra_next_review.set_by_review_id IS 'The csra_review that last set this date. [Sensitivity: NONE]';
 COMMENT ON COLUMN csra_next_review.updated_at IS 'When the date was last set. [Sensitivity: NONE]';
-COMMENT ON COLUMN csra_next_review.updated_by IS 'Username that last set the date, or the system user for migrated and synchronised rows. Identifies a member of staff. [Sensitivity: PERSONAL]';
+COMMENT ON COLUMN csra_next_review.updated_by IS 'Username that last set the date, or the system user for migrated and synchronised rows. Identifies a member of staff. [Sensitivity: STAFF]';
 
 ------------------------------------------------------------------------------------------------
 -- active_agency - prison rollout
@@ -220,4 +228,4 @@ COMMENT ON COLUMN active_agency.id IS 'Primary key. Time-ordered UUID v7. [Sensi
 COMMENT ON COLUMN active_agency.agency_id IS 'Agency (prison) code. Unique - one row per prison. [Sensitivity: NONE]';
 COMMENT ON COLUMN active_agency.active IS 'Whether CSRA is currently switched on for the prison. False means it was switched on at some point and has since been switched off. [Sensitivity: NONE]';
 COMMENT ON COLUMN active_agency.updated_at IS 'When the prison was last switched on or off. [Sensitivity: NONE]';
-COMMENT ON COLUMN active_agency.updated_by IS 'Username of the member of staff who last changed the switch. Identifies a member of staff. [Sensitivity: PERSONAL]';
+COMMENT ON COLUMN active_agency.updated_by IS 'Username of the member of staff who last changed the switch. Identifies a member of staff. [Sensitivity: STAFF]';
