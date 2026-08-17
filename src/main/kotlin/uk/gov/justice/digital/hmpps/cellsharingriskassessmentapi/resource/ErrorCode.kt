@@ -10,4 +10,7 @@ enum class ErrorCode(val errorCode: Int) {
   CsraReviewNotFound(101),
   MandatoryHighRiskGeneral(102),
   AssessmentInProgress(103),
+  RiskCategoriesInvalid(104),
+  MissingAnswerDetail(105),
+  NextReviewDateInvalid(106),
 }

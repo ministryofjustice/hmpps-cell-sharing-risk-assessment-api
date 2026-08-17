@@ -24,7 +24,6 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraType
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraAssessmentStageRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraNextReviewRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraReviewRepository
-import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.resource.CsraAssessmentInProgressException
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.resource.CsraReviewNotFoundException
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.resource.MandatoryHighRiskGeneralException
 import uk.gov.justice.hmpps.kotlin.auth.HmppsAuthenticationHolder
@@ -47,17 +46,16 @@ class CsraAssessmentService(
   private val csraReviewService: CsraReviewService,
   private val csraCurrentRatingService: CsraCurrentRatingService,
   private val eventPublishAndAuditService: EventPublishAndAuditService,
+  private val riskCategoryValidator: CsraRiskCategoryValidator,
+  private val writeSupport: CsraWriteSupport,
   private val authenticationHolder: HmppsAuthenticationHolder,
   private val clock: Clock,
 ) {
   private val username: String get() = authenticationHolder.username ?: SYSTEM_USERNAME
 
-  /** Starts a new draft assessment. Rejects if one is already in progress for the prisoner. */
+  /** Starts a new draft assessment. Rejects if a CSRA is already in progress for the prisoner. */
   fun start(prisonerNumber: String, request: CsraAssessmentStartRequest): CsraAssessmentStarted {
-    csraReviewRepository.findFirstByPrisonerNumberOrderByAssessmentDateDescIdDesc(prisonerNumber)
-      // A review closed/archived on a move is no longer in progress and does not block a new one.
-      ?.takeIf { it.finalResult == null && it.interimResult == null && it.status != CsraReviewStatus.ARCHIVED }
-      ?.let { throw CsraAssessmentInProgressException(prisonerNumber) }
+    writeSupport.rejectIfInProgress(prisonerNumber)
 
     val review = csraReviewRepository.saveAndFlush(
       CsraReviewEntity(
@@ -91,6 +89,7 @@ class CsraAssessmentService(
     val review = loadInitialReview(prisonerNumber, assessmentId)
     validateMandatoryHigh(request)
     validateOffenceEvidence(request)
+    riskCategoryValidator.validate(request.rating, request.riskTo, request.vulnerabilities)
 
     // The first rating on a review is a "created" event; a subsequent one (e.g. final after provisional)
     // is an "amend". Decided before this submission is applied.
@@ -99,7 +98,7 @@ class CsraAssessmentService(
     val today = LocalDate.now(clock)
 
     upsertStage(review, stage, request, now)
-    updateHeadlinePrison(review, stage, request.prisonId)
+    writeSupport.updateHeadlinePrison(review, stage, request.prisonId)
 
     when (stage) {
       CsraAssessmentStage.PROVISIONAL -> {
@@ -112,6 +111,9 @@ class CsraAssessmentService(
         review.status = CsraReviewStatus.COMPLETE
         upsertNextReview(prisonerNumber, review, request.rating, today)
       }
+      // Unreachable: only this class calls submitStage, and only with PROVISIONAL or FINAL. INTERIM is the
+      // review journey's first stage and is written by CsraReviewWriteService.
+      CsraAssessmentStage.INTERIM -> throw IllegalStateException("An initial assessment has no interim stage")
     }
     review.lastModifiedAt = now
     review.lastModifiedBy = username
@@ -161,27 +163,6 @@ class CsraAssessmentService(
       .keys
     if (duplicated.isNotEmpty()) {
       throw ValidationException("More than one evidence record supplied for ${duplicated.sorted().joinToString()}")
-    }
-  }
-
-  /**
-   * The review's headline prison is where its latest stage took place: the FINAL stage once one exists,
-   * otherwise the PROVISIONAL. Amending the provisional after the final must therefore leave the review at
-   * the prison the final assessment happened in.
-   *
-   * Keyed off the existence of a FINAL stage row rather than [CsraReviewEntity.finalResult] so it stays in
-   * step by construction with `CsraReviewService.buildCurrentRating`, which derives the same thing as
-   * `finalStage ?: provisionalStage` — and because the NOMIS sync path and SQL data fixes can both set
-   * `finalResult` on a review that has no stage rows at all.
-   *
-   * The short-circuit on FINAL is load-bearing twice over: it means the row upserted moments earlier is
-   * never consulted, and it is what lets an assessment that goes straight to FINAL still record a prison.
-   */
-  private fun updateHeadlinePrison(review: CsraReviewEntity, stage: CsraAssessmentStage, prisonId: String) {
-    if (stage == CsraAssessmentStage.FINAL ||
-      !csraAssessmentStageRepository.existsByCsraReviewIdAndStage(review.id!!, CsraAssessmentStage.FINAL)
-    ) {
-      review.prisonId = prisonId
     }
   }
 

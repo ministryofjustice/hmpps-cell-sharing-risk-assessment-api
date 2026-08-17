@@ -109,6 +109,20 @@ class CellSharingRiskAssessmentApiExceptionHandler {
       ),
     ).also { log.info("Assessment already in progress: {}", e.message) }
 
+  // One handler for the whole family: these differ only in their error code and message, so a class each
+  // would be thirty lines of copy. New answer-validation rules subclass CsraAnswerValidationException.
+  @ExceptionHandler(CsraAnswerValidationException::class)
+  fun handleCsraAnswerValidationException(e: CsraAnswerValidationException): ResponseEntity<ErrorResponse> = ResponseEntity
+    .status(BAD_REQUEST)
+    .body(
+      ErrorResponse(
+        status = BAD_REQUEST,
+        errorCode = e.errorCode.name,
+        userMessage = "Validation failure: ${e.message}",
+        developerMessage = e.message,
+      ),
+    ).also { log.info("Answer validation failure ({}): {}", e.errorCode.name, e.message) }
+
   @ExceptionHandler(Exception::class)
   fun handleException(e: Exception): ResponseEntity<ErrorResponse> = ResponseEntity
     .status(INTERNAL_SERVER_ERROR)
@@ -130,3 +144,16 @@ class CsraReviewNotFoundException(id: String) : Exception("There is no CSRA revi
 class MandatoryHighRiskGeneralException : Exception("The rating must be HIGH_GENERAL when there is evidence of a mandatory high-risk offence")
 
 class CsraAssessmentInProgressException(prisonerNumber: String) : Exception("An assessment is already in progress for prisoner $prisonerNumber")
+
+/** A submitted answer set that is internally inconsistent. Always a 400, carrying [errorCode] to discriminate. */
+sealed class CsraAnswerValidationException(val errorCode: ErrorCode, message: String) : Exception(message)
+
+class CsraRiskCategoriesInvalidException(message: String) : CsraAnswerValidationException(ErrorCode.RiskCategoriesInvalid, message)
+
+class CsraMissingAnswerDetailException(questions: Collection<String>) :
+  CsraAnswerValidationException(
+    ErrorCode.MissingAnswerDetail,
+    "Details are required when the answer is yes: ${questions.sorted().joinToString()}",
+  )
+
+class CsraNextReviewDateInvalidException(message: String) : CsraAnswerValidationException(ErrorCode.NextReviewDateInvalid, message)

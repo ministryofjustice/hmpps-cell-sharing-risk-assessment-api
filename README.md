@@ -49,6 +49,18 @@ The API has four surfaces, each guarded by its own role.
 | `PUT /csra-review/prisoner/{prisonerNumber}/assessment/{assessmentId}/provisional` | Submit the provisional (Day 1) stage |
 | `PUT /csra-review/prisoner/{prisonerNumber}/assessment/{assessmentId}/final` | Submit the final (Day 2) stage |
 
+**Review writes** — `ROLE_CSRA_REVIEW__RW`
+
+A separate journey from the initial assessment, not the same one with different questions: mandatory
+high-risk offences are advisory rather than enforced, and the next review date is chosen by the reviewer
+rather than computed as twelve months on.
+
+| Path | Purpose |
+| --- | --- |
+| `POST /csra-review/prisoner/{prisonerNumber}/review` | Start a draft review. Requires `{"prisonId": "LEI"}` — the prison is what puts the draft on that prison's worklist |
+| `PUT /csra-review/prisoner/{prisonerNumber}/review/{reviewId}/interim` | Submit the interim stage |
+| `PUT /csra-review/prisoner/{prisonerNumber}/review/{reviewId}/final` | Submit the final stage, completing the review |
+
 **NOMIS sync** — `ROLE_PRISONER_CSRA__SYNC__RW`
 
 | Path | Purpose |
@@ -120,6 +132,41 @@ The core record holds only the data common to both the new DPS assessment journe
 ## Database migrations
 
 Schema is managed entirely by Flyway (no Hibernate auto-DDL). Add changes as new versioned scripts under `src/main/resources/db/migration/` (`V{n}__description.sql`) and never edit a migration that has already been applied.
+
+### Table and column descriptions
+
+Every table and column is described in the database itself, by `COMMENT ON` statements in
+`V14__schema_comments.sql`, so SchemaSpy, the CSV export and any Glue crawl read one source of truth.
+Each column description ends with a sensitivity classification:
+
+| Tag | Meaning |
+| --- | --- |
+| `[Sensitivity: NONE]` | Not personal data in itself — keys, timestamps, process flags |
+| `[Sensitivity: PERSONAL]` | Personal data about a prisoner — identifies or locates them, or is a risk judgement about them |
+| `[Sensitivity: STAFF]` | Personal data about a member of staff, typically the username that acted |
+| `[Sensitivity: SPECIAL-CATEGORY]` | UK GDPR Article 9 data, or offence data under Article 10 |
+| `[Sensitivity: OFFICIAL-SENSITIVE]` | Not personal data, but damaging if disclosed |
+
+`STAFF` is still personal data, and still in scope for a staff member's own subject access request. It is
+separated from `PERSONAL` so an extract about prisoners can be reasoned about without staff columns
+inflating the count, and so staff data can be dropped or pseudonymised independently.
+
+**A third of this schema is special category data**, which is worth knowing before extracting any of it.
+A CSRA asks directly about offending, about healthcare, and about whether someone belongs to a group
+defined by disability, mental health, sexual orientation, gender reassignment, ethnicity or religion.
+Two consequences:
+
+- The seven offence questions are offence data **whichever way they are answered** — a recorded "No" is
+  still offence data about that person.
+- Every free-text `*_detail` column should be assumed to contain more than its question asks. They are
+  classified on that basis rather than on the question label.
+
+The tag describes the column's own content, not the row's: every row belongs to a prisoner, so the whole
+record is personal data about them however a column is tagged — which is what matters for a subject
+access request.
+
+**Any new table or column needs a `COMMENT ON`** in a migration — `SchemaCommentsTest` fails the build
+otherwise. A later migration can add to or replace any comment at any time.
 
 ## Deployment
 
