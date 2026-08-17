@@ -5,11 +5,15 @@ import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.SYSTEM_USERNAME
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentAnswersRequest
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentDto
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentStageRequest
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentStartRequest
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentStarted
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraCurrentRating
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraOffenceEvidence
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.isHigh
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toAssessmentDto
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toDto
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStage
@@ -80,6 +84,31 @@ class CsraAssessmentService(
 
   fun submitFinal(prisonerNumber: String, assessmentId: UUID, request: CsraAssessmentStageRequest) = submitStage(prisonerNumber, assessmentId, request, CsraAssessmentStage.FINAL)
 
+  /** Partially saves answers for one stage without confirming a rating. Does not affect the prisoner's
+   * current rating, does not publish a domain event, and does not mark the stage as completed. The
+   * request replaces the whole answer state for the stage so that a cleared answer results in null. */
+  fun saveAnswers(prisonerNumber: String, assessmentId: UUID, stage: CsraAssessmentStage, request: CsraAssessmentAnswersRequest) {
+    val review = loadInitialReview(prisonerNumber, assessmentId)
+    validateOffenceEvidence(request.offenceEvidence)
+    val now = LocalDateTime.now(clock)
+
+    upsertAnswers(review, stage, request, now)
+    updateHeadlinePrison(review, stage, request.prisonId)
+
+    review.lastModifiedAt = now
+    review.lastModifiedBy = username
+    csraReviewRepository.saveAndFlush(review)
+  }
+
+  /** Returns the full answer state of an in-progress or completed initial assessment so the UI can
+   * resume it or display the check-answers screen. */
+  @org.springframework.transaction.annotation.Transactional(readOnly = true)
+  fun getAssessment(prisonerNumber: String, assessmentId: UUID): CsraAssessmentDto {
+    val review = loadInitialReview(prisonerNumber, assessmentId)
+    val stages = csraAssessmentStageRepository.findAllByCsraReviewId(assessmentId)
+    return review.toAssessmentDto(stages)
+  }
+
   private fun submitStage(
     prisonerNumber: String,
     assessmentId: UUID,
@@ -88,7 +117,7 @@ class CsraAssessmentService(
   ): CsraCurrentRating {
     val review = loadInitialReview(prisonerNumber, assessmentId)
     validateMandatoryHigh(request)
-    validateOffenceEvidence(request)
+    validateOffenceEvidence(request.offenceEvidence)
     riskCategoryValidator.validate(request.rating, request.riskTo, request.vulnerabilities)
 
     // The first rating on a review is a "created" event; a subsequent one (e.g. final after provisional)
@@ -155,8 +184,8 @@ class CsraAssessmentService(
    * offence answered Yes. Rejected here rather than left to the unique index, which would surface a
    * duplicate as a 500; silently keeping one of the pair would instead lose the assessor's text.
    */
-  private fun validateOffenceEvidence(request: CsraAssessmentStageRequest) {
-    val duplicated = request.offenceEvidence
+  private fun validateOffenceEvidence(offenceEvidence: List<CsraOffenceEvidence>) {
+    val duplicated = offenceEvidence
       .groupingBy { it.offence }
       .eachCount()
       .filterValues { it > 1 }
@@ -179,6 +208,56 @@ class CsraAssessmentService(
       completedAt = now
       prisonId = request.prisonId
       assessmentComment = request.assessmentComment
+      dpsChecked = request.dpsChecked
+      perChecked = request.perChecked
+      warrantChecked = request.warrantChecked
+      pncChecked = request.pncChecked
+      offenceMurderManslaughter = request.offenceMurderManslaughter
+      offenceAssistingSuicide = request.offenceAssistingSuicide
+      offenceSexualAssault = request.offenceSexualAssault
+      offenceRepeatedViolence = request.offenceRepeatedViolence
+      offencePrejudiceMotivated = request.offencePrejudiceMotivated
+      offenceArson = request.offenceArson
+      offenceKidnapHostage = request.offenceKidnapHostage
+      officerSpokeToPrisoner = request.officerSpokeToPrisoner
+      likelyToHarmCellmate = request.likelyToHarmCellmate
+      likelyToHarmCellmateDetail = request.likelyToHarmCellmateDetail
+      significantlyVulnerable = request.significantlyVulnerable
+      significantlyVulnerableDetail = request.significantlyVulnerableDetail
+      causeForConcernSharing = request.causeForConcernSharing
+      causeForConcernSharingDetail = request.causeForConcernSharingDetail
+      otherHighRiskIndicators = request.otherHighRiskIndicators
+      otherHighRiskIndicatorsDetail = request.otherHighRiskIndicatorsDetail
+      seenByHealthcare = request.seenByHealthcare
+      healthcareIncreasedRisk = request.healthcareIncreasedRisk
+      healthcareIncreasedRiskDetail = request.healthcareIncreasedRiskDetail
+      offenceEvidence.clear()
+      offenceEvidence.addAll(request.offenceEvidence.map { it.toEntity(this) })
+      riskTo.clear()
+      riskTo.addAll(request.riskTo.map { CsraAssessmentStageRiskToEntity(stage = this, category = it.category, details = it.details) })
+      vulnerabilities.clear()
+      vulnerabilities.addAll(request.vulnerabilities.map { CsraAssessmentStageVulnerabilityEntity(stage = this, category = it.category, details = it.details) })
+    }
+    csraAssessmentStageRepository.saveAndFlush(entity)
+  }
+
+  /**
+   * Saves the answer fields for one stage without setting completedBy/completedAt or assessmentComment
+   * (those are set only when the stage is confirmed via [upsertStage]). Sets lastSavedBy/lastSavedAt to
+   * track partial saves across sessions.
+   */
+  private fun upsertAnswers(
+    review: CsraReviewEntity,
+    stage: CsraAssessmentStage,
+    request: CsraAssessmentAnswersRequest,
+    now: LocalDateTime,
+  ) {
+    val entity = csraAssessmentStageRepository.findByCsraReviewIdAndStage(review.id!!, stage)
+      ?: CsraAssessmentStageEntity(csraReview = review, stage = stage)
+    entity.apply {
+      lastSavedBy = username
+      lastSavedAt = now
+      prisonId = request.prisonId
       dpsChecked = request.dpsChecked
       perChecked = request.perChecked
       warrantChecked = request.warrantChecked

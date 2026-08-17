@@ -9,6 +9,7 @@ import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.http.MediaType
 import org.springframework.test.web.reactive.server.expectBody
 import org.springframework.web.reactive.function.BodyInserters
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentDto
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentStarted
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraRatingStatus
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.integration.wiremock.HmppsAuthApiExtension.Companion.hmppsAuth
@@ -18,6 +19,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessm
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraOffence
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraAssessmentStageOffenceEvidenceRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraAssessmentStageRepository
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraCurrentRatingRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraNextReviewRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraReviewRepository
 import uk.gov.justice.hmpps.sqs.HmppsQueue
@@ -39,6 +41,9 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
 
   @Autowired
   private lateinit var csraReviewRepository: CsraReviewRepository
+
+  @Autowired
+  private lateinit var csraCurrentRatingRepository: CsraCurrentRatingRepository
 
   @Autowired
   private lateinit var hmppsQueueService: HmppsQueueService
@@ -101,6 +106,17 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
   private fun stagePrison(assessmentId: UUID, stage: CsraAssessmentStage) = csraAssessmentStageRepository.findByCsraReviewIdAndStage(assessmentId, stage)!!.prisonId
 
   private fun countAuditMessages() = auditQueue.sqsClient.countMessagesOnQueue(auditQueue.queueUrl).get()
+
+  private fun answersBody(
+    prisonId: String,
+    pncChecked: Boolean? = null,
+    arson: Boolean? = null,
+  ) = buildString {
+    append("""{ "prisonId": "$prisonId"""")
+    if (pncChecked != null) append(""", "pncChecked": $pncChecked""")
+    if (arson != null) append(""", "offenceArson": $arson""")
+    append(" }")
+  }
 
   @Test
   fun `returns 401 without a token`() {
@@ -592,5 +608,297 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
       .body(BodyInserters.fromValue(stageBody("STANDARD", "comment")))
       .exchange()
       .expectStatus().isNotFound
+  }
+
+  // ── Partial save (saveAnswers) ────────────────────────────────────────────────────────────────────
+
+  @Test
+  fun `partial save stores answers without a rating and leaves the review IN_PROGRESS`() {
+    val prisoner = "PS001AA"
+    val assessmentId = start(prisoner).assessmentId
+
+    webTestClient.put().uri("/csra-review/prisoner/$prisoner/assessment/$assessmentId/stage/PROVISIONAL/answers")
+      .headers(setAuthorisation(roles = writeRole))
+      .contentType(MediaType.APPLICATION_JSON)
+      .body(BodyInserters.fromValue(answersBody("LEI", pncChecked = true, arson = true)))
+      .exchange()
+      .expectStatus().isNoContent
+
+    // The stage row exists with the answers but no completedBy/completedAt (not confirmed)
+    val stage = csraAssessmentStageRepository.findByCsraReviewIdAndStage(assessmentId, CsraAssessmentStage.PROVISIONAL)!!
+    assertThat(stage.pncChecked).isTrue()
+    assertThat(stage.offenceArson).isTrue()
+    assertThat(stage.completedBy).isNull()
+    assertThat(stage.completedAt).isNull()
+    assertThat(stage.lastSavedBy).isNotNull()
+    assertThat(stage.lastSavedAt).isNotNull()
+    assertThat(stage.assessmentComment).isNull()
+
+    // The review stays IN_PROGRESS with no interim result
+    val review = csraReviewRepository.findById(assessmentId).orElseThrow()
+    assertThat(review.interimResult).isNull()
+    assertThat(review.finalResult).isNull()
+  }
+
+  @Test
+  fun `partial save does not change the prisoner's current rating`() {
+    // First complete an assessment so the prisoner has a known rating
+    val prisoner = "PS002AA"
+    val firstId = start(prisoner).assessmentId
+    webTestClient.put().uri("/csra-review/prisoner/$prisoner/assessment/$firstId/final")
+      .headers(setAuthorisation(roles = writeRole))
+      .contentType(MediaType.APPLICATION_JSON)
+      .body(BodyInserters.fromValue(stageBody("STANDARD", "First done")))
+      .exchange()
+      .expectStatus().isOk
+
+    // Start a new assessment and partially save a stage
+    val secondId = start(prisoner).assessmentId
+    webTestClient.put().uri("/csra-review/prisoner/$prisoner/assessment/$secondId/stage/PROVISIONAL/answers")
+      .headers(setAuthorisation(roles = writeRole))
+      .contentType(MediaType.APPLICATION_JSON)
+      .body(BodyInserters.fromValue(answersBody("LEI")))
+      .exchange()
+      .expectStatus().isNoContent
+
+    // The current rating must still be the completed first assessment
+    val current = csraCurrentRatingRepository.findByPrisonerNumber(prisoner)!!
+    assertThat(current.rating?.name).isEqualTo("STANDARD")
+    assertThat(current.setByReviewId).isEqualTo(firstId)
+  }
+
+  @Test
+  fun `partial save publishes no domain event and no audit message`() {
+    val prisoner = "PS003AA"
+    val assessmentId = start(prisoner).assessmentId
+
+    val auditBefore = countAuditMessages()
+
+    webTestClient.put().uri("/csra-review/prisoner/$prisoner/assessment/$assessmentId/stage/PROVISIONAL/answers")
+      .headers(setAuthorisation(roles = writeRole))
+      .contentType(MediaType.APPLICATION_JSON)
+      .body(BodyInserters.fromValue(answersBody("LEI")))
+      .exchange()
+      .expectStatus().isNoContent
+
+    // No SQS messages of any kind should have been produced
+    assertThat(getNumberOfMessagesCurrentlyOnQueue()).isEqualTo(0)
+    assertThat(countAuditMessages()).isEqualTo(auditBefore)
+  }
+
+  @Test
+  fun `saving a stage then saving it again with an answer cleared results in null`() {
+    val prisoner = "PS004AA"
+    val assessmentId = start(prisoner).assessmentId
+
+    // Save with arson = true
+    webTestClient.put().uri("/csra-review/prisoner/$prisoner/assessment/$assessmentId/stage/PROVISIONAL/answers")
+      .headers(setAuthorisation(roles = writeRole))
+      .contentType(MediaType.APPLICATION_JSON)
+      .body(BodyInserters.fromValue(answersBody("LEI", arson = true)))
+      .exchange()
+      .expectStatus().isNoContent
+
+    assertThat(csraAssessmentStageRepository.findByCsraReviewIdAndStage(assessmentId, CsraAssessmentStage.PROVISIONAL)!!.offenceArson).isTrue()
+
+    // Re-save without arson (cleared)
+    webTestClient.put().uri("/csra-review/prisoner/$prisoner/assessment/$assessmentId/stage/PROVISIONAL/answers")
+      .headers(setAuthorisation(roles = writeRole))
+      .contentType(MediaType.APPLICATION_JSON)
+      .body(BodyInserters.fromValue(answersBody("LEI")))
+      .exchange()
+      .expectStatus().isNoContent
+
+    assertThat(csraAssessmentStageRepository.findByCsraReviewIdAndStage(assessmentId, CsraAssessmentStage.PROVISIONAL)!!.offenceArson).isNull()
+  }
+
+  @Test
+  fun `confirming a stage after a partial save behaves exactly as without a partial save`() {
+    val prisoner = "PS005AA"
+    val assessmentId = start(prisoner).assessmentId
+
+    // Partial save first
+    webTestClient.put().uri("/csra-review/prisoner/$prisoner/assessment/$assessmentId/stage/PROVISIONAL/answers")
+      .headers(setAuthorisation(roles = writeRole))
+      .contentType(MediaType.APPLICATION_JSON)
+      .body(BodyInserters.fromValue(answersBody("LEI", pncChecked = true)))
+      .exchange()
+      .expectStatus().isNoContent
+
+    // Then confirm with a rating
+    webTestClient.put().uri("/csra-review/prisoner/$prisoner/assessment/$assessmentId/provisional")
+      .headers(setAuthorisation(roles = writeRole))
+      .contentType(MediaType.APPLICATION_JSON)
+      .body(BodyInserters.fromValue(stageBody("STANDARD", "Confirmed after partial save")))
+      .exchange()
+      .expectStatus().isOk
+      .expectBody()
+      .jsonPath("$.status").isEqualTo("PROVISIONAL")
+      .jsonPath("$.rating").isEqualTo("STANDARD")
+
+    // The stage now has completedBy set (confirmed) as well as lastSavedBy from the partial save
+    val stage = csraAssessmentStageRepository.findByCsraReviewIdAndStage(assessmentId, CsraAssessmentStage.PROVISIONAL)!!
+    assertThat(stage.completedBy).isNotNull()
+    assertThat(stage.completedAt).isNotNull()
+    assertThat(stage.assessmentComment).isEqualTo("Confirmed after partial save")
+  }
+
+  @Test
+  fun `a draft partially saved at one prison still appears on that prison's assessments-in-progress`() {
+    val prisoner = "PS006AA"
+    hmppsAuth.stubGrantToken()
+    prisonerSearch.stubGetPrisonerNames(listOf(RollMemberStub(prisoner, "Partial", "Save", prisonId = "WWI")))
+    val assessmentId = start(prisoner, prisonId = "WWI").assessmentId
+
+    webTestClient.put().uri("/csra-review/prisoner/$prisoner/assessment/$assessmentId/stage/PROVISIONAL/answers")
+      .headers(setAuthorisation(roles = writeRole))
+      .contentType(MediaType.APPLICATION_JSON)
+      .body(BodyInserters.fromValue(answersBody("WWI")))
+      .exchange()
+      .expectStatus().isNoContent
+
+    webTestClient.get().uri("/csra-review/prison/WWI/assessments-in-progress")
+      .headers(setAuthorisation(roles = listOf("ROLE_CSRA_REVIEW__R")))
+      .exchange()
+      .expectStatus().isOk
+      .expectBody()
+      .jsonPath("$.assessmentStarted.length()").isEqualTo(1)
+      .jsonPath("$.assessmentStarted[0].prisonerNumber").isEqualTo(prisoner)
+  }
+
+  @Test
+  fun `partial save rejects a request with no prison`() {
+    val prisoner = "PS007AA"
+    val assessmentId = start(prisoner).assessmentId
+
+    listOf("{}", """{ "prisonId": "" }""").forEach { body ->
+      webTestClient.put().uri("/csra-review/prisoner/$prisoner/assessment/$assessmentId/stage/PROVISIONAL/answers")
+        .headers(setAuthorisation(roles = writeRole))
+        .contentType(MediaType.APPLICATION_JSON)
+        .body(BodyInserters.fromValue(body))
+        .exchange()
+        .expectStatus().isBadRequest
+    }
+  }
+
+  @Test
+  fun `partial save returns 404 for an unknown assessment`() {
+    webTestClient.put().uri("/csra-review/prisoner/A1234BC/assessment/${UUID.randomUUID()}/stage/PROVISIONAL/answers")
+      .headers(setAuthorisation(roles = writeRole))
+      .contentType(MediaType.APPLICATION_JSON)
+      .body(BodyInserters.fromValue(answersBody("LEI")))
+      .exchange()
+      .expectStatus().isNotFound
+  }
+
+  // ── GET assessment (getAssessment) ───────────────────────────────────────────────────────────────
+
+  @Test
+  fun `GET returns the full answer set so an assessment can be resumed`() {
+    val prisoner = "PS008AA"
+    val assessmentId = start(prisoner).assessmentId
+
+    // Partially save a provisional stage with a rich set of answers
+    webTestClient.put().uri("/csra-review/prisoner/$prisoner/assessment/$assessmentId/stage/PROVISIONAL/answers")
+      .headers(setAuthorisation(roles = writeRole))
+      .contentType(MediaType.APPLICATION_JSON)
+      .body(
+        BodyInserters.fromValue(
+          """
+          {
+            "prisonId": "LEI",
+            "pncChecked": true,
+            "dpsChecked": false,
+            "offenceArson": true,
+            "offenceEvidence": [{"offence": "ARSON", "sources": ["PNC"], "details": "Convicted in 2019."}],
+            "likelyToHarmCellmate": true,
+            "likelyToHarmCellmateDetail": "Threatened previous cellmates.",
+            "seenByHealthcare": false,
+            "riskTo": [{"category": "DIFFERENT_ETHNICITY", "details": "Racist incidents on record."}],
+            "vulnerabilities": [{"category": "NEURODIVERSITY", "details": "Autistic."}]
+          }
+          """.trimIndent(),
+        ),
+      )
+      .exchange()
+      .expectStatus().isNoContent
+
+    webTestClient.get().uri("/csra-review/prisoner/$prisoner/assessment/$assessmentId")
+      .headers(setAuthorisation(roles = writeRole))
+      .exchange()
+      .expectStatus().isOk
+      .expectBody()
+      .jsonPath("$.assessmentId").isEqualTo(assessmentId.toString())
+      .jsonPath("$.prisonerNumber").isEqualTo(prisoner)
+      .jsonPath("$.status").isEqualTo("IN_PROGRESS")
+      .jsonPath("$.interimResult").doesNotExist()
+      .jsonPath("$.finalResult").doesNotExist()
+      .jsonPath("$.stages.length()").isEqualTo(1)
+      .jsonPath("$.stages[0].stage").isEqualTo("PROVISIONAL")
+      .jsonPath("$.stages[0].prisonId").isEqualTo("LEI")
+      .jsonPath("$.stages[0].lastSavedBy").isNotEmpty
+      .jsonPath("$.stages[0].lastSavedAt").isNotEmpty
+      .jsonPath("$.stages[0].pncChecked").isEqualTo(true)
+      .jsonPath("$.stages[0].dpsChecked").isEqualTo(false)
+      .jsonPath("$.stages[0].offenceArson").isEqualTo(true)
+      .jsonPath("$.stages[0].offenceEvidence.length()").isEqualTo(1)
+      .jsonPath("$.stages[0].offenceEvidence[0].offence").isEqualTo("ARSON")
+      .jsonPath("$.stages[0].offenceEvidence[0].details").isEqualTo("Convicted in 2019.")
+      .jsonPath("$.stages[0].likelyToHarmCellmate").isEqualTo(true)
+      .jsonPath("$.stages[0].likelyToHarmCellmateDetail").isEqualTo("Threatened previous cellmates.")
+      .jsonPath("$.stages[0].seenByHealthcare").isEqualTo(false)
+      .jsonPath("$.stages[0].riskTo.length()").isEqualTo(1)
+      .jsonPath("$.stages[0].riskTo[0].category").isEqualTo("DIFFERENT_ETHNICITY")
+      .jsonPath("$.stages[0].vulnerabilities.length()").isEqualTo(1)
+      .jsonPath("$.stages[0].vulnerabilities[0].category").isEqualTo("NEURODIVERSITY")
+  }
+
+  @Test
+  fun `GET returns an empty stages list for a brand-new assessment`() {
+    val prisoner = "PS009AA"
+    val assessmentId = start(prisoner).assessmentId
+
+    webTestClient.get().uri("/csra-review/prisoner/$prisoner/assessment/$assessmentId")
+      .headers(setAuthorisation(roles = writeRole))
+      .exchange()
+      .expectStatus().isOk
+      .expectBody<CsraAssessmentDto>()
+      .consumeWith { result ->
+        assertThat(result.responseBody!!.stages).isEmpty()
+        assertThat(result.responseBody!!.status.name).isEqualTo("IN_PROGRESS")
+      }
+  }
+
+  @Test
+  fun `GET returns 404 for an unknown assessment`() {
+    webTestClient.get().uri("/csra-review/prisoner/A1234BC/assessment/${UUID.randomUUID()}")
+      .headers(setAuthorisation(roles = writeRole))
+      .exchange()
+      .expectStatus().isNotFound
+  }
+
+  @Test
+  fun `an unrated stage created by a partial save does not disturb the prisoner rating via buildCurrentRating`() {
+    // Guards against the note in the ticket: "an unrated PROVISIONAL stage will be picked up by
+    // buildCurrentRating and supply a null comment — believed harmless, but test explicitly".
+    val prisoner = "PS010AA"
+    val assessmentId = start(prisoner).assessmentId
+
+    webTestClient.put().uri("/csra-review/prisoner/$prisoner/assessment/$assessmentId/stage/PROVISIONAL/answers")
+      .headers(setAuthorisation(roles = writeRole))
+      .contentType(MediaType.APPLICATION_JSON)
+      .body(BodyInserters.fromValue(answersBody("LEI")))
+      .exchange()
+      .expectStatus().isNoContent
+
+    // The prisoner has no prior rating; the current rating should still be IN_PROGRESS, not broken
+    webTestClient.get().uri("/csra-review/prisoner/$prisoner/current-rating")
+      .headers(setAuthorisation(roles = listOf("ROLE_CSRA_REVIEW__R")))
+      .exchange()
+      .expectStatus().isOk
+      .expectBody()
+      .jsonPath("$.status").isEqualTo("IN_PROGRESS")
+      .jsonPath("$.rating").doesNotExist()
+      .jsonPath("$.prisonId").isEqualTo("LEI")
   }
 }

@@ -46,6 +46,8 @@ class CsraAssessmentStageEntity(
 
   var completedBy: String? = null,
   var completedAt: LocalDateTime? = null,
+  var lastSavedBy: String? = null,
+  var lastSavedAt: LocalDateTime? = null,
   var prisonId: String? = null,
   var assessmentComment: String? = null,
   var questionSetVersion: Int? = null,
