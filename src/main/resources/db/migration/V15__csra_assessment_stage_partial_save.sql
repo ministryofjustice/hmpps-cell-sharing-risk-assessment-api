@@ -5,3 +5,6 @@
 ALTER TABLE csra_assessment_stage
     ADD COLUMN last_saved_by  VARCHAR(255),
     ADD COLUMN last_saved_at  TIMESTAMP;
+
+COMMENT ON COLUMN csra_assessment_stage.last_saved_by IS 'Username that last saved the stage without confirming a rating. Identifies a member of staff. [Sensitivity: STAFF]';
+COMMENT ON COLUMN csra_assessment_stage.last_saved_at IS 'When the stage was last saved without confirming a rating. [Sensitivity: NONE]';
