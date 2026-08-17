@@ -1,0 +1,263 @@
+<?xml version="1.0" encoding="UTF-8"?><database name="cell_sharing_risk_assessment" schema="public" type="PostgreSQL - 18.6 (Debian 18.6-1.pgdg13+2)">
+   <tables>
+      <table name="active_agency" remarks="One row per prison that has ever been switched on for CSRA in DPS. The switched-on ids are published unauthenticated on the actuator /info payload, which is how the DPS home page decides whether to show the CSRA tile. Switching a prison off flips the flag rather than deleting the row, so deactivation stays auditable and the toggle is idempotent. Note the API itself enforces no rollout check - this drives the front end only." schema="public" type="TABLE">
+         <column autoUpdated="false" defaultValue="null" digits="0" id="0" name="id" nullable="false" remarks="Primary key. Time-ordered UUID v7. [Sensitivity: NONE]" size="2147483647" type="uuid" typeCode="1111"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="1" name="agency_id" nullable="false" remarks="Agency (prison) code. Unique - one row per prison. [Sensitivity: NONE]" size="6" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="true" digits="0" id="2" name="active" nullable="false" remarks="Whether CSRA is currently switched on for the prison. False means it was switched on at some point and has since been switched off. [Sensitivity: NONE]" size="1" type="bool" typeCode="-7"/>
+         <column autoUpdated="false" defaultValue="null" digits="6" id="3" name="updated_at" nullable="false" remarks="When the prison was last switched on or off. [Sensitivity: NONE]" size="29" type="timestamp" typeCode="93"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="4" name="updated_by" nullable="true" remarks="Username of the member of staff who last changed the switch. Identifies a member of staff. [Sensitivity: STAFF]" size="40" type="varchar" typeCode="12"/>
+         <primaryKey column="id" sequenceNumberInPK="1"/>
+         <index name="active_agency_pk" unique="true">
+            <column ascending="true" name="id"/>
+         </index>
+         <index name="active_agency_agency_id_idx" unique="true">
+            <column ascending="true" name="agency_id"/>
+         </index>
+      </table>
+      <table name="csra_assessment_stage" remarks="The answers captured at one stage of a new (DPS) CSRA. A review record has up to two: an initial assessment has PROVISIONAL (Day 1) and/or FINAL (Day 2), a review has INTERIM and/or FINAL. Both journeys share this table, so a null answer means either &quot;not answered&quot; or &quot;not asked on this journey&quot; - narrow by the parent review's type before counting unanswered questions. The stage's rating is not stored here; it lives on csra_review. Holds the most sensitive data in the service: offence questions, healthcare answers and free-text risk descriptions." schema="public" type="TABLE">
+         <column autoUpdated="false" defaultValue="null" digits="0" id="0" name="id" nullable="false" remarks="Primary key. Time-ordered UUID v7. [Sensitivity: NONE]" size="2147483647" type="uuid" typeCode="1111">
+            <child column="stage_id" foreignKey="csra_assessment_stage_evidence_source_stage_fk" implied="false" onDeleteCascade="true" schema="public" table="csra_assessment_stage_evidence_source"/>
+            <child column="stage_id" foreignKey="csra_assessment_stage_offence_evidence_stage_fk" implied="false" onDeleteCascade="true" schema="public" table="csra_assessment_stage_offence_evidence"/>
+            <child column="stage_id" foreignKey="csra_assessment_stage_risk_to_stage_fk" implied="false" onDeleteCascade="true" schema="public" table="csra_assessment_stage_risk_to"/>
+            <child column="stage_id" foreignKey="csra_assessment_stage_vulnerability_stage_fk" implied="false" onDeleteCascade="true" schema="public" table="csra_assessment_stage_vulnerability"/>
+         </column>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="1" name="csra_review_id" nullable="false" remarks="Foreign key to csra_review - the assessment or review this stage belongs to. Unique per stage. [Sensitivity: NONE]" size="2147483647" type="uuid" typeCode="1111">
+            <parent column="id" foreignKey="csra_assessment_stage_review_fk" implied="false" onDeleteCascade="true" schema="public" table="csra_review"/>
+         </column>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="2" name="stage" nullable="false" remarks="Which stage this is. PROVISIONAL (initial assessment, Day 1), INTERIM (review, first sitting) or FINAL (completes either journey). A review carries PROVISIONAL or INTERIM, never both. [Sensitivity: NONE]" size="20" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="3" name="completed_by" nullable="true" remarks="Username of the assessor who submitted this stage. Identifies a member of staff. [Sensitivity: STAFF]" size="40" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="6" id="4" name="completed_at" nullable="true" remarks="When this stage was submitted. Null while it is still a draft. [Sensitivity: NONE]" size="29" type="timestamp" typeCode="93"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="5" name="prison_id" nullable="true" remarks="Agency code where this stage was completed. Indicates where the prisoner was held at the time. [Sensitivity: PERSONAL]" size="6" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="6" name="assessment_comment" nullable="true" remarks="The assessor's free-text comment on the assessment. Unstructured and unbounded - in practice describes offending, behaviour, health and third parties, so treat as special category regardless of what any individual comment happens to say. [Sensitivity: SPECIAL-CATEGORY]" size="2147483647" type="text" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="7" name="question_set_version" nullable="true" remarks="Version of the question set the stage was captured against, so answers stay interpretable when the questions change. [Sensitivity: NONE]" size="10" type="int4" typeCode="4"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="8" name="dps_checked" nullable="true" remarks="Whether the assessor checked DPS (current and historical adjudications) as an evidence source. Records which sources were consulted, not what was found. Initial assessment journey only. [Sensitivity: NONE]" size="1" type="bool" typeCode="-7"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="9" name="per_checked" nullable="true" remarks="Whether the assessor checked the Person Escort Record as an evidence source. Initial assessment journey only. [Sensitivity: NONE]" size="1" type="bool" typeCode="-7"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="10" name="warrant_checked" nullable="true" remarks="Whether the assessor checked the warrant (current charge or offence) as an evidence source. Initial assessment journey only. [Sensitivity: NONE]" size="1" type="bool" typeCode="-7"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="11" name="pnc_checked" nullable="true" remarks="Whether the assessor checked the PNC (current and previous convictions) as an evidence source. Initial assessment journey only. [Sensitivity: NONE]" size="1" type="bool" typeCode="-7"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="12" name="offence_murder_manslaughter" nullable="true" remarks="Is there evidence of murder, manslaughter or a life-threatening assault on another prisoner in custody? Criminal offence data about the prisoner whichever way it is answered - a recorded No is still offence data. Selecting Yes forces a HIGH_GENERAL rating. [Sensitivity: SPECIAL-CATEGORY]" size="1" type="bool" typeCode="-7"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="13" name="offence_assisting_suicide" nullable="true" remarks="Is there evidence of assisting a suicide in custody? Criminal offence data whichever way it is answered. Selecting Yes forces a HIGH_GENERAL rating. [Sensitivity: SPECIAL-CATEGORY]" size="1" type="bool" typeCode="-7"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="14" name="offence_sexual_assault" nullable="true" remarks="Is there evidence of sexual assault of a same-sex adult victim? Criminal offence data whichever way it is answered. Selecting Yes forces a HIGH_GENERAL rating. [Sensitivity: SPECIAL-CATEGORY]" size="1" type="bool" typeCode="-7"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="15" name="offence_repeated_violence" nullable="true" remarks="Is there evidence of repeated violence in custody? Criminal offence data whichever way it is answered. [Sensitivity: SPECIAL-CATEGORY]" size="1" type="bool" typeCode="-7"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="16" name="offence_prejudice_motivated" nullable="true" remarks="Is there evidence of offending or behaviour motivated by prejudice? Criminal offence data, and an answer that may reveal the victim's race, religion or sexual orientation. [Sensitivity: SPECIAL-CATEGORY]" size="1" type="bool" typeCode="-7"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="17" name="offence_arson" nullable="true" remarks="Is there evidence of arson or fire setting? Criminal offence data whichever way it is answered. [Sensitivity: SPECIAL-CATEGORY]" size="1" type="bool" typeCode="-7"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="18" name="offence_kidnap_hostage" nullable="true" remarks="Is there evidence of kidnap, hostage taking or false imprisonment? Criminal offence data whichever way it is answered. [Sensitivity: SPECIAL-CATEGORY]" size="1" type="bool" typeCode="-7"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="19" name="officer_spoke_to_prisoner" nullable="true" remarks="Did the officer speak to the prisoner as part of the assessment? A plain yes/no about process, with no detail box behind it. Initial assessment journey only. [Sensitivity: NONE]" size="1" type="bool" typeCode="-7"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="20" name="likely_to_harm_cellmate" nullable="true" remarks="Is the prisoner likely to harm a cellmate? The assessor's risk judgement about the person. [Sensitivity: PERSONAL]" size="1" type="bool" typeCode="-7"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="21" name="significantly_vulnerable" nullable="true" remarks="Is the prisoner significantly vulnerable? Vulnerability here is routinely a matter of disability, mental health or belonging to an at-risk group. [Sensitivity: SPECIAL-CATEGORY]" size="1" type="bool" typeCode="-7"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="22" name="cause_for_concern_sharing" nullable="true" remarks="Is there any other cause for concern about this person sharing a cell? The assessor's risk judgement about the person. Initial assessment journey only. [Sensitivity: PERSONAL]" size="1" type="bool" typeCode="-7"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="23" name="other_high_risk_indicators" nullable="true" remarks="Are there other indicators of high risk? The assessor's risk judgement about the person. [Sensitivity: PERSONAL]" size="1" type="bool" typeCode="-7"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="24" name="seen_by_healthcare" nullable="true" remarks="Has the prisoner been seen by healthcare as part of this assessment? Data concerning health. Initial assessment journey only. [Sensitivity: SPECIAL-CATEGORY]" size="1" type="bool" typeCode="-7"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="25" name="healthcare_increased_risk" nullable="true" remarks="Did healthcare identify anything that increases the risk of sharing a cell? Data concerning health. [Sensitivity: SPECIAL-CATEGORY]" size="1" type="bool" typeCode="-7"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="26" name="likely_to_harm_cellmate_detail" nullable="true" remarks="Free text describing the risk of harm to a cellmate, shown when the answer is Yes. Expect offending, behaviour and named third parties. [Sensitivity: SPECIAL-CATEGORY]" size="2147483647" type="text" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="27" name="significantly_vulnerable_detail" nullable="true" remarks="Free text describing the prisoner's vulnerability, shown when the answer is Yes. Expect health, disability and sexual orientation. [Sensitivity: SPECIAL-CATEGORY]" size="2147483647" type="text" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="28" name="cause_for_concern_sharing_detail" nullable="true" remarks="Free text describing the cause for concern, shown when the answer is Yes. [Sensitivity: SPECIAL-CATEGORY]" size="2147483647" type="text" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="29" name="other_high_risk_indicators_detail" nullable="true" remarks="Free text describing the other high-risk indicators, shown when the answer is Yes. [Sensitivity: SPECIAL-CATEGORY]" size="2147483647" type="text" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="30" name="healthcare_increased_risk_detail" nullable="true" remarks="Free text describing what healthcare identified, shown when the answer is Yes. Data concerning health. [Sensitivity: SPECIAL-CATEGORY]" size="2147483647" type="text" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="31" name="offence_murder_manslaughter_detail" nullable="true" remarks="Free-text detail behind a Yes to the murder or manslaughter question. Review journey only - an initial assessment records its evidence in csra_assessment_stage_offence_evidence instead. [Sensitivity: SPECIAL-CATEGORY]" size="2147483647" type="text" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="32" name="offence_assisting_suicide_detail" nullable="true" remarks="Free-text detail behind a Yes to the assisting suicide question. Review journey only. [Sensitivity: SPECIAL-CATEGORY]" size="2147483647" type="text" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="33" name="offence_sexual_assault_detail" nullable="true" remarks="Free-text detail behind a Yes to the sexual assault question. Review journey only. [Sensitivity: SPECIAL-CATEGORY]" size="2147483647" type="text" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="34" name="offence_repeated_violence_detail" nullable="true" remarks="Free-text detail behind a Yes to the repeated violence question. Review journey only. [Sensitivity: SPECIAL-CATEGORY]" size="2147483647" type="text" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="35" name="offence_prejudice_motivated_detail" nullable="true" remarks="Free-text detail behind a Yes to the prejudice-motivated question. Likely to describe the race, religion or sexual orientation of a victim as well as the prisoner's own behaviour. [Sensitivity: SPECIAL-CATEGORY]" size="2147483647" type="text" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="36" name="offence_arson_detail" nullable="true" remarks="Free-text detail behind a Yes to the arson question. Review journey only. [Sensitivity: SPECIAL-CATEGORY]" size="2147483647" type="text" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="37" name="offence_kidnap_hostage_detail" nullable="true" remarks="Free-text detail behind a Yes to the kidnap or hostage question. Review journey only. [Sensitivity: SPECIAL-CATEGORY]" size="2147483647" type="text" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="38" name="review_reason" nullable="true" remarks="Why the review was held - SCHEDULED_LONG_TERM_HIGH_RISK_REVIEW, SHORT_TERM_HIGH_RISK_REVIEW, NEW_OR_ADDITIONAL_INFORMATION or RECENT_CHANGE_IN_BEHAVIOUR_OR_THINKING. Captured on every review including Standard risk. Review journey only; an initial assessment leaves it null. Some values are a statement about the prisoner's behaviour. [Sensitivity: PERSONAL]" size="60" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="39" name="mdt_chair_name" nullable="true" remarks="Free-text name of whoever chaired the multidisciplinary meeting. A name typed by hand, with no staff lookup behind it. Review journey only. [Sensitivity: STAFF]" size="2147483647" type="text" typeCode="12"/>
+         <primaryKey column="id" sequenceNumberInPK="1"/>
+         <index name="csra_assessment_stage_pk" unique="true">
+            <column ascending="true" name="id"/>
+         </index>
+         <index name="csra_assessment_stage_review_stage_idx" unique="true">
+            <column ascending="true" name="csra_review_id"/>
+            <column ascending="true" name="stage"/>
+         </index>
+      </table>
+      <table name="csra_assessment_stage_evidence_source" remarks="One evidence source the reviewer consulted, from the review journey's multi-select. One row per selected source, unique per stage and source. A different question from the offence-evidence table: this records which sources were looked at, not where a specific piece of evidence came from. Review journey only - an initial assessment uses the four *_checked booleans on the parent, which do not extend to a list this long." schema="public" type="TABLE">
+         <column autoUpdated="false" defaultValue="null" digits="0" id="0" name="id" nullable="false" remarks="Primary key. Time-ordered UUID v7. [Sensitivity: NONE]" size="2147483647" type="uuid" typeCode="1111"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="1" name="stage_id" nullable="false" remarks="Foreign key to csra_assessment_stage. Deleted with the stage. [Sensitivity: NONE]" size="2147483647" type="uuid" typeCode="1111">
+            <parent column="id" foreignKey="csra_assessment_stage_evidence_source_stage_fk" implied="false" onDeleteCascade="true" schema="public" table="csra_assessment_stage"/>
+         </column>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="2" name="source" nullable="false" remarks="The source consulted - one of ALLOCATION_BOARD, ASSET_PLUS, DPS, HEALTHCARE_ASSESSMENT, INCENTIVES_REVIEW, MAPPA_REVIEW, INTELLIGENCE_MANAGEMENT_SERVICE, OASYS, PLACEMENT_REVIEW_FORM, PNC, RECATEGORISATION_REVIEW, ROTL_BOARD, SAFETY_AND_SECURITY_FORM, SAFETY_DIAGNOSTIC_TOOL, SECURITY_FILE, SENTENCE_PLAN, TRANSFER_CONFIRMATION_FORM, VIPER or OTHER. Some values imply something about the prisoner - that a MAPPA review or healthcare assessment exists for them. [Sensitivity: PERSONAL]" size="40" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="3" name="details" nullable="true" remarks="Free text naming the source when OTHER is selected. Null for every named source. [Sensitivity: PERSONAL]" size="2147483647" type="text" typeCode="12"/>
+         <primaryKey column="id" sequenceNumberInPK="1"/>
+         <index name="csra_assessment_stage_evidence_source_pk" unique="true">
+            <column ascending="true" name="id"/>
+         </index>
+         <index name="csra_assessment_stage_evidence_source_stage_source_idx" unique="true">
+            <column ascending="true" name="stage_id"/>
+            <column ascending="true" name="source"/>
+         </index>
+      </table>
+      <table name="csra_assessment_stage_offence_evidence" remarks="The evidence behind a Yes to one of the seven offence questions on an initial assessment stage: where it was found, and free text describing it. At most one row per stage and offence. Unlike the answer columns on the parent, the source flags are non-null - a row only exists because the assessor reached the &quot;where did you find evidence of...?&quot; screen, so an unticked box means &quot;not this source&quot;, not &quot;not answered&quot;. The review journey records the same thing in the offence detail columns on the parent instead." schema="public" type="TABLE">
+         <column autoUpdated="false" defaultValue="null" digits="0" id="0" name="id" nullable="false" remarks="Primary key. Time-ordered UUID v7. [Sensitivity: NONE]" size="2147483647" type="uuid" typeCode="1111"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="1" name="stage_id" nullable="false" remarks="Foreign key to csra_assessment_stage. Deleted with the stage. [Sensitivity: NONE]" size="2147483647" type="uuid" typeCode="1111">
+            <parent column="id" foreignKey="csra_assessment_stage_offence_evidence_stage_fk" implied="false" onDeleteCascade="true" schema="public" table="csra_assessment_stage"/>
+         </column>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="2" name="offence" nullable="false" remarks="Which offence question this evidence supports - MURDER_MANSLAUGHTER, ASSISTING_SUICIDE, SEXUAL_ASSAULT, REPEATED_VIOLENCE, PREJUDICE_MOTIVATED, ARSON or KIDNAP_HOSTAGE. The row exists only because that question was answered Yes, so it is criminal offence data about the prisoner. [Sensitivity: SPECIAL-CATEGORY]" size="40" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="false" digits="0" id="3" name="pnc" nullable="false" remarks="Whether the evidence came from the PNC (current and previous convictions). [Sensitivity: NONE]" size="1" type="bool" typeCode="-7"/>
+         <column autoUpdated="false" defaultValue="false" digits="0" id="4" name="warrant" nullable="false" remarks="Whether the evidence came from the warrant (current charge or offence). [Sensitivity: NONE]" size="1" type="bool" typeCode="-7"/>
+         <column autoUpdated="false" defaultValue="false" digits="0" id="5" name="dps" nullable="false" remarks="Whether the evidence came from DPS (current and historical adjudications). [Sensitivity: NONE]" size="1" type="bool" typeCode="-7"/>
+         <column autoUpdated="false" defaultValue="false" digits="0" id="6" name="per" nullable="false" remarks="Whether the evidence came from the Person Escort Record. [Sensitivity: NONE]" size="1" type="bool" typeCode="-7"/>
+         <column autoUpdated="false" defaultValue="false" digits="0" id="7" name="other" nullable="false" remarks="Whether the evidence came from a source not in the list, named in other_source_detail. [Sensitivity: NONE]" size="1" type="bool" typeCode="-7"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="8" name="other_source_detail" nullable="true" remarks="Free text naming the source when &quot;other&quot; is ticked. [Sensitivity: PERSONAL]" size="2147483647" type="text" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="9" name="details" nullable="true" remarks="Free text describing what the evidence actually was. Describes the prisoner's offending in the assessor's own words. [Sensitivity: SPECIAL-CATEGORY]" size="2147483647" type="text" typeCode="12"/>
+         <primaryKey column="id" sequenceNumberInPK="1"/>
+         <index name="csra_assessment_stage_offence_evidence_pk" unique="true">
+            <column ascending="true" name="id"/>
+         </index>
+         <index name="csra_assessment_stage_offence_evidence_stage_offence_idx" unique="true">
+            <column ascending="true" name="stage_id"/>
+            <column ascending="true" name="offence"/>
+         </index>
+      </table>
+      <table name="csra_assessment_stage_risk_to" remarks="A group the prisoner is judged to pose a risk to, from the &quot;who is this person a risk to?&quot; multi-select on a high-risk stage. One row per selection; NONE is itself a selection, meaning no identified risk to any of these groups." schema="public" type="TABLE">
+         <column autoUpdated="false" defaultValue="null" digits="0" id="0" name="id" nullable="false" remarks="Primary key. Time-ordered UUID v7. [Sensitivity: NONE]" size="2147483647" type="uuid" typeCode="1111"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="1" name="stage_id" nullable="false" remarks="Foreign key to csra_assessment_stage. Deleted with the stage. [Sensitivity: NONE]" size="2147483647" type="uuid" typeCode="1111">
+            <parent column="id" foreignKey="csra_assessment_stage_risk_to_stage_fk" implied="false" onDeleteCascade="true" schema="public" table="csra_assessment_stage"/>
+         </column>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="2" name="category" nullable="false" remarks="The group at risk - DIFFERENT_ETHNICITY, DIFFERENT_RELIGION, DISABLED, GANG_MEMBERS, SEXUAL_MINORITY, OLD_PEOPLE, SPECIFIC_PERSONS, TRANSGENDER, OTHER or NONE. Records a judgement that the prisoner poses a risk to people of a particular race, religion, sexual orientation, gender identity or disability, which makes it Article 9 data about the prisoner. [Sensitivity: SPECIAL-CATEGORY]" size="30" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="3" name="details" nullable="true" remarks="Free text expanding on the selection, used mainly for OTHER and SPECIFIC_PERSONS. SPECIFIC_PERSONS means this routinely names third parties. [Sensitivity: SPECIAL-CATEGORY]" size="2147483647" type="text" typeCode="12"/>
+         <primaryKey column="id" sequenceNumberInPK="1"/>
+         <index name="csra_assessment_stage_risk_to_pk" unique="true">
+            <column ascending="true" name="id"/>
+         </index>
+         <index name="csra_assessment_stage_risk_to_stage_idx" unique="false">
+            <column ascending="true" name="stage_id"/>
+         </index>
+      </table>
+      <table name="csra_assessment_stage_vulnerability" remarks="A vulnerable or at-risk group the prisoner is judged to belong to, from the &quot;is this person part of a vulnerable or at-risk group?&quot; multi-select on a high-risk stage. One row per selection; NONE means no identified vulnerabilities. The most directly special category table in the schema - every value is a characteristic of the prisoner rather than a judgement about their behaviour." schema="public" type="TABLE">
+         <column autoUpdated="false" defaultValue="null" digits="0" id="0" name="id" nullable="false" remarks="Primary key. Time-ordered UUID v7. [Sensitivity: NONE]" size="2147483647" type="uuid" typeCode="1111"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="1" name="stage_id" nullable="false" remarks="Foreign key to csra_assessment_stage. Deleted with the stage. [Sensitivity: NONE]" size="2147483647" type="uuid" typeCode="1111">
+            <parent column="id" foreignKey="csra_assessment_stage_vulnerability_stage_fk" implied="false" onDeleteCascade="true" schema="public" table="csra_assessment_stage"/>
+         </column>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="2" name="category" nullable="false" remarks="The group the prisoner belongs to - DISABLED, SEXUAL_MINORITY, MENTAL_HEALTH, NEURODIVERSITY, OFFENCE_TYPE, OLD_PEOPLE, TRANSGENDER, OTHER or NONE. Health, disability, sexual orientation and gender reassignment are all Article 9 data about the prisoner. [Sensitivity: SPECIAL-CATEGORY]" size="30" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="3" name="details" nullable="true" remarks="Free text expanding on the selection, used mainly for OTHER. Expect health and disability detail. [Sensitivity: SPECIAL-CATEGORY]" size="2147483647" type="text" typeCode="12"/>
+         <primaryKey column="id" sequenceNumberInPK="1"/>
+         <index name="csra_assessment_stage_vulnerability_pk" unique="true">
+            <column ascending="true" name="id"/>
+         </index>
+         <index name="csra_assessment_stage_vulnerability_stage_idx" unique="false">
+            <column ascending="true" name="stage_id"/>
+         </index>
+      </table>
+      <table name="csra_current_rating" remarks="A prisoner's single current CSRA rating. One row per prisoner, and the source of truth for &quot;what is this person's rating today&quot; - it is a stateful projection, not derived on read. It changes only when a rating is saved or when readmission after release resets it, and deliberately persists while a new assessment is merely in progress. A null rating means &quot;No rating&quot;." schema="public" type="TABLE">
+         <column autoUpdated="false" defaultValue="null" digits="0" id="0" name="id" nullable="false" remarks="Primary key. Time-ordered UUID v7. [Sensitivity: NONE]" size="2147483647" type="uuid" typeCode="1111"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="1" name="prisoner_number" nullable="false" remarks="NOMIS offender number (noms id) of the prisoner this rating is for. One row per prisoner. [Sensitivity: PERSONAL]" size="10" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="2" name="rating" nullable="true" remarks="The current rating - HIGH, HIGH_GENERAL, HIGH_SPECIFIC or STANDARD. Null means &quot;No rating&quot;, which is a real state rather than missing data. A risk judgement about the prisoner that determines whether they can share a cell. [Sensitivity: PERSONAL]" size="20" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="false" digits="0" id="3" name="provisional" nullable="false" remarks="Whether the current rating came from a provisional or interim stage rather than a completed one. [Sensitivity: NONE]" size="1" type="bool" typeCode="-7"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="4" name="assessment_type" nullable="true" remarks="Which kind of assessment produced the rating, bucketed for display. [Sensitivity: NONE]" size="20" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="5" name="rating_date" nullable="true" remarks="The date the current rating was given. [Sensitivity: NONE]" size="13" type="date" typeCode="91"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="6" name="set_by_review_id" nullable="true" remarks="The csra_review that set this rating, for loading the fuller detail. Null when the rating was reset to &quot;No rating&quot; on readmission. [Sensitivity: NONE]" size="2147483647" type="uuid" typeCode="1111"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="7" name="set_reason" nullable="false" remarks="Why the rating was last set - RATING_SAVED, or NO_RATING_ON_READMISSION when a readmission after release cleared it. The latter indicates the prisoner was released and returned to custody. [Sensitivity: PERSONAL]" size="40" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="6" id="8" name="set_at" nullable="false" remarks="When the rating was last set. [Sensitivity: NONE]" size="29" type="timestamp" typeCode="93"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="9" name="set_by" nullable="true" remarks="Username that last set the rating, or the system user when a movement event did it. Identifies a member of staff. [Sensitivity: STAFF]" size="40" type="varchar" typeCode="12"/>
+         <primaryKey column="id" sequenceNumberInPK="1"/>
+         <index name="csra_current_rating_pk" unique="true">
+            <column ascending="true" name="id"/>
+         </index>
+         <index name="csra_current_rating_prisoner_number_idx" unique="true">
+            <column ascending="true" name="prisoner_number"/>
+         </index>
+      </table>
+      <table name="csra_next_review" remarks="The single next-review-due date currently in force for a prisoner. One row per prisoner however many reviews they accumulate, overwritten each time a review sets a new date, and what drives the &quot;high risk prisoners due for review&quot; worklist. The date NOMIS recorded on an individual historic review is on csra_review_nomis instead." schema="public" type="TABLE">
+         <column autoUpdated="false" defaultValue="null" digits="0" id="0" name="id" nullable="false" remarks="Primary key. Time-ordered UUID v7. [Sensitivity: NONE]" size="2147483647" type="uuid" typeCode="1111"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="1" name="prisoner_number" nullable="false" remarks="NOMIS offender number (noms id) of the prisoner the date is for. One row per prisoner. [Sensitivity: PERSONAL]" size="10" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="2" name="next_review_date" nullable="true" remarks="When the prisoner's CSRA is next due for review - twelve months on from a high-risk final rating, chosen by the reviewer on the review journey, and cleared when a rating no longer requires one. Its presence therefore indicates a high-risk rating. [Sensitivity: PERSONAL]" size="13" type="date" typeCode="91"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="3" name="set_by_review_id" nullable="false" remarks="The csra_review that last set this date. [Sensitivity: NONE]" size="2147483647" type="uuid" typeCode="1111">
+            <parent column="id" foreignKey="csra_next_review_review_fk" implied="false" onDeleteCascade="true" schema="public" table="csra_review"/>
+         </column>
+         <column autoUpdated="false" defaultValue="null" digits="6" id="4" name="updated_at" nullable="false" remarks="When the date was last set. [Sensitivity: NONE]" size="29" type="timestamp" typeCode="93"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="5" name="updated_by" nullable="true" remarks="Username that last set the date, or the system user for migrated and synchronised rows. Identifies a member of staff. [Sensitivity: STAFF]" size="40" type="varchar" typeCode="12"/>
+         <primaryKey column="id" sequenceNumberInPK="1"/>
+         <index name="csra_next_review_pk" unique="true">
+            <column ascending="true" name="id"/>
+         </index>
+         <index name="csra_next_review_prisoner_number_idx" unique="true">
+            <column ascending="true" name="prisoner_number"/>
+         </index>
+      </table>
+      <table name="csra_review" remarks="One cell sharing risk assessment or review for a prisoner. Holds only what is common to both the new DPS journeys and reviews migrated from NOMIS; legacy-only NOMIS detail hangs off csra_review_nomis and the new-model captured answers off csra_assessment_stage. A prisoner accumulates many of these over time - the one that counts today is the projection in csra_current_rating." schema="public" type="TABLE">
+         <column autoUpdated="false" defaultValue="null" digits="0" id="0" name="id" nullable="false" remarks="Primary key. Time-ordered UUID v7, so insert order matches id order. [Sensitivity: NONE]" size="2147483647" type="uuid" typeCode="1111">
+            <child column="csra_review_id" foreignKey="csra_assessment_stage_review_fk" implied="false" onDeleteCascade="true" schema="public" table="csra_assessment_stage"/>
+            <child column="set_by_review_id" foreignKey="csra_next_review_review_fk" implied="false" onDeleteCascade="true" schema="public" table="csra_next_review"/>
+            <child column="csra_review_id" foreignKey="csra_review_nomis_review_fk" implied="false" onDeleteCascade="true" schema="public" table="csra_review_nomis"/>
+         </column>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="1" name="prisoner_number" nullable="false" remarks="NOMIS offender number (noms id) of the prisoner assessed. The link that makes every row here personal data about that prisoner. [Sensitivity: PERSONAL]" size="10" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="2" name="prison_id" nullable="true" remarks="Agency (prison) code where the assessment took place - for a multi-stage assessment, its latest stage. Null identifies a row migrated from NOMIS, which does not always send it; every DPS write path requires it. Indicates where the prisoner was held. [Sensitivity: PERSONAL]" size="6" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="3" name="assessment_date" nullable="false" remarks="Date the assessment or review was started. [Sensitivity: NONE]" size="13" type="date" typeCode="91"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="4" name="type" nullable="false" remarks="The kind of assessment. CSRA_INITIAL_REVIEW and CSRA_REVIEW are the new DPS journeys; FULL, HEALTH, LOCATE, RATING, RECEPTION and REVIEW are legacy NOMIS types mapped on during migration. [Sensitivity: NONE]" size="20" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="5" name="interim_result" nullable="true" remarks="The rating issued at the first stage, when the assessment or review could not be completed in one sitting - HIGH, HIGH_GENERAL, HIGH_SPECIFIC or STANDARD. Not set for migrated legacy reviews. A risk judgement about the prisoner. [Sensitivity: PERSONAL]" size="20" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="6" name="interim_result_date" nullable="true" remarks="Date the interim or provisional rating was issued. [Sensitivity: NONE]" size="13" type="date" typeCode="91"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="7" name="final_result" nullable="true" remarks="The rating that completed the assessment or review - HIGH (legacy NOMIS, no general/specific split), HIGH_GENERAL (cannot share with anyone), HIGH_SPECIFIC (can share only with certain prisoners) or STANDARD (can share). A risk judgement about the prisoner. [Sensitivity: PERSONAL]" size="20" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="8" name="final_result_date" nullable="true" remarks="Date the final rating was issued. [Sensitivity: NONE]" size="13" type="date" typeCode="91"/>
+         <column autoUpdated="false" defaultValue="null" digits="6" id="9" name="created_at" nullable="false" remarks="When the review record was created. For migrated rows this is NOMIS's own creation timestamp, which is why values go back to 2006 - see csra_review_nomis.ingested_at for when the data actually reached this service. [Sensitivity: NONE]" size="29" type="timestamp" typeCode="93"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="10" name="created_by" nullable="false" remarks="Username that created the review, or the system user for migrated and synchronised rows. Identifies a member of staff. [Sensitivity: STAFF]" size="40" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="6" id="11" name="last_modified_at" nullable="true" remarks="When the review was last changed. Null if it has not been changed since creation. [Sensitivity: NONE]" size="29" type="timestamp" typeCode="93"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="12" name="last_modified_by" nullable="true" remarks="Username that last changed the review. Identifies a member of staff. [Sensitivity: STAFF]" size="40" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="'IN_PROGRESS'::character varying" digits="0" id="13" name="status" nullable="false" remarks="Lifecycle state. IN_PROGRESS (started, no final rating), COMPLETE (final rating recorded, and the state of every migrated review), CLOSED (in progress with a rating that still stands, closed out by a move), ARCHIVED (in progress with no rating, hidden from the service but retained for investigation). [Sensitivity: NONE]" size="20" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="14" name="closure_reason" nullable="true" remarks="Why an in-progress review was closed or archived - currently only NOT_COMPLETED_PRISONER_TRANSFER. Its presence indicates the prisoner moved establishment mid-assessment. [Sensitivity: PERSONAL]" size="40" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="6" id="15" name="closed_at" nullable="true" remarks="When the review was closed or archived. Null while it is still open or was completed normally. [Sensitivity: NONE]" size="29" type="timestamp" typeCode="93"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="16" name="closed_by" nullable="true" remarks="Username that closed or archived the review, or the system user when a prisoner movement did it. Identifies a member of staff. [Sensitivity: STAFF]" size="40" type="varchar" typeCode="12"/>
+         <primaryKey column="id" sequenceNumberInPK="1"/>
+         <index name="csra_review_pk" unique="true">
+            <column ascending="true" name="id"/>
+         </index>
+         <index name="csra_review_prisoner_history_idx" unique="false">
+            <column ascending="true" name="prisoner_number"/>
+            <column ascending="false" name="assessment_date"/>
+            <column ascending="false" name="id"/>
+         </index>
+         <index name="csra_review_prisoner_number_idx" unique="false">
+            <column ascending="true" name="prisoner_number"/>
+         </index>
+      </table>
+      <table name="csra_review_nomis" remarks="The extra legacy data for a review migrated or synchronised from NOMIS, held verbatim alongside the core csra_review record rather than mapped onto it. At most one row per review, and none at all for reviews created in DPS. Values are raw NOMIS codes, not the DPS model." schema="public" type="TABLE">
+         <column autoUpdated="false" defaultValue="null" digits="0" id="0" name="id" nullable="false" remarks="Primary key. Time-ordered UUID v7. [Sensitivity: NONE]" size="2147483647" type="uuid" typeCode="1111"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="1" name="csra_review_id" nullable="false" remarks="Foreign key to csra_review - the review this legacy data belongs to. [Sensitivity: NONE]" size="2147483647" type="uuid" typeCode="1111">
+            <parent column="id" foreignKey="csra_review_nomis_review_fk" implied="false" onDeleteCascade="true" schema="public" table="csra_review"/>
+         </column>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="2" name="score" nullable="true" remarks="The numeric score NOMIS calculated for the assessment. A risk score about the prisoner. [Sensitivity: PERSONAL]" size="0" type="numeric" typeCode="2"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="3" name="status" nullable="true" remarks="The review's status in NOMIS. A status of P (pending) is what makes a migrated rating provisional rather than final. [Sensitivity: NONE]" size="10" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="4" name="calculated_level" nullable="true" remarks="The CSRA level NOMIS calculated from the answers, before any reviewer override. A risk judgement about the prisoner. [Sensitivity: PERSONAL]" size="10" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="5" name="review_level" nullable="true" remarks="The level the reviewer recorded - what NOMIS displays as the approved result, and what the DPS rating is derived from. Do not confuse with approved_level. A risk judgement about the prisoner. [Sensitivity: PERSONAL]" size="10" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="6" name="approved_level" nullable="true" remarks="NOMIS's APPROVED_SUP_LEVEL_TYPE. Null on every known CSRA row - NOMIS never populated it, and prison-api does not even map it. Kept for fidelity; read review_level instead. [Sensitivity: PERSONAL]" size="10" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="7" name="committee_code" nullable="true" remarks="The NOMIS committee code recorded against the assessment. [Sensitivity: NONE]" size="20" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="8" name="review_committee_code" nullable="true" remarks="The NOMIS committee code recorded against the review. [Sensitivity: NONE]" size="20" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="9" name="evaluation_date" nullable="true" remarks="The date NOMIS recorded the evaluation. [Sensitivity: NONE]" size="13" type="date" typeCode="91"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="10" name="evaluation_result_code" nullable="true" remarks="The NOMIS evaluation result code - whether the assessment was approved, rejected or referred. A decision about the prisoner's assessment. [Sensitivity: PERSONAL]" size="10" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="11" name="comment" nullable="true" remarks="The free-text assessment comment as recorded in NOMIS. Decades of unstructured narrative about offending, behaviour, health and third parties. [Sensitivity: SPECIAL-CATEGORY]" size="2147483647" type="text" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="12" name="review_comment" nullable="true" remarks="The free-text review comment as recorded in NOMIS. Same caveat as comment. [Sensitivity: SPECIAL-CATEGORY]" size="2147483647" type="text" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="13" name="review_committee_comment" nullable="true" remarks="The free-text committee comment as recorded in NOMIS. Same caveat as comment. [Sensitivity: SPECIAL-CATEGORY]" size="2147483647" type="text" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="14" name="placement_prison_id" nullable="true" remarks="The agency code NOMIS recorded as the placement prison. Indicates where the prisoner was to be held. [Sensitivity: PERSONAL]" size="6" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="15" name="review_placement_prison_id" nullable="true" remarks="The agency code NOMIS recorded as the review placement prison. Indicates where the prisoner was to be held. [Sensitivity: PERSONAL]" size="6" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="16" name="review_details" nullable="true" remarks="The whole NOMIS question and answer tree, stored as JSONB exactly as supplied and deserialised only when needed. Written as [] rather than null by every write path. The richest single source of special category data in the schema - the legacy questionnaire covers offending, health and vulnerability. [Sensitivity: SPECIAL-CATEGORY]" size="2147483647" type="jsonb" typeCode="1111"/>
+         <column autoUpdated="false" defaultValue="null" digits="6" id="17" name="ingested_at" nullable="true" remarks="When this row was last written by migration or sync - this service's wall clock, not NOMIS's. The core record's created_at is NOMIS's own timestamp, so without this there is no way to tell which migration run produced the current state. Null means the row predates the column. [Sensitivity: NONE]" size="29" type="timestamp" typeCode="93"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="18" name="next_review_date" nullable="true" remarks="The next review date NOMIS recorded on this particular review. Distinct from csra_next_review, which holds the one date currently in force for the prisoner - never substitute one for the other. Null for rows migrated before this column existed. [Sensitivity: PERSONAL]" size="13" type="date" typeCode="91"/>
+         <primaryKey column="id" sequenceNumberInPK="1"/>
+         <index name="csra_review_nomis_pk" unique="true">
+            <column ascending="true" name="id"/>
+         </index>
+         <index name="csra_review_nomis_review_id_idx" unique="true">
+            <column ascending="true" name="csra_review_id"/>
+         </index>
+      </table>
+      <table name="flyway_schema_history" remarks="" schema="public" type="TABLE">
+         <column autoUpdated="false" defaultValue="null" digits="0" id="0" name="installed_rank" nullable="false" remarks="" size="10" type="int4" typeCode="4"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="1" name="version" nullable="true" remarks="" size="50" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="2" name="description" nullable="false" remarks="" size="200" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="3" name="type" nullable="false" remarks="" size="20" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="4" name="script" nullable="false" remarks="" size="1000" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="5" name="checksum" nullable="true" remarks="" size="10" type="int4" typeCode="4"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="6" name="installed_by" nullable="false" remarks="" size="100" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="now()" digits="6" id="7" name="installed_on" nullable="false" remarks="" size="29" type="timestamp" typeCode="93"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="8" name="execution_time" nullable="false" remarks="" size="10" type="int4" typeCode="4"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="9" name="success" nullable="false" remarks="" size="1" type="bool" typeCode="-7"/>
+         <primaryKey column="installed_rank" sequenceNumberInPK="1"/>
+         <index name="flyway_schema_history_pk" unique="true">
+            <column ascending="true" name="installed_rank"/>
+         </index>
+         <index name="flyway_schema_history_s_idx" unique="false">
+            <column ascending="true" name="success"/>
+         </index>
+      </table>
+   </tables>
+</database>

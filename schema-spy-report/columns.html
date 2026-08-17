@@ -1,0 +1,1973 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <title>cell_sharing_risk_assessment.public</title>
+        <!-- Tell the browser to be responsive to screen width -->
+        <meta content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" name="viewport">
+        <link rel="icon" type="image/png" sizes="16x16" href="favicon.png">
+        <!-- Bootstrap 3.3.5 -->
+        <link rel="stylesheet" href="bower/admin-lte/bootstrap/css/bootstrap.min.css">
+        <!-- Font Awesome -->
+        <link rel="stylesheet" href="bower/font-awesome/css/font-awesome.min.css">
+        <!-- Ionicons -->
+        <link rel="stylesheet" href="bower/ionicons/css/ionicons.min.css">
+        <!-- DataTables -->
+        <link rel="stylesheet" href="bower/datatables.net-bs/css/dataTables.bootstrap.min.css">
+        <link rel="stylesheet" href="bower/datatables.net-buttons-bs/css/buttons.bootstrap.min.css">
+        <!-- Code Mirror -->
+        <link rel="stylesheet" href="bower/codemirror/codemirror.css">
+        <!-- Fonts -->
+        <link href='fonts/indieflower/indie-flower.css' rel='stylesheet' type='text/css'>
+        <link href='fonts/source-sans-pro/source-sans-pro.css' rel='stylesheet' type='text/css'>
+
+        <!-- Theme style -->
+        <link rel="stylesheet" href="bower/admin-lte/dist/css/AdminLTE.min.css">
+        <!-- Salvattore -->
+        <link rel="stylesheet" href="bower/salvattore/salvattore.css">
+        <!-- AdminLTE Skins. Choose a skin from the css/skins
+           folder instead of downloading all of them to reduce the load. -->
+        <link rel="stylesheet" href="bower/admin-lte/dist/css/skins/_all-skins.min.css">
+        <!-- SchemaSpy -->
+        <link rel="stylesheet" href="schemaSpy.css">
+
+        <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+        <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+        <!--[if lt IE 9]>
+        <script src="bower/html5shiv/html5shiv.min.js"></script>
+        <script src="bower/respond/respond.min.js"></script>
+        <![endif]-->
+    </head>
+    <!-- ADD THE CLASS layout-top-nav TO REMOVE THE SIDEBAR. -->
+    <body class="hold-transition skin-blue layout-top-nav">
+        <div class="wrapper">
+            <header class="main-header">
+                <nav class="navbar navbar-static-top">
+                    <div class="container">
+                        <div class="navbar-header">
+                            <a href="index.html" class="navbar-brand"><b>cell_sharing_risk_assessment</b></a><span class="navbar-brand" style="padding-left: 0">.public</span>
+                            <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar-collapse"><i class="fa fa-bars"></i></button>
+                        </div>
+
+                        <!-- Collect the nav links, forms, and other content for toggling -->
+                        <div class="collapse navbar-collapse pull-left" id="navbar-collapse">
+                            <ul class="nav navbar-nav">
+                                <li><a href="index.html">Tables <span class="sr-only">(current)</span></a></li>
+                                <li><a href="columns.html" title="All of the columns in the schema">Columns</a></li>
+                                <li><a href="constraints.html" title="Useful for diagnosing error messages that just give constraint name or number">Constraints</a></li>
+                                <li><a href="relationships.html" title="Diagram of table relationships">Relationships</a></li>
+                                <li><a href="orphans.html" title="View of tables with neither parents nor children">Orphan&nbsp;Tables</a></li>
+                                <li><a href="anomalies.html" title="Things that might not be quite right">Anomalies</a></li>
+                                <li><a href="routines.html" title="Procedures and functions">Routines</a></li>
+                            </ul>
+                        </div>
+                        <!-- /.navbar-collapse -->
+                        <!-- Navbar Right Menu -->
+                    </div>
+                    <!-- /.container-fluid -->
+                </nav>
+            </header>
+            <!-- Main content -->
+            <!-- Full Width Column -->
+            <div class="content-wrapper">
+                <!-- Content Header (Page header) -->
+                <section class="content-header">
+                    <h1>Columns</h1>
+                </section>
+                <!-- Main content -->
+                <section class="content">
+                    <div class="box box-primary">
+                        <div class="box-header with-border">
+                            <span class="glyphicon glyphicon-list-alt" aria-hidden="true"></span>
+                            <h3 class="box-title">Columns</h3>
+                        </div>
+                        <div class="box-body">
+                            <table
+                                    id="column_table"
+                                    class="table table-bordered table-striped dataTable"
+                                    role="grid"
+                                    data-paging="true"
+                                    data-page-length="50"
+                                    data-length-change="false">
+                                <thead align='left'>
+                                    <tr>
+                                        <th>Table</th>
+                                        <th>Type</th>
+                                        <th>Column</th>
+                                        <th>Type</th>
+                                        <th>Size</th>
+                                        <th title='Are nulls allowed?'>Nullable</th>
+                                        <th title='Is column automatically updated?'>Auto</th>
+                                        <th title='Default value'>Default</th>
+                                        <th title='Comments' class="toggle"><span>Comments</span></th>
+                                    </tr>
+                                </thead>
+                                <tbody></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+                <script>
+                    var tableData = [
+    {
+        "tableName": "csra_assessment_stage",
+        "tableFileName": "csra_assessment_stage",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "mdt_chair_name",
+        "type": "text",
+        "length": 2147483647,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Free-text name of whoever chaired the multidisciplinary meeting. A name typed by hand, with no staff lookup behind it. Review journey only. <a href=\"./null\">Sensitivity: STAFF<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage",
+        "tableFileName": "csra_assessment_stage",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "offence_prejudice_motivated",
+        "type": "bool",
+        "length": 1,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Is there evidence of offending or behaviour motivated by prejudice? Criminal offence data, and an answer that may reveal the victim&rsquo;s race, religion or sexual orientation. <a href=\"./null\">Sensitivity: SPECIAL-CATEGORY<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage",
+        "tableFileName": "csra_assessment_stage",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "offence_murder_manslaughter_detail",
+        "type": "text",
+        "length": 2147483647,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Free-text detail behind a Yes to the murder or manslaughter question. Review journey only - an initial assessment records its evidence in csra_assessment_stage_offence_evidence instead. <a href=\"./null\">Sensitivity: SPECIAL-CATEGORY<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_next_review",
+        "tableFileName": "csra_next_review",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "next_review_date",
+        "type": "date",
+        "length": 13,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>When the prisoner&rsquo;s CSRA is next due for review - twelve months on from a high-risk final rating, chosen by the reviewer on the review journey, and cleared when a rating no longer requires one. Its presence therefore indicates a high-risk rating. <a href=\"./null\">Sensitivity: PERSONAL<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage",
+        "tableFileName": "csra_assessment_stage",
+        "tableType": "Table",
+        "keyClass": "primaryKey",
+        "keyTitle": "Primary Key",
+        "name": "<i class='icon ion-key iconkey' style='padding-left: 5px;'><\/i>id",
+        "type": "uuid",
+        "length": 2147483647,
+        "nullable": "",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Primary key. Time-ordered UUID v7. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage",
+        "tableFileName": "csra_assessment_stage",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "healthcare_increased_risk_detail",
+        "type": "text",
+        "length": 2147483647,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Free text describing what healthcare identified, shown when the answer is Yes. Data concerning health. <a href=\"./null\">Sensitivity: SPECIAL-CATEGORY<\/a><\/p>"
+    },
+    {
+        "tableName": "active_agency",
+        "tableFileName": "active_agency",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "active",
+        "type": "bool",
+        "length": 1,
+        "nullable": "",
+        "autoUpdated": "",
+        "defaultValue": "true",
+        "comments": "<p>Whether CSRA is currently switched on for the prison. False means it was switched on at some point and has since been switched off. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage_risk_to",
+        "tableFileName": "csra_assessment_stage_risk_to",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "category",
+        "type": "varchar",
+        "length": 30,
+        "nullable": "",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>The group at risk - DIFFERENT_ETHNICITY, DIFFERENT_RELIGION, DISABLED, GANG_MEMBERS, SEXUAL_MINORITY, OLD_PEOPLE, SPECIFIC_PERSONS, TRANSGENDER, OTHER or NONE. Records a judgement that the prisoner poses a risk to people of a particular race, religion, sexual orientation, gender identity or disability, which makes it Article 9 data about the prisoner. <a href=\"./null\">Sensitivity: SPECIAL-CATEGORY<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_review",
+        "tableFileName": "csra_review",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "status",
+        "type": "varchar",
+        "length": 20,
+        "nullable": "",
+        "autoUpdated": "",
+        "defaultValue": "'IN_PROGRESS'::character varying",
+        "comments": "<p>Lifecycle state. IN_PROGRESS (started, no final rating), COMPLETE (final rating recorded, and the state of every migrated review), CLOSED (in progress with a rating that still stands, closed out by a move), ARCHIVED (in progress with no rating, hidden from the service but retained for investigation). <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_current_rating",
+        "tableFileName": "csra_current_rating",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "rating_date",
+        "type": "date",
+        "length": 13,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>The date the current rating was given. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage_offence_evidence",
+        "tableFileName": "csra_assessment_stage_offence_evidence",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "warrant",
+        "type": "bool",
+        "length": 1,
+        "nullable": "",
+        "autoUpdated": "",
+        "defaultValue": "false",
+        "comments": "<p>Whether the evidence came from the warrant (current charge or offence). <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_review",
+        "tableFileName": "csra_review",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "created_at",
+        "type": "timestamp",
+        "length": 29,
+        "nullable": "",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>When the review record was created. For migrated rows this is NOMIS&rsquo;s own creation timestamp, which is why values go back to 2006 - see csra_review_nomis.ingested_at for when the data actually reached this service. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_review",
+        "tableFileName": "csra_review",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "created_by",
+        "type": "varchar",
+        "length": 40,
+        "nullable": "",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Username that created the review, or the system user for migrated and synchronised rows. Identifies a member of staff. <a href=\"./null\">Sensitivity: STAFF<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_review_nomis",
+        "tableFileName": "csra_review_nomis",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "next_review_date",
+        "type": "date",
+        "length": 13,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>The next review date NOMIS recorded on this particular review. Distinct from csra_next_review, which holds the one date currently in force for the prisoner - never substitute one for the other. Null for rows migrated before this column existed. <a href=\"./null\">Sensitivity: PERSONAL<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage_offence_evidence",
+        "tableFileName": "csra_assessment_stage_offence_evidence",
+        "tableType": "Table",
+        "keyClass": "indexedColumn",
+        "keyTitle": "Indexed",
+        "name": "<i class='fa fa-sitemap fa-rotate-120' style='padding-right: 5px;'><\/i>offence",
+        "type": "varchar",
+        "length": 40,
+        "nullable": "",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Which offence question this evidence supports - MURDER_MANSLAUGHTER, ASSISTING_SUICIDE, SEXUAL_ASSAULT, REPEATED_VIOLENCE, PREJUDICE_MOTIVATED, ARSON or KIDNAP_HOSTAGE. The row exists only because that question was answered Yes, so it is criminal offence data about the prisoner. <a href=\"./null\">Sensitivity: SPECIAL-CATEGORY<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_review_nomis",
+        "tableFileName": "csra_review_nomis",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "committee_code",
+        "type": "varchar",
+        "length": 20,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>The NOMIS committee code recorded against the assessment. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_review",
+        "tableFileName": "csra_review",
+        "tableType": "Table",
+        "keyClass": "primaryKey",
+        "keyTitle": "Primary Key",
+        "name": "<i class='icon ion-key iconkey' style='padding-left: 5px;'><\/i>id",
+        "type": "uuid",
+        "length": 2147483647,
+        "nullable": "",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Primary key. Time-ordered UUID v7, so insert order matches id order. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage",
+        "tableFileName": "csra_assessment_stage",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "cause_for_concern_sharing_detail",
+        "type": "text",
+        "length": 2147483647,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Free text describing the cause for concern, shown when the answer is Yes. <a href=\"./null\">Sensitivity: SPECIAL-CATEGORY<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage_risk_to",
+        "tableFileName": "csra_assessment_stage_risk_to",
+        "tableType": "Table",
+        "keyClass": "primaryKey",
+        "keyTitle": "Primary Key",
+        "name": "<i class='icon ion-key iconkey' style='padding-left: 5px;'><\/i>id",
+        "type": "uuid",
+        "length": 2147483647,
+        "nullable": "",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Primary key. Time-ordered UUID v7. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_next_review",
+        "tableFileName": "csra_next_review",
+        "tableType": "Table",
+        "keyClass": "indexedColumn",
+        "keyTitle": "Indexed",
+        "name": "<i class='fa fa-sitemap fa-rotate-120' style='padding-right: 5px;'><\/i>prisoner_number",
+        "type": "varchar",
+        "length": 10,
+        "nullable": "",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>NOMIS offender number (noms id) of the prisoner the date is for. One row per prisoner. <a href=\"./null\">Sensitivity: PERSONAL<\/a><\/p>"
+    },
+    {
+        "tableName": "flyway_schema_history",
+        "tableFileName": "flyway_schema_history",
+        "tableType": "Table",
+        "keyClass": "indexedColumn",
+        "keyTitle": "Indexed",
+        "name": "<i class='fa fa-sitemap fa-rotate-120' style='padding-right: 5px;'><\/i>success",
+        "type": "bool",
+        "length": 1,
+        "nullable": "",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": ""
+    },
+    {
+        "tableName": "csra_assessment_stage",
+        "tableFileName": "csra_assessment_stage",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "offence_repeated_violence",
+        "type": "bool",
+        "length": 1,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Is there evidence of repeated violence in custody? Criminal offence data whichever way it is answered. <a href=\"./null\">Sensitivity: SPECIAL-CATEGORY<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_review_nomis",
+        "tableFileName": "csra_review_nomis",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "evaluation_date",
+        "type": "date",
+        "length": 13,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>The date NOMIS recorded the evaluation. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+    },
+    {
+        "tableName": "flyway_schema_history",
+        "tableFileName": "flyway_schema_history",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "installed_on",
+        "type": "timestamp",
+        "length": 29,
+        "nullable": "",
+        "autoUpdated": "",
+        "defaultValue": "now()",
+        "comments": ""
+    },
+    {
+        "tableName": "csra_assessment_stage",
+        "tableFileName": "csra_assessment_stage",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "significantly_vulnerable_detail",
+        "type": "text",
+        "length": 2147483647,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Free text describing the prisoner&rsquo;s vulnerability, shown when the answer is Yes. Expect health, disability and sexual orientation. <a href=\"./null\">Sensitivity: SPECIAL-CATEGORY<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage",
+        "tableFileName": "csra_assessment_stage",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "offence_kidnap_hostage",
+        "type": "bool",
+        "length": 1,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Is there evidence of kidnap, hostage taking or false imprisonment? Criminal offence data whichever way it is answered. <a href=\"./null\">Sensitivity: SPECIAL-CATEGORY<\/a><\/p>"
+    },
+    {
+        "tableName": "active_agency",
+        "tableFileName": "active_agency",
+        "tableType": "Table",
+        "keyClass": "primaryKey",
+        "keyTitle": "Primary Key",
+        "name": "<i class='icon ion-key iconkey' style='padding-left: 5px;'><\/i>id",
+        "type": "uuid",
+        "length": 2147483647,
+        "nullable": "",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Primary key. Time-ordered UUID v7. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage_offence_evidence",
+        "tableFileName": "csra_assessment_stage_offence_evidence",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "other_source_detail",
+        "type": "text",
+        "length": 2147483647,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Free text naming the source when &ldquo;other&rdquo; is ticked. <a href=\"./null\">Sensitivity: PERSONAL<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_review",
+        "tableFileName": "csra_review",
+        "tableType": "Table",
+        "keyClass": "indexedColumn",
+        "keyTitle": "Indexed",
+        "name": "<i class='fa fa-sitemap fa-rotate-120' style='padding-right: 5px;'><\/i>prisoner_number",
+        "type": "varchar",
+        "length": 10,
+        "nullable": "",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>NOMIS offender number (noms id) of the prisoner assessed. The link that makes every row here personal data about that prisoner. <a href=\"./null\">Sensitivity: PERSONAL<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage_offence_evidence",
+        "tableFileName": "csra_assessment_stage_offence_evidence",
+        "tableType": "Table",
+        "keyClass": "foreignKey",
+        "keyTitle": "Foreign Key",
+        "name": "<i class='icon ion-key iconkey' style='padding-left: 5px;'><\/i>stage_id",
+        "type": "uuid",
+        "length": 2147483647,
+        "nullable": "",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Foreign key to csra_assessment_stage. Deleted with the stage. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_review",
+        "tableFileName": "csra_review",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "closed_at",
+        "type": "timestamp",
+        "length": 29,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>When the review was closed or archived. Null while it is still open or was completed normally. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+    },
+    {
+        "tableName": "flyway_schema_history",
+        "tableFileName": "flyway_schema_history",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "script",
+        "type": "varchar",
+        "length": 1000,
+        "nullable": "",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": ""
+    },
+    {
+        "tableName": "csra_assessment_stage",
+        "tableFileName": "csra_assessment_stage",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "other_high_risk_indicators",
+        "type": "bool",
+        "length": 1,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Are there other indicators of high risk? The assessor&rsquo;s risk judgement about the person. <a href=\"./null\">Sensitivity: PERSONAL<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_review_nomis",
+        "tableFileName": "csra_review_nomis",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "review_committee_code",
+        "type": "varchar",
+        "length": 20,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>The NOMIS committee code recorded against the review. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage_evidence_source",
+        "tableFileName": "csra_assessment_stage_evidence_source",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "details",
+        "type": "text",
+        "length": 2147483647,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Free text naming the source when OTHER is selected. Null for every named source. <a href=\"./null\">Sensitivity: PERSONAL<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage",
+        "tableFileName": "csra_assessment_stage",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "offence_prejudice_motivated_detail",
+        "type": "text",
+        "length": 2147483647,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Free-text detail behind a Yes to the prejudice-motivated question. Likely to describe the race, religion or sexual orientation of a victim as well as the prisoner&rsquo;s own behaviour. <a href=\"./null\">Sensitivity: SPECIAL-CATEGORY<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage",
+        "tableFileName": "csra_assessment_stage",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "per_checked",
+        "type": "bool",
+        "length": 1,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Whether the assessor checked the Person Escort Record as an evidence source. Initial assessment journey only. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage",
+        "tableFileName": "csra_assessment_stage",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "offence_sexual_assault_detail",
+        "type": "text",
+        "length": 2147483647,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Free-text detail behind a Yes to the sexual assault question. Review journey only. <a href=\"./null\">Sensitivity: SPECIAL-CATEGORY<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_review_nomis",
+        "tableFileName": "csra_review_nomis",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "review_committee_comment",
+        "type": "text",
+        "length": 2147483647,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>The free-text committee comment as recorded in NOMIS. Same caveat as comment. <a href=\"./null\">Sensitivity: SPECIAL-CATEGORY<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_current_rating",
+        "tableFileName": "csra_current_rating",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "set_by_review_id",
+        "type": "uuid",
+        "length": 2147483647,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>The csra_review that set this rating, for loading the fuller detail. Null when the rating was reset to &ldquo;No rating&rdquo; on readmission. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+    },
+    {
+        "tableName": "flyway_schema_history",
+        "tableFileName": "flyway_schema_history",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "version",
+        "type": "varchar",
+        "length": 50,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": ""
+    },
+    {
+        "tableName": "csra_assessment_stage_offence_evidence",
+        "tableFileName": "csra_assessment_stage_offence_evidence",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "other",
+        "type": "bool",
+        "length": 1,
+        "nullable": "",
+        "autoUpdated": "",
+        "defaultValue": "false",
+        "comments": "<p>Whether the evidence came from a source not in the list, named in other_source_detail. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage_offence_evidence",
+        "tableFileName": "csra_assessment_stage_offence_evidence",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "per",
+        "type": "bool",
+        "length": 1,
+        "nullable": "",
+        "autoUpdated": "",
+        "defaultValue": "false",
+        "comments": "<p>Whether the evidence came from the Person Escort Record. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage",
+        "tableFileName": "csra_assessment_stage",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "assessment_comment",
+        "type": "text",
+        "length": 2147483647,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>The assessor&rsquo;s free-text comment on the assessment. Unstructured and unbounded - in practice describes offending, behaviour, health and third parties, so treat as special category regardless of what any individual comment happens to say. <a href=\"./null\">Sensitivity: SPECIAL-CATEGORY<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_review_nomis",
+        "tableFileName": "csra_review_nomis",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "comment",
+        "type": "text",
+        "length": 2147483647,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>The free-text assessment comment as recorded in NOMIS. Decades of unstructured narrative about offending, behaviour, health and third parties. <a href=\"./null\">Sensitivity: SPECIAL-CATEGORY<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage",
+        "tableFileName": "csra_assessment_stage",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "significantly_vulnerable",
+        "type": "bool",
+        "length": 1,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Is the prisoner significantly vulnerable? Vulnerability here is routinely a matter of disability, mental health or belonging to an at-risk group. <a href=\"./null\">Sensitivity: SPECIAL-CATEGORY<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage",
+        "tableFileName": "csra_assessment_stage",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "pnc_checked",
+        "type": "bool",
+        "length": 1,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Whether the assessor checked the PNC (current and previous convictions) as an evidence source. Initial assessment journey only. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage",
+        "tableFileName": "csra_assessment_stage",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "offence_arson",
+        "type": "bool",
+        "length": 1,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Is there evidence of arson or fire setting? Criminal offence data whichever way it is answered. <a href=\"./null\">Sensitivity: SPECIAL-CATEGORY<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage_evidence_source",
+        "tableFileName": "csra_assessment_stage_evidence_source",
+        "tableType": "Table",
+        "keyClass": "foreignKey",
+        "keyTitle": "Foreign Key",
+        "name": "<i class='icon ion-key iconkey' style='padding-left: 5px;'><\/i>stage_id",
+        "type": "uuid",
+        "length": 2147483647,
+        "nullable": "",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Foreign key to csra_assessment_stage. Deleted with the stage. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage",
+        "tableFileName": "csra_assessment_stage",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "offence_kidnap_hostage_detail",
+        "type": "text",
+        "length": 2147483647,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Free-text detail behind a Yes to the kidnap or hostage question. Review journey only. <a href=\"./null\">Sensitivity: SPECIAL-CATEGORY<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage_evidence_source",
+        "tableFileName": "csra_assessment_stage_evidence_source",
+        "tableType": "Table",
+        "keyClass": "primaryKey",
+        "keyTitle": "Primary Key",
+        "name": "<i class='icon ion-key iconkey' style='padding-left: 5px;'><\/i>id",
+        "type": "uuid",
+        "length": 2147483647,
+        "nullable": "",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Primary key. Time-ordered UUID v7. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage_vulnerability",
+        "tableFileName": "csra_assessment_stage_vulnerability",
+        "tableType": "Table",
+        "keyClass": "primaryKey",
+        "keyTitle": "Primary Key",
+        "name": "<i class='icon ion-key iconkey' style='padding-left: 5px;'><\/i>id",
+        "type": "uuid",
+        "length": 2147483647,
+        "nullable": "",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Primary key. Time-ordered UUID v7. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_review",
+        "tableFileName": "csra_review",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "last_modified_at",
+        "type": "timestamp",
+        "length": 29,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>When the review was last changed. Null if it has not been changed since creation. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_review",
+        "tableFileName": "csra_review",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "final_result",
+        "type": "varchar",
+        "length": 20,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>The rating that completed the assessment or review - HIGH (legacy NOMIS, no general/specific split), HIGH_GENERAL (cannot share with anyone), HIGH_SPECIFIC (can share only with certain prisoners) or STANDARD (can share). A risk judgement about the prisoner. <a href=\"./null\">Sensitivity: PERSONAL<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_current_rating",
+        "tableFileName": "csra_current_rating",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "provisional",
+        "type": "bool",
+        "length": 1,
+        "nullable": "",
+        "autoUpdated": "",
+        "defaultValue": "false",
+        "comments": "<p>Whether the current rating came from a provisional or interim stage rather than a completed one. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_review",
+        "tableFileName": "csra_review",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "prison_id",
+        "type": "varchar",
+        "length": 6,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Agency (prison) code where the assessment took place - for a multi-stage assessment, its latest stage. Null identifies a row migrated from NOMIS, which does not always send it; every DPS write path requires it. Indicates where the prisoner was held. <a href=\"./null\">Sensitivity: PERSONAL<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_next_review",
+        "tableFileName": "csra_next_review",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "updated_by",
+        "type": "varchar",
+        "length": 40,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Username that last set the date, or the system user for migrated and synchronised rows. Identifies a member of staff. <a href=\"./null\">Sensitivity: STAFF<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_current_rating",
+        "tableFileName": "csra_current_rating",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "set_by",
+        "type": "varchar",
+        "length": 40,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Username that last set the rating, or the system user when a movement event did it. Identifies a member of staff. <a href=\"./null\">Sensitivity: STAFF<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage",
+        "tableFileName": "csra_assessment_stage",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "likely_to_harm_cellmate_detail",
+        "type": "text",
+        "length": 2147483647,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Free text describing the risk of harm to a cellmate, shown when the answer is Yes. Expect offending, behaviour and named third parties. <a href=\"./null\">Sensitivity: SPECIAL-CATEGORY<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_review",
+        "tableFileName": "csra_review",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "final_result_date",
+        "type": "date",
+        "length": 13,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Date the final rating was issued. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage",
+        "tableFileName": "csra_assessment_stage",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "other_high_risk_indicators_detail",
+        "type": "text",
+        "length": 2147483647,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Free text describing the other high-risk indicators, shown when the answer is Yes. <a href=\"./null\">Sensitivity: SPECIAL-CATEGORY<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_review_nomis",
+        "tableFileName": "csra_review_nomis",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "evaluation_result_code",
+        "type": "varchar",
+        "length": 10,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>The NOMIS evaluation result code - whether the assessment was approved, rejected or referred. A decision about the prisoner&rsquo;s assessment. <a href=\"./null\">Sensitivity: PERSONAL<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_review",
+        "tableFileName": "csra_review",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "interim_result",
+        "type": "varchar",
+        "length": 20,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>The rating issued at the first stage, when the assessment or review could not be completed in one sitting - HIGH, HIGH_GENERAL, HIGH_SPECIFIC or STANDARD. Not set for migrated legacy reviews. A risk judgement about the prisoner. <a href=\"./null\">Sensitivity: PERSONAL<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage_risk_to",
+        "tableFileName": "csra_assessment_stage_risk_to",
+        "tableType": "Table",
+        "keyClass": "foreignKey",
+        "keyTitle": "Foreign Key",
+        "name": "<i class='icon ion-key iconkey' style='padding-left: 5px;'><\/i>stage_id",
+        "type": "uuid",
+        "length": 2147483647,
+        "nullable": "",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Foreign key to csra_assessment_stage. Deleted with the stage. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+    },
+    {
+        "tableName": "flyway_schema_history",
+        "tableFileName": "flyway_schema_history",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "description",
+        "type": "varchar",
+        "length": 200,
+        "nullable": "",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": ""
+    },
+    {
+        "tableName": "flyway_schema_history",
+        "tableFileName": "flyway_schema_history",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "checksum",
+        "type": "int4",
+        "length": 10,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": ""
+    },
+    {
+        "tableName": "csra_review_nomis",
+        "tableFileName": "csra_review_nomis",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "review_placement_prison_id",
+        "type": "varchar",
+        "length": 6,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>The agency code NOMIS recorded as the review placement prison. Indicates where the prisoner was to be held. <a href=\"./null\">Sensitivity: PERSONAL<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage",
+        "tableFileName": "csra_assessment_stage",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "offence_assisting_suicide_detail",
+        "type": "text",
+        "length": 2147483647,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Free-text detail behind a Yes to the assisting suicide question. Review journey only. <a href=\"./null\">Sensitivity: SPECIAL-CATEGORY<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_review",
+        "tableFileName": "csra_review",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "closed_by",
+        "type": "varchar",
+        "length": 40,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Username that closed or archived the review, or the system user when a prisoner movement did it. Identifies a member of staff. <a href=\"./null\">Sensitivity: STAFF<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_review",
+        "tableFileName": "csra_review",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "closure_reason",
+        "type": "varchar",
+        "length": 40,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Why an in-progress review was closed or archived - currently only NOT_COMPLETED_PRISONER_TRANSFER. Its presence indicates the prisoner moved establishment mid-assessment. <a href=\"./null\">Sensitivity: PERSONAL<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_current_rating",
+        "tableFileName": "csra_current_rating",
+        "tableType": "Table",
+        "keyClass": "primaryKey",
+        "keyTitle": "Primary Key",
+        "name": "<i class='icon ion-key iconkey' style='padding-left: 5px;'><\/i>id",
+        "type": "uuid",
+        "length": 2147483647,
+        "nullable": "",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Primary key. Time-ordered UUID v7. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage_offence_evidence",
+        "tableFileName": "csra_assessment_stage_offence_evidence",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "dps",
+        "type": "bool",
+        "length": 1,
+        "nullable": "",
+        "autoUpdated": "",
+        "defaultValue": "false",
+        "comments": "<p>Whether the evidence came from DPS (current and historical adjudications). <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_review_nomis",
+        "tableFileName": "csra_review_nomis",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "review_level",
+        "type": "varchar",
+        "length": 10,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>The level the reviewer recorded - what NOMIS displays as the approved result, and what the DPS rating is derived from. Do not confuse with approved_level. A risk judgement about the prisoner. <a href=\"./null\">Sensitivity: PERSONAL<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage_vulnerability",
+        "tableFileName": "csra_assessment_stage_vulnerability",
+        "tableType": "Table",
+        "keyClass": "foreignKey",
+        "keyTitle": "Foreign Key",
+        "name": "<i class='icon ion-key iconkey' style='padding-left: 5px;'><\/i>stage_id",
+        "type": "uuid",
+        "length": 2147483647,
+        "nullable": "",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Foreign key to csra_assessment_stage. Deleted with the stage. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+    },
+    {
+        "tableName": "flyway_schema_history",
+        "tableFileName": "flyway_schema_history",
+        "tableType": "Table",
+        "keyClass": "primaryKey",
+        "keyTitle": "Primary Key",
+        "name": "<i class='icon ion-key iconkey' style='padding-left: 5px;'><\/i>installed_rank",
+        "type": "int4",
+        "length": 10,
+        "nullable": "",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": ""
+    },
+    {
+        "tableName": "csra_review_nomis",
+        "tableFileName": "csra_review_nomis",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "approved_level",
+        "type": "varchar",
+        "length": 10,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>NOMIS&rsquo;s APPROVED_SUP_LEVEL_TYPE. Null on every known CSRA row - NOMIS never populated it, and prison-api does not even map it. Kept for fidelity; read review_level instead. <a href=\"./null\">Sensitivity: PERSONAL<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_next_review",
+        "tableFileName": "csra_next_review",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "updated_at",
+        "type": "timestamp",
+        "length": 29,
+        "nullable": "",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>When the date was last set. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage",
+        "tableFileName": "csra_assessment_stage",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "review_reason",
+        "type": "varchar",
+        "length": 60,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Why the review was held - SCHEDULED_LONG_TERM_HIGH_RISK_REVIEW, SHORT_TERM_HIGH_RISK_REVIEW, NEW_OR_ADDITIONAL_INFORMATION or RECENT_CHANGE_IN_BEHAVIOUR_OR_THINKING. Captured on every review including Standard risk. Review journey only; an initial assessment leaves it null. Some values are a statement about the prisoner&rsquo;s behaviour. <a href=\"./null\">Sensitivity: PERSONAL<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage",
+        "tableFileName": "csra_assessment_stage",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "officer_spoke_to_prisoner",
+        "type": "bool",
+        "length": 1,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Did the officer speak to the prisoner as part of the assessment? A plain yes/no about process, with no detail box behind it. Initial assessment journey only. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage_offence_evidence",
+        "tableFileName": "csra_assessment_stage_offence_evidence",
+        "tableType": "Table",
+        "keyClass": "primaryKey",
+        "keyTitle": "Primary Key",
+        "name": "<i class='icon ion-key iconkey' style='padding-left: 5px;'><\/i>id",
+        "type": "uuid",
+        "length": 2147483647,
+        "nullable": "",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Primary key. Time-ordered UUID v7. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_current_rating",
+        "tableFileName": "csra_current_rating",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "assessment_type",
+        "type": "varchar",
+        "length": 20,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Which kind of assessment produced the rating, bucketed for display. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage",
+        "tableFileName": "csra_assessment_stage",
+        "tableType": "Table",
+        "keyClass": "indexedColumn",
+        "keyTitle": "Indexed",
+        "name": "<i class='fa fa-sitemap fa-rotate-120' style='padding-right: 5px;'><\/i>stage",
+        "type": "varchar",
+        "length": 20,
+        "nullable": "",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Which stage this is. PROVISIONAL (initial assessment, Day 1), INTERIM (review, first sitting) or FINAL (completes either journey). A review carries PROVISIONAL or INTERIM, never both. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage",
+        "tableFileName": "csra_assessment_stage",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "completed_by",
+        "type": "varchar",
+        "length": 40,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Username of the assessor who submitted this stage. Identifies a member of staff. <a href=\"./null\">Sensitivity: STAFF<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_review_nomis",
+        "tableFileName": "csra_review_nomis",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "ingested_at",
+        "type": "timestamp",
+        "length": 29,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>When this row was last written by migration or sync - this service&rsquo;s wall clock, not NOMIS&rsquo;s. The core record&rsquo;s created_at is NOMIS&rsquo;s own timestamp, so without this there is no way to tell which migration run produced the current state. Null means the row predates the column. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_review",
+        "tableFileName": "csra_review",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "last_modified_by",
+        "type": "varchar",
+        "length": 40,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Username that last changed the review. Identifies a member of staff. <a href=\"./null\">Sensitivity: STAFF<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_review_nomis",
+        "tableFileName": "csra_review_nomis",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "placement_prison_id",
+        "type": "varchar",
+        "length": 6,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>The agency code NOMIS recorded as the placement prison. Indicates where the prisoner was to be held. <a href=\"./null\">Sensitivity: PERSONAL<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_next_review",
+        "tableFileName": "csra_next_review",
+        "tableType": "Table",
+        "keyClass": "foreignKey",
+        "keyTitle": "Foreign Key",
+        "name": "<i class='icon ion-key iconkey' style='padding-left: 5px;'><\/i>set_by_review_id",
+        "type": "uuid",
+        "length": 2147483647,
+        "nullable": "",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>The csra_review that last set this date. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_review_nomis",
+        "tableFileName": "csra_review_nomis",
+        "tableType": "Table",
+        "keyClass": "primaryKey",
+        "keyTitle": "Primary Key",
+        "name": "<i class='icon ion-key iconkey' style='padding-left: 5px;'><\/i>id",
+        "type": "uuid",
+        "length": 2147483647,
+        "nullable": "",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Primary key. Time-ordered UUID v7. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_current_rating",
+        "tableFileName": "csra_current_rating",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "set_at",
+        "type": "timestamp",
+        "length": 29,
+        "nullable": "",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>When the rating was last set. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+    },
+    {
+        "tableName": "active_agency",
+        "tableFileName": "active_agency",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "updated_at",
+        "type": "timestamp",
+        "length": 29,
+        "nullable": "",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>When the prison was last switched on or off. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage",
+        "tableFileName": "csra_assessment_stage",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "prison_id",
+        "type": "varchar",
+        "length": 6,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Agency code where this stage was completed. Indicates where the prisoner was held at the time. <a href=\"./null\">Sensitivity: PERSONAL<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage_offence_evidence",
+        "tableFileName": "csra_assessment_stage_offence_evidence",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "pnc",
+        "type": "bool",
+        "length": 1,
+        "nullable": "",
+        "autoUpdated": "",
+        "defaultValue": "false",
+        "comments": "<p>Whether the evidence came from the PNC (current and previous convictions). <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+    },
+    {
+        "tableName": "flyway_schema_history",
+        "tableFileName": "flyway_schema_history",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "installed_by",
+        "type": "varchar",
+        "length": 100,
+        "nullable": "",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": ""
+    },
+    {
+        "tableName": "active_agency",
+        "tableFileName": "active_agency",
+        "tableType": "Table",
+        "keyClass": "indexedColumn",
+        "keyTitle": "Indexed",
+        "name": "<i class='fa fa-sitemap fa-rotate-120' style='padding-right: 5px;'><\/i>agency_id",
+        "type": "varchar",
+        "length": 6,
+        "nullable": "",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Agency (prison) code. Unique - one row per prison. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage_vulnerability",
+        "tableFileName": "csra_assessment_stage_vulnerability",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "category",
+        "type": "varchar",
+        "length": 30,
+        "nullable": "",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>The group the prisoner belongs to - DISABLED, SEXUAL_MINORITY, MENTAL_HEALTH, NEURODIVERSITY, OFFENCE_TYPE, OLD_PEOPLE, TRANSGENDER, OTHER or NONE. Health, disability, sexual orientation and gender reassignment are all Article 9 data about the prisoner. <a href=\"./null\">Sensitivity: SPECIAL-CATEGORY<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_review",
+        "tableFileName": "csra_review",
+        "tableType": "Table",
+        "keyClass": "indexedColumn",
+        "keyTitle": "Indexed",
+        "name": "<i class='fa fa-sitemap fa-rotate-120' style='padding-right: 5px;'><\/i>assessment_date",
+        "type": "date",
+        "length": 13,
+        "nullable": "",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Date the assessment or review was started. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage",
+        "tableFileName": "csra_assessment_stage",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "completed_at",
+        "type": "timestamp",
+        "length": 29,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>When this stage was submitted. Null while it is still a draft. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage",
+        "tableFileName": "csra_assessment_stage",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "offence_assisting_suicide",
+        "type": "bool",
+        "length": 1,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Is there evidence of assisting a suicide in custody? Criminal offence data whichever way it is answered. Selecting Yes forces a HIGH_GENERAL rating. <a href=\"./null\">Sensitivity: SPECIAL-CATEGORY<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage_offence_evidence",
+        "tableFileName": "csra_assessment_stage_offence_evidence",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "details",
+        "type": "text",
+        "length": 2147483647,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Free text describing what the evidence actually was. Describes the prisoner&rsquo;s offending in the assessor&rsquo;s own words. <a href=\"./null\">Sensitivity: SPECIAL-CATEGORY<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_current_rating",
+        "tableFileName": "csra_current_rating",
+        "tableType": "Table",
+        "keyClass": "indexedColumn",
+        "keyTitle": "Indexed",
+        "name": "<i class='fa fa-sitemap fa-rotate-120' style='padding-right: 5px;'><\/i>prisoner_number",
+        "type": "varchar",
+        "length": 10,
+        "nullable": "",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>NOMIS offender number (noms id) of the prisoner this rating is for. One row per prisoner. <a href=\"./null\">Sensitivity: PERSONAL<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage",
+        "tableFileName": "csra_assessment_stage",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "offence_repeated_violence_detail",
+        "type": "text",
+        "length": 2147483647,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Free-text detail behind a Yes to the repeated violence question. Review journey only. <a href=\"./null\">Sensitivity: SPECIAL-CATEGORY<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage_vulnerability",
+        "tableFileName": "csra_assessment_stage_vulnerability",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "details",
+        "type": "text",
+        "length": 2147483647,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Free text expanding on the selection, used mainly for OTHER. Expect health and disability detail. <a href=\"./null\">Sensitivity: SPECIAL-CATEGORY<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage_evidence_source",
+        "tableFileName": "csra_assessment_stage_evidence_source",
+        "tableType": "Table",
+        "keyClass": "indexedColumn",
+        "keyTitle": "Indexed",
+        "name": "<i class='fa fa-sitemap fa-rotate-120' style='padding-right: 5px;'><\/i>source",
+        "type": "varchar",
+        "length": 40,
+        "nullable": "",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>The source consulted - one of ALLOCATION_BOARD, ASSET_PLUS, DPS, HEALTHCARE_ASSESSMENT, INCENTIVES_REVIEW, MAPPA_REVIEW, INTELLIGENCE_MANAGEMENT_SERVICE, OASYS, PLACEMENT_REVIEW_FORM, PNC, RECATEGORISATION_REVIEW, ROTL_BOARD, SAFETY_AND_SECURITY_FORM, SAFETY_DIAGNOSTIC_TOOL, SECURITY_FILE, SENTENCE_PLAN, TRANSFER_CONFIRMATION_FORM, VIPER or OTHER. Some values imply something about the prisoner - that a MAPPA review or healthcare assessment exists for them. <a href=\"./null\">Sensitivity: PERSONAL<\/a><\/p>"
+    },
+    {
+        "tableName": "flyway_schema_history",
+        "tableFileName": "flyway_schema_history",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "execution_time",
+        "type": "int4",
+        "length": 10,
+        "nullable": "",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": ""
+    },
+    {
+        "tableName": "csra_review_nomis",
+        "tableFileName": "csra_review_nomis",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "calculated_level",
+        "type": "varchar",
+        "length": 10,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>The CSRA level NOMIS calculated from the answers, before any reviewer override. A risk judgement about the prisoner. <a href=\"./null\">Sensitivity: PERSONAL<\/a><\/p>"
+    },
+    {
+        "tableName": "flyway_schema_history",
+        "tableFileName": "flyway_schema_history",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "type",
+        "type": "varchar",
+        "length": 20,
+        "nullable": "",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": ""
+    },
+    {
+        "tableName": "csra_assessment_stage",
+        "tableFileName": "csra_assessment_stage",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "seen_by_healthcare",
+        "type": "bool",
+        "length": 1,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Has the prisoner been seen by healthcare as part of this assessment? Data concerning health. Initial assessment journey only. <a href=\"./null\">Sensitivity: SPECIAL-CATEGORY<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_current_rating",
+        "tableFileName": "csra_current_rating",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "rating",
+        "type": "varchar",
+        "length": 20,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>The current rating - HIGH, HIGH_GENERAL, HIGH_SPECIFIC or STANDARD. Null means &ldquo;No rating&rdquo;, which is a real state rather than missing data. A risk judgement about the prisoner that determines whether they can share a cell. <a href=\"./null\">Sensitivity: PERSONAL<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_review_nomis",
+        "tableFileName": "csra_review_nomis",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "review_comment",
+        "type": "text",
+        "length": 2147483647,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>The free-text review comment as recorded in NOMIS. Same caveat as comment. <a href=\"./null\">Sensitivity: SPECIAL-CATEGORY<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage",
+        "tableFileName": "csra_assessment_stage",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "question_set_version",
+        "type": "int4",
+        "length": 10,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Version of the question set the stage was captured against, so answers stay interpretable when the questions change. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_review_nomis",
+        "tableFileName": "csra_review_nomis",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "status",
+        "type": "varchar",
+        "length": 10,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>The review&rsquo;s status in NOMIS. A status of P (pending) is what makes a migrated rating provisional rather than final. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_review_nomis",
+        "tableFileName": "csra_review_nomis",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "score",
+        "type": "numeric",
+        "length": 0,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>The numeric score NOMIS calculated for the assessment. A risk score about the prisoner. <a href=\"./null\">Sensitivity: PERSONAL<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_review",
+        "tableFileName": "csra_review",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "interim_result_date",
+        "type": "date",
+        "length": 13,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Date the interim or provisional rating was issued. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage",
+        "tableFileName": "csra_assessment_stage",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "offence_murder_manslaughter",
+        "type": "bool",
+        "length": 1,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Is there evidence of murder, manslaughter or a life-threatening assault on another prisoner in custody? Criminal offence data about the prisoner whichever way it is answered - a recorded No is still offence data. Selecting Yes forces a HIGH_GENERAL rating. <a href=\"./null\">Sensitivity: SPECIAL-CATEGORY<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_review_nomis",
+        "tableFileName": "csra_review_nomis",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "review_details",
+        "type": "jsonb",
+        "length": 2147483647,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>The whole NOMIS question and answer tree, stored as JSONB exactly as supplied and deserialised only when needed. Written as [] rather than null by every write path. The richest single source of special category data in the schema - the legacy questionnaire covers offending, health and vulnerability. [Sensitivity: SPECIAL-CATEGORY]<\/p>\n<p>[]: ./null [Sensitivity: SPECIAL-CATEGORY]: ./null<\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage",
+        "tableFileName": "csra_assessment_stage",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "offence_arson_detail",
+        "type": "text",
+        "length": 2147483647,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Free-text detail behind a Yes to the arson question. Review journey only. <a href=\"./null\">Sensitivity: SPECIAL-CATEGORY<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage",
+        "tableFileName": "csra_assessment_stage",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "healthcare_increased_risk",
+        "type": "bool",
+        "length": 1,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Did healthcare identify anything that increases the risk of sharing a cell? Data concerning health. <a href=\"./null\">Sensitivity: SPECIAL-CATEGORY<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage",
+        "tableFileName": "csra_assessment_stage",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "warrant_checked",
+        "type": "bool",
+        "length": 1,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Whether the assessor checked the warrant (current charge or offence) as an evidence source. Initial assessment journey only. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+    },
+    {
+        "tableName": "active_agency",
+        "tableFileName": "active_agency",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "updated_by",
+        "type": "varchar",
+        "length": 40,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Username of the member of staff who last changed the switch. Identifies a member of staff. <a href=\"./null\">Sensitivity: STAFF<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage",
+        "tableFileName": "csra_assessment_stage",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "likely_to_harm_cellmate",
+        "type": "bool",
+        "length": 1,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Is the prisoner likely to harm a cellmate? The assessor&rsquo;s risk judgement about the person. <a href=\"./null\">Sensitivity: PERSONAL<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_current_rating",
+        "tableFileName": "csra_current_rating",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "set_reason",
+        "type": "varchar",
+        "length": 40,
+        "nullable": "",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Why the rating was last set - RATING_SAVED, or NO_RATING_ON_READMISSION when a readmission after release cleared it. The latter indicates the prisoner was released and returned to custody. <a href=\"./null\">Sensitivity: PERSONAL<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage",
+        "tableFileName": "csra_assessment_stage",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "offence_sexual_assault",
+        "type": "bool",
+        "length": 1,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Is there evidence of sexual assault of a same-sex adult victim? Criminal offence data whichever way it is answered. Selecting Yes forces a HIGH_GENERAL rating. <a href=\"./null\">Sensitivity: SPECIAL-CATEGORY<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage",
+        "tableFileName": "csra_assessment_stage",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "cause_for_concern_sharing",
+        "type": "bool",
+        "length": 1,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Is there any other cause for concern about this person sharing a cell? The assessor&rsquo;s risk judgement about the person. Initial assessment journey only. <a href=\"./null\">Sensitivity: PERSONAL<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage",
+        "tableFileName": "csra_assessment_stage",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "dps_checked",
+        "type": "bool",
+        "length": 1,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Whether the assessor checked DPS (current and historical adjudications) as an evidence source. Records which sources were consulted, not what was found. Initial assessment journey only. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_review",
+        "tableFileName": "csra_review",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "type",
+        "type": "varchar",
+        "length": 20,
+        "nullable": "",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>The kind of assessment. CSRA_INITIAL_REVIEW and CSRA_REVIEW are the new DPS journeys; FULL, HEALTH, LOCATE, RATING, RECEPTION and REVIEW are legacy NOMIS types mapped on during migration. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage",
+        "tableFileName": "csra_assessment_stage",
+        "tableType": "Table",
+        "keyClass": "foreignKey",
+        "keyTitle": "Foreign Key",
+        "name": "<i class='icon ion-key iconkey' style='padding-left: 5px;'><\/i>csra_review_id",
+        "type": "uuid",
+        "length": 2147483647,
+        "nullable": "",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Foreign key to csra_review - the assessment or review this stage belongs to. Unique per stage. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_review_nomis",
+        "tableFileName": "csra_review_nomis",
+        "tableType": "Table",
+        "keyClass": "foreignKey",
+        "keyTitle": "Foreign Key",
+        "name": "<i class='icon ion-key iconkey' style='padding-left: 5px;'><\/i>csra_review_id",
+        "type": "uuid",
+        "length": 2147483647,
+        "nullable": "",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Foreign key to csra_review - the review this legacy data belongs to. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_next_review",
+        "tableFileName": "csra_next_review",
+        "tableType": "Table",
+        "keyClass": "primaryKey",
+        "keyTitle": "Primary Key",
+        "name": "<i class='icon ion-key iconkey' style='padding-left: 5px;'><\/i>id",
+        "type": "uuid",
+        "length": 2147483647,
+        "nullable": "",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Primary key. Time-ordered UUID v7. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+    },
+    {
+        "tableName": "csra_assessment_stage_risk_to",
+        "tableFileName": "csra_assessment_stage_risk_to",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "details",
+        "type": "text",
+        "length": 2147483647,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Free text expanding on the selection, used mainly for OTHER and SPECIFIC_PERSONS. SPECIFIC_PERSONS means this routinely names third parties. <a href=\"./null\">Sensitivity: SPECIAL-CATEGORY<\/a><\/p>"
+    }
+];
+                    var config = {
+                        pagination: true
+                    };
+                </script>
+            </div>
+            <!-- /.content-wrapper -->
+            <footer class="main-footer">
+                <div>
+                    <div class="pull-right hidden-xs">
+                        <a href="https://github.com/schemaspy/schemaspy" title="GitHub for SchemaSpy"><i class="fa fa-github-square fa-2x"></i></a>
+                        <a href="http://stackoverflow.com/questions/tagged/schemaspy" title="StackOverflow for SchemaSpy"><i class="fa fa-stack-overflow fa-2x"></i></a>
+                    </div>
+                    <strong>Generated by <a href="http://schemaspy.org/" class="logo-text"><i class="fa fa-database"></i> SchemaSpy 6.2.4</a></strong>
+                </div>
+                <!-- /.container -->
+            </footer>
+        </div>
+        <!-- ./wrapper -->
+
+        <!-- jQuery 2.2.3 -->
+        <script src="bower/admin-lte/plugins/jQuery/jquery-2.2.3.min.js"></script>
+        <script src="bower/admin-lte/plugins/jQueryUI/jquery-ui.min.js"></script>
+        <!-- Bootstrap 3.3.5 -->
+        <script src="bower/admin-lte/bootstrap/js/bootstrap.min.js"></script>
+        <!-- DataTables -->
+        <script src="bower/datatables.net/jquery.dataTables.min.js"></script>
+        <script src="bower/datatables.net-bs/js/dataTables.bootstrap.min.js"></script>
+        <script src="bower/datatables.net-buttons/dataTables.buttons.min.js"></script>
+        <script src="bower/datatables.net-buttons-bs/js/buttons.bootstrap.min.js"></script>
+        <script src="bower/datatables.net-buttons/buttons.html5.min.js"></script>
+        <script src="bower/datatables.net-buttons/buttons.print.min.js"></script>
+        <script src="bower/datatables.net-buttons/buttons.colVis.min.js"></script>
+        <!-- SheetJS -->
+        <script src="bower/js-xlsx/xlsx.full.min.js"></script>
+        <!-- pdfmake -->
+        <script src="bower/pdfmake/pdfmake.min.js"></script>
+        <script src="bower/pdfmake/vfs_fonts.js"></script>
+        <!-- SlimScroll -->
+        <script src="bower/admin-lte/plugins/slimScroll/jquery.slimscroll.min.js"></script>
+        <!-- FastClick -->
+        <script src="bower/admin-lte/plugins/fastclick/fastclick.js"></script>
+        <!-- Salvattore -->
+        <script src="bower/salvattore/salvattore.min.js"></script>
+        <!-- AnchorJS -->
+        <script src="bower/anchor-js/anchor.min.js"></script>
+        <!-- CodeMirror -->
+        <script src="bower/codemirror/codemirror.js"></script>
+        <script src="bower/codemirror/sql.js"></script>
+        <!-- AdminLTE App -->
+        <script src="bower/admin-lte/dist/js/app.min.js"></script>
+        <script src="column.js"></script>
+        <script src="schemaSpy.js"></script>
+    </body>
+</html>

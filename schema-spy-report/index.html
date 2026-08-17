@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <title>cell_sharing_risk_assessment.public</title>
+        <!-- Tell the browser to be responsive to screen width -->
+        <meta content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" name="viewport">
+        <link rel="icon" type="image/png" sizes="16x16" href="favicon.png">
+        <!-- Bootstrap 3.3.5 -->
+        <link rel="stylesheet" href="bower/admin-lte/bootstrap/css/bootstrap.min.css">
+        <!-- Font Awesome -->
+        <link rel="stylesheet" href="bower/font-awesome/css/font-awesome.min.css">
+        <!-- Ionicons -->
+        <link rel="stylesheet" href="bower/ionicons/css/ionicons.min.css">
+        <!-- DataTables -->
+        <link rel="stylesheet" href="bower/datatables.net-bs/css/dataTables.bootstrap.min.css">
+        <link rel="stylesheet" href="bower/datatables.net-buttons-bs/css/buttons.bootstrap.min.css">
+        <!-- Code Mirror -->
+        <link rel="stylesheet" href="bower/codemirror/codemirror.css">
+        <!-- Fonts -->
+        <link href='fonts/indieflower/indie-flower.css' rel='stylesheet' type='text/css'>
+        <link href='fonts/source-sans-pro/source-sans-pro.css' rel='stylesheet' type='text/css'>
+
+        <!-- Theme style -->
+        <link rel="stylesheet" href="bower/admin-lte/dist/css/AdminLTE.min.css">
+        <!-- Salvattore -->
+        <link rel="stylesheet" href="bower/salvattore/salvattore.css">
+        <!-- AdminLTE Skins. Choose a skin from the css/skins
+           folder instead of downloading all of them to reduce the load. -->
+        <link rel="stylesheet" href="bower/admin-lte/dist/css/skins/_all-skins.min.css">
+        <!-- SchemaSpy -->
+        <link rel="stylesheet" href="schemaSpy.css">
+
+        <!-- HTML5 Shim and Respond.js IE8 support of HTML5 elements and media queries -->
+        <!-- WARNING: Respond.js doesn't work if you view the page via file:// -->
+        <!--[if lt IE 9]>
+        <script src="bower/html5shiv/html5shiv.min.js"></script>
+        <script src="bower/respond/respond.min.js"></script>
+        <![endif]-->
+    </head>
+    <!-- ADD THE CLASS layout-top-nav TO REMOVE THE SIDEBAR. -->
+    <body class="hold-transition skin-blue layout-top-nav">
+        <div class="wrapper">
+            <header class="main-header">
+                <nav class="navbar navbar-static-top">
+                    <div class="container">
+                        <div class="navbar-header">
+                            <a href="index.html" class="navbar-brand"><b>cell_sharing_risk_assessment</b></a><span class="navbar-brand" style="padding-left: 0">.public</span>
+                            <button type="button" class="navbar-toggle collapsed" data-toggle="collapse" data-target="#navbar-collapse"><i class="fa fa-bars"></i></button>
+                        </div>
+
+                        <!-- Collect the nav links, forms, and other content for toggling -->
+                        <div class="collapse navbar-collapse pull-left" id="navbar-collapse">
+                            <ul class="nav navbar-nav">
+                                <li><a href="index.html">Tables <span class="sr-only">(current)</span></a></li>
+                                <li><a href="columns.html" title="All of the columns in the schema">Columns</a></li>
+                                <li><a href="constraints.html" title="Useful for diagnosing error messages that just give constraint name or number">Constraints</a></li>
+                                <li><a href="relationships.html" title="Diagram of table relationships">Relationships</a></li>
+                                <li><a href="orphans.html" title="View of tables with neither parents nor children">Orphan&nbsp;Tables</a></li>
+                                <li><a href="anomalies.html" title="Things that might not be quite right">Anomalies</a></li>
+                                <li><a href="routines.html" title="Procedures and functions">Routines</a></li>
+                            </ul>
+                        </div>
+                        <!-- /.navbar-collapse -->
+                        <!-- Navbar Right Menu -->
+                    </div>
+                    <!-- /.container-fluid -->
+                </nav>
+            </header>
+            <!-- Main content -->
+            <!-- Full Width Column -->
+            <div class="content-wrapper">
+                <!-- Content Header (Page header) -->
+                <section class="content-header">
+                    <h1>Tables</h1><br />
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div class="callout callout-info">
+                                <h4>SchemaSpy Analysis of cell_sharing_risk_assessment.public</h4>
+                                <p>Generated on Mon Aug 17 09:32 UTC 2026</p>
+                            </div>
+                        </div>
+                    </div>
+                    <a href="cell_sharing_risk_assessment.public.xml" title="XML Representation">XML Representation</a><br />
+                    <a href="insertionOrder.txt" title="Useful for loading data into a database">Insertion Order</a>
+                    <a href="deletionOrder.txt" title="Useful for purging data from a database">Deletion Order</a>
+                </section>
+                <!-- Main content -->
+                <section class="content">
+                    <div class="row">
+                        <div class="col-md-2 col-sm-4 col-xs-12">
+                            <div class="info-box">
+                                <span class="info-box-icon bg-aqua"><i class="fa fa-table"></i></span>
+                                <div class="info-box-content">
+                                    <span class="info-box-text">TABLES</span>
+                                    <span class="info-box-number">11</span>
+                                </div>
+                                <!-- /.info-box-content -->
+                            </div>
+                            <!-- /.info-box -->
+                        </div>
+                        <!-- /.col -->
+                        <div class="col-md-2 col-sm-4 col-xs-12">
+                            <div class="info-box">
+                                <span class="info-box-icon bg-teal"><i class="fa fa-table"></i></span>
+                                <div class="info-box-content">
+                                    <span class="info-box-text">VIEWS</span>
+                                    <span class="info-box-number">0</span>
+                                </div>
+                                <!-- /.info-box-content -->
+                            </div>
+                            <!-- /.info-box -->
+                        </div>
+                        <!-- /.col -->
+                        <div class="col-md-2 col-sm-4 col-xs-12">
+                            <div class="info-box">
+                                <span class="info-box-icon bg-green"><span class="glyphicon glyphicon-list-alt" aria-hidden="true"></span></span>
+                                <div class="info-box-content">
+                                    <span class="info-box-text">COLUMNS</span>
+                                    <span class="info-box-number">129</span>
+                                </div>
+                                <!-- /.info-box-content -->
+                            </div>
+                            <!-- /.info-box -->
+                        </div>
+                        <!-- /.col -->
+                        <div class="col-md-2 col-sm-4 col-xs-12">
+                            <div class="info-box">
+                                <span class="info-box-icon bg-yellow"><i class="ion ion-key"></i></span>
+                                <div class="info-box-content">
+                                    <span class="info-box-text">Constraints</span>
+                                    <span class="info-box-number">7</span>
+                                </div>
+                                <!-- /.info-box-content -->
+                            </div>
+                            <!-- /.info-box -->
+                        </div>
+                        <!-- /.col -->
+                        <div class="col-md-2 col-sm-4 col-xs-12">
+                            <div class="info-box">
+                                <span class="info-box-icon bg-red-active"><i class="fa fa-question" aria-hidden="true"></i></span>
+                                <div class="info-box-content">
+                                    <span class="info-box-text">Anomalies</span>
+                                    <span class="info-box-number">0</span>
+                                </div>
+                                <!-- /.info-box-content -->
+                            </div>
+                            <!-- /.info-box -->
+                        </div>
+                        <!-- /.col -->
+                        <div class="col-md-2 col-sm-4 col-xs-12">
+                            <div class="info-box">
+                                <span class="info-box-icon bg-navy"><i class="fa fa-file-code-o" aria-hidden="true"></i></span>
+                                <div class="info-box-content">
+                                    <span class="info-box-text">Routines</span>
+                                    <span class="info-box-number">0</span>
+                                </div>
+                                <!-- /.info-box-content -->
+                            </div>
+                            <!-- /.info-box -->
+                        </div>
+                        <!-- /.col -->
+                    </div>
+                    <div class="box box-primary">
+                        <div class="box-header with-border">
+                            <h3 class="box-title">Database Properties</h3>
+                            <span class="label label-primary pull-right"><i class="fa fa-cog fa-2x"></i></span>
+                        </div><!-- /.box-header -->
+                        <div class="box-body">
+                            <p>Database Type: PostgreSQL - 18.6 (Debian 18.6-1.pgdg13+2)</p>
+                        </div><!-- /.box-body -->
+                    </div>
+                    <div class="box box-primary">
+                        <div class="box-header with-border">
+                            <h3 class="box-title">Schema public</h3>
+                            <span class="label label-primary pull-right"><i class="fa fa-cog fa-2x"></i></span>
+                        </div><!-- /.box-header -->
+                        <div class="box-body">
+                            <p> <p>standard public schema</p> </p>
+                        </div><!-- /.box-body -->
+                    </div>
+                    <div class="box box-primary">
+                        <div class="box-header with-border">
+                            <h3 class="box-title">Tables</h3>
+                            <span class="label label-primary pull-right"><i class="fa fa-database fa-2x"></i></span>
+                        </div><!-- /.box-header -->
+                        <div class="box-body">
+                            <table
+                                    id="database_objects"
+                                    class="table table-bordered table-striped dataTable"
+                                    role="grid"
+                                    data-paging="true"
+                                    data-page-length="50"
+                                    data-length-change="false">
+                                <thead>
+                                    <tr>
+                                        <th valign="bottom">Table / View</th>
+                                        <th align="right" valign="bottom">Children</th>
+                                        <th align="right" valign="bottom">Parents</th>
+                                        <th align="right" valign="bottom">Columns</th>
+                                        <th align="right" valign="bottom">Rows</th>
+                                        <th align="right" valign="bottom">Type</th>
+                                        <th class="toggle">Comments</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    <tr class="tbl even" valign="top">
+                                        <td class="detail"><a href="tables/csra_assessment_stage.html">csra_assessment_stage</a></td>
+                                        <td class="detail" align="right">4</td>
+                                        <td class="detail" align="right">1</td>
+                                        <td class="detail" align="right">40</td>
+                                        <td class="detail" align="right">-1</td>
+                                        <td class="detail" align="right">Table</td>
+                                        <td class="comment detail" style="display: table-cell;"><p>The answers captured at one stage of a new (DPS) CSRA. A review record has up to two: an initial assessment has PROVISIONAL (Day 1) and/or FINAL (Day 2), a review has INTERIM and/or FINAL. Both journeys share this table, so a null answer means either &ldquo;not answered&rdquo; or &ldquo;not asked on this journey&rdquo; - narrow by the parent review&rsquo;s type before counting unanswered questions. The stage&rsquo;s rating is not stored here; it lives on csra_review. Holds the most sensitive data in the service: offence questions, healthcare answers and free-text risk descriptions.</p></td>
+                                    </tr>
+                                    <tr class="tbl even" valign="top">
+                                        <td class="detail"><a href="tables/csra_assessment_stage_offence_evidence.html">csra_assessment_stage_offence_evidence</a></td>
+                                        <td class="detail" align="right">0</td>
+                                        <td class="detail" align="right">1</td>
+                                        <td class="detail" align="right">10</td>
+                                        <td class="detail" align="right">-1</td>
+                                        <td class="detail" align="right">Table</td>
+                                        <td class="comment detail" style="display: table-cell;"><p>The evidence behind a Yes to one of the seven offence questions on an initial assessment stage: where it was found, and free text describing it. At most one row per stage and offence. Unlike the answer columns on the parent, the source flags are non-null - a row only exists because the assessor reached the &ldquo;where did you find evidence of&hellip;?&rdquo; screen, so an unticked box means &ldquo;not this source&rdquo;, not &ldquo;not answered&rdquo;. The review journey records the same thing in the offence detail columns on the parent instead.</p></td>
+                                    </tr>
+                                    <tr class="tbl even" valign="top">
+                                        <td class="detail"><a href="tables/csra_review_nomis.html">csra_review_nomis</a></td>
+                                        <td class="detail" align="right">0</td>
+                                        <td class="detail" align="right">1</td>
+                                        <td class="detail" align="right">19</td>
+                                        <td class="detail" align="right">-1</td>
+                                        <td class="detail" align="right">Table</td>
+                                        <td class="comment detail" style="display: table-cell;"><p>The extra legacy data for a review migrated or synchronised from NOMIS, held verbatim alongside the core csra_review record rather than mapped onto it. At most one row per review, and none at all for reviews created in DPS. Values are raw NOMIS codes, not the DPS model.</p></td>
+                                    </tr>
+                                    <tr class="tbl even" valign="top">
+                                        <td class="detail"><a href="tables/csra_assessment_stage_vulnerability.html">csra_assessment_stage_vulnerability</a></td>
+                                        <td class="detail" align="right">0</td>
+                                        <td class="detail" align="right">1</td>
+                                        <td class="detail" align="right">4</td>
+                                        <td class="detail" align="right">-1</td>
+                                        <td class="detail" align="right">Table</td>
+                                        <td class="comment detail" style="display: table-cell;"><p>A vulnerable or at-risk group the prisoner is judged to belong to, from the &ldquo;is this person part of a vulnerable or at-risk group?&rdquo; multi-select on a high-risk stage. One row per selection; NONE means no identified vulnerabilities. The most directly special category table in the schema - every value is a characteristic of the prisoner rather than a judgement about their behaviour.</p></td>
+                                    </tr>
+                                    <tr class="tbl even" valign="top">
+                                        <td class="detail"><a href="tables/csra_next_review.html">csra_next_review</a></td>
+                                        <td class="detail" align="right">0</td>
+                                        <td class="detail" align="right">1</td>
+                                        <td class="detail" align="right">6</td>
+                                        <td class="detail" align="right">-1</td>
+                                        <td class="detail" align="right">Table</td>
+                                        <td class="comment detail" style="display: table-cell;"><p>The single next-review-due date currently in force for a prisoner. One row per prisoner however many reviews they accumulate, overwritten each time a review sets a new date, and what drives the &ldquo;high risk prisoners due for review&rdquo; worklist. The date NOMIS recorded on an individual historic review is on csra_review_nomis instead.</p></td>
+                                    </tr>
+                                    <tr class="tbl even" valign="top">
+                                        <td class="detail"><a href="tables/csra_assessment_stage_risk_to.html">csra_assessment_stage_risk_to</a></td>
+                                        <td class="detail" align="right">0</td>
+                                        <td class="detail" align="right">1</td>
+                                        <td class="detail" align="right">4</td>
+                                        <td class="detail" align="right">-1</td>
+                                        <td class="detail" align="right">Table</td>
+                                        <td class="comment detail" style="display: table-cell;"><p>A group the prisoner is judged to pose a risk to, from the &ldquo;who is this person a risk to?&rdquo; multi-select on a high-risk stage. One row per selection; NONE is itself a selection, meaning no identified risk to any of these groups.</p></td>
+                                    </tr>
+                                    <tr class="tbl even" valign="top">
+                                        <td class="detail"><a href="tables/csra_assessment_stage_evidence_source.html">csra_assessment_stage_evidence_source</a></td>
+                                        <td class="detail" align="right">0</td>
+                                        <td class="detail" align="right">1</td>
+                                        <td class="detail" align="right">4</td>
+                                        <td class="detail" align="right">-1</td>
+                                        <td class="detail" align="right">Table</td>
+                                        <td class="comment detail" style="display: table-cell;"><p>One evidence source the reviewer consulted, from the review journey&rsquo;s multi-select. One row per selected source, unique per stage and source. A different question from the offence-evidence table: this records which sources were looked at, not where a specific piece of evidence came from. Review journey only - an initial assessment uses the four *_checked booleans on the parent, which do not extend to a list this long.</p></td>
+                                    </tr>
+                                    <tr class="tbl even" valign="top">
+                                        <td class="detail"><a href="tables/csra_current_rating.html">csra_current_rating</a></td>
+                                        <td class="detail" align="right">0</td>
+                                        <td class="detail" align="right">0</td>
+                                        <td class="detail" align="right">10</td>
+                                        <td class="detail" align="right">-1</td>
+                                        <td class="detail" align="right">Table</td>
+                                        <td class="comment detail" style="display: table-cell;"><p>A prisoner&rsquo;s single current CSRA rating. One row per prisoner, and the source of truth for &ldquo;what is this person&rsquo;s rating today&rdquo; - it is a stateful projection, not derived on read. It changes only when a rating is saved or when readmission after release resets it, and deliberately persists while a new assessment is merely in progress. A null rating means &ldquo;No rating&rdquo;.</p></td>
+                                    </tr>
+                                    <tr class="tbl even" valign="top">
+                                        <td class="detail"><a href="tables/flyway_schema_history.html">flyway_schema_history</a></td>
+                                        <td class="detail" align="right">0</td>
+                                        <td class="detail" align="right">0</td>
+                                        <td class="detail" align="right">10</td>
+                                        <td class="detail" align="right">-1</td>
+                                        <td class="detail" align="right">Table</td>
+                                        <td class="comment detail" style="display: table-cell;"></td>
+                                    </tr>
+                                    <tr class="tbl even" valign="top">
+                                        <td class="detail"><a href="tables/csra_review.html">csra_review</a></td>
+                                        <td class="detail" align="right">3</td>
+                                        <td class="detail" align="right">0</td>
+                                        <td class="detail" align="right">17</td>
+                                        <td class="detail" align="right">-1</td>
+                                        <td class="detail" align="right">Table</td>
+                                        <td class="comment detail" style="display: table-cell;"><p>One cell sharing risk assessment or review for a prisoner. Holds only what is common to both the new DPS journeys and reviews migrated from NOMIS; legacy-only NOMIS detail hangs off csra_review_nomis and the new-model captured answers off csra_assessment_stage. A prisoner accumulates many of these over time - the one that counts today is the projection in csra_current_rating.</p></td>
+                                    </tr>
+                                    <tr class="tbl even" valign="top">
+                                        <td class="detail"><a href="tables/active_agency.html">active_agency</a></td>
+                                        <td class="detail" align="right">0</td>
+                                        <td class="detail" align="right">0</td>
+                                        <td class="detail" align="right">5</td>
+                                        <td class="detail" align="right">-1</td>
+                                        <td class="detail" align="right">Table</td>
+                                        <td class="comment detail" style="display: table-cell;"><p>One row per prison that has ever been switched on for CSRA in DPS. The switched-on ids are published unauthenticated on the actuator /info payload, which is how the DPS home page decides whether to show the CSRA tile. Switching a prison off flips the flag rather than deleting the row, so deactivation stays auditable and the toggle is idempotent. Note the API itself enforces no rollout check - this drives the front end only.</p></td>
+                                    </tr>
+                            </table>
+                        </div>
+                    </div><!-- /.box-body -->
+                </section>
+                <!-- /.content -->
+                <script>
+                    var config = {
+                        pagination: true
+                    }
+                </script>
+            </div>
+            <!-- /.content-wrapper -->
+            <footer class="main-footer">
+                <div>
+                    <div class="pull-right hidden-xs">
+                        <a href="https://github.com/schemaspy/schemaspy" title="GitHub for SchemaSpy"><i class="fa fa-github-square fa-2x"></i></a>
+                        <a href="http://stackoverflow.com/questions/tagged/schemaspy" title="StackOverflow for SchemaSpy"><i class="fa fa-stack-overflow fa-2x"></i></a>
+                    </div>
+                    <strong>Generated by <a href="http://schemaspy.org/" class="logo-text"><i class="fa fa-database"></i> SchemaSpy 6.2.4</a></strong>
+                </div>
+                <!-- /.container -->
+            </footer>
+        </div>
+        <!-- ./wrapper -->
+
+        <!-- jQuery 2.2.3 -->
+        <script src="bower/admin-lte/plugins/jQuery/jquery-2.2.3.min.js"></script>
+        <script src="bower/admin-lte/plugins/jQueryUI/jquery-ui.min.js"></script>
+        <!-- Bootstrap 3.3.5 -->
+        <script src="bower/admin-lte/bootstrap/js/bootstrap.min.js"></script>
+        <!-- DataTables -->
+        <script src="bower/datatables.net/jquery.dataTables.min.js"></script>
+        <script src="bower/datatables.net-bs/js/dataTables.bootstrap.min.js"></script>
+        <script src="bower/datatables.net-buttons/dataTables.buttons.min.js"></script>
+        <script src="bower/datatables.net-buttons-bs/js/buttons.bootstrap.min.js"></script>
+        <script src="bower/datatables.net-buttons/buttons.html5.min.js"></script>
+        <script src="bower/datatables.net-buttons/buttons.print.min.js"></script>
+        <script src="bower/datatables.net-buttons/buttons.colVis.min.js"></script>
+        <!-- SheetJS -->
+        <script src="bower/js-xlsx/xlsx.full.min.js"></script>
+        <!-- pdfmake -->
+        <script src="bower/pdfmake/pdfmake.min.js"></script>
+        <script src="bower/pdfmake/vfs_fonts.js"></script>
+        <!-- SlimScroll -->
+        <script src="bower/admin-lte/plugins/slimScroll/jquery.slimscroll.min.js"></script>
+        <!-- FastClick -->
+        <script src="bower/admin-lte/plugins/fastclick/fastclick.js"></script>
+        <!-- Salvattore -->
+        <script src="bower/salvattore/salvattore.min.js"></script>
+        <!-- AnchorJS -->
+        <script src="bower/anchor-js/anchor.min.js"></script>
+        <!-- CodeMirror -->
+        <script src="bower/codemirror/codemirror.js"></script>
+        <script src="bower/codemirror/sql.js"></script>
+        <!-- AdminLTE App -->
+        <script src="bower/admin-lte/dist/js/app.min.js"></script>
+        <script src="main.js"></script>
+        <script src="schemaSpy.js"></script>
+    </body>
+</html>

@@ -1,0 +1,11 @@
+flyway_schema_history
+csra_current_rating
+active_agency
+csra_review_nomis
+csra_next_review
+csra_assessment_stage_vulnerability
+csra_assessment_stage_risk_to
+csra_assessment_stage_offence_evidence
+csra_assessment_stage_evidence_source
+csra_assessment_stage
+csra_review
