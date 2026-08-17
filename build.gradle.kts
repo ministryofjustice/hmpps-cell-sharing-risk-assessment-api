@@ -67,4 +67,14 @@ tasks {
   register<PortForwardRDSTask>("portForwardRDS") {
     namespacePrefix = "hmpps-cell-sharing-risk-assessment"
   }
+
+  // Schema documentation helper - see .github/workflows/schema-spy.yml. InitialiseDatabase only builds
+  // the database for the SchemaSpy report, so it is not part of the normal suite.
+  test {
+    if (project.hasProperty("init-db")) {
+      include("**/InitialiseDatabase.class")
+    } else {
+      exclude("**/InitialiseDatabase.class")
+    }
+  }
 }
