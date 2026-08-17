@@ -93,7 +93,7 @@ class CsraAssessmentService(
     val now = LocalDateTime.now(clock)
 
     upsertAnswers(review, stage, request, now)
-    updateHeadlinePrison(review, stage, request.prisonId)
+    writeSupport.updateHeadlinePrison(review, stage, request.prisonId)
 
     review.lastModifiedAt = now
     review.lastModifiedBy = username
