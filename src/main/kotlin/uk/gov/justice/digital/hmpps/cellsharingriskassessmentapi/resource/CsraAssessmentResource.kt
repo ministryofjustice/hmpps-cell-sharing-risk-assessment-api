@@ -36,13 +36,13 @@ import java.util.UUID
   name = "CSRA Assessment",
   description = "Creates and completes new-model initial CSRA assessments for prisoners",
 )
-@PreAuthorize("hasRole('ROLE_CSRA_REVIEW__RW')")
 class CsraAssessmentResource(
   private val csraAssessmentService: CsraAssessmentService,
 ) {
 
   @PostMapping
   @ResponseStatus(HttpStatus.CREATED)
+  @PreAuthorize("hasRole('ROLE_CSRA_REVIEW__RW')")
   @Operation(
     summary = "Starts a new initial CSRA assessment",
     description = "Creates a draft assessment for the prisoner and records who started it and where. Returns " +
@@ -89,6 +89,7 @@ class CsraAssessmentResource(
 
   @PutMapping("/{assessmentId}/provisional")
   @ResponseStatus(HttpStatus.OK)
+  @PreAuthorize("hasRole('ROLE_CSRA_REVIEW__RW')")
   @Operation(
     summary = "Submits the provisional (Day 1) stage of an initial CSRA assessment",
     description = "Records the provisional answers and rating, setting the prisoner's interim CSRA result. " +
@@ -130,6 +131,7 @@ class CsraAssessmentResource(
 
   @PutMapping("/{assessmentId}/final")
   @ResponseStatus(HttpStatus.OK)
+  @PreAuthorize("hasRole('ROLE_CSRA_REVIEW__RW')")
   @Operation(
     summary = "Submits the final (Day 2) stage of an initial CSRA assessment",
     description = "Records the final answers and rating, setting the prisoner's final CSRA result and, for a " +
@@ -171,12 +173,13 @@ class CsraAssessmentResource(
 
   @GetMapping("/{assessmentId}")
   @ResponseStatus(HttpStatus.OK)
+  @PreAuthorize("hasRole('ROLE_CSRA_REVIEW__R')")
   @Operation(
     summary = "Returns the full answer set for an initial CSRA assessment",
     description = "Returns the review's status and, for each stage that has been written to, the full " +
       "answer set, enough to pre-fill every question page and the check-answers screen so an in-progress " +
       "assessment can be resumed. The UI derives section-completion state from the answers. Requires role " +
-      "ROLE_CSRA_REVIEW__RW",
+      "ROLE_CSRA_REVIEW__R",
     responses = [
       ApiResponse(
         responseCode = "200",
@@ -210,7 +213,8 @@ class CsraAssessmentResource(
   ) = csraAssessmentService.getAssessment(prisonerNumber, assessmentId)
 
   @PutMapping("/{assessmentId}/stage/{stage}/answers")
-  @ResponseStatus(HttpStatus.NO_CONTENT)
+  @ResponseStatus(HttpStatus.OK)
+  @PreAuthorize("hasRole('ROLE_CSRA_REVIEW__RW')")
   @Operation(
     summary = "Partially saves answers for one stage without confirming a rating",
     description = "Saves the current answer state for a stage without requiring a rating or assessment " +
@@ -218,7 +222,11 @@ class CsraAssessmentResource(
       "cleared. Does not affect the prisoner's current CSRA rating, does not publish a domain event, and " +
       "does not mark the stage as confirmed. Requires role ROLE_CSRA_REVIEW__RW",
     responses = [
-      ApiResponse(responseCode = "204", description = "The answers were saved"),
+      ApiResponse(
+        responseCode = "200",
+        description = "The answers were saved",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = CsraAssessmentDto::class))]
+      ),
       ApiResponse(
         responseCode = "400",
         description = "Invalid request — no prison supplied, or duplicate offence evidence entries",

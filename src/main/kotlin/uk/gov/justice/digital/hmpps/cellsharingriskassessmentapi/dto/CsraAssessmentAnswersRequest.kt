@@ -105,4 +105,7 @@ data class CsraAssessmentAnswersRequest(
   @param:Schema(description = "For a high-risk rating, the groups the prisoner is vulnerable due to")
   @field:Valid
   val vulnerabilities: List<CsraVulnerabilityDetail> = emptyList(),
+
+  @param:Schema(description = "The version of the assessment answers")
+  val version: Int = 1
 )

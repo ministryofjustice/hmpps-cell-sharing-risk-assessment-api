@@ -101,6 +101,8 @@ data class CsraAssessmentStageAnswersDto(
 
   val riskTo: List<CsraRiskToDetail>,
   val vulnerabilities: List<CsraVulnerabilityDetail>,
+
+  val version: Int,
 )
 
 fun CsraReviewEntity.toAssessmentDto(stages: List<CsraAssessmentStageEntity>) = CsraAssessmentDto(
@@ -146,4 +148,5 @@ fun CsraAssessmentStageEntity.toStageAnswersDto() = CsraAssessmentStageAnswersDt
   healthcareIncreasedRiskDetail = healthcareIncreasedRiskDetail,
   riskTo = riskTo.map { CsraRiskToDetail(category = it.category, details = it.details) },
   vulnerabilities = vulnerabilities.map { CsraVulnerabilityDetail(category = it.category, details = it.details) },
+  version = version
 )

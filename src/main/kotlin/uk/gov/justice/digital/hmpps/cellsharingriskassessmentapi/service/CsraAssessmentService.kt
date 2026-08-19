@@ -18,6 +18,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toDto
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStage
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStageEntity
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraEvidenceSource
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStageRiskToEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStageVulnerabilityEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraNextReviewEntity
@@ -87,8 +88,26 @@ class CsraAssessmentService(
   /** Partially saves answers for one stage without confirming a rating. Does not affect the prisoner's
    * current rating, does not publish a domain event, and does not mark the stage as completed. The
    * request replaces the whole answer state for the stage so that a cleared answer results in null. */
-  fun saveAnswers(prisonerNumber: String, assessmentId: UUID, stage: CsraAssessmentStage, request: CsraAssessmentAnswersRequest) {
+  fun saveAnswers(prisonerNumber: String, assessmentId: UUID, stage: CsraAssessmentStage, request: CsraAssessmentAnswersRequest): CsraAssessmentDto {
     val review = loadInitialReview(prisonerNumber, assessmentId)
+
+    if (review.finalResult != null) {
+      throw ValidationException("Cannot save answers after the final rating has been submitted")
+    }
+    when (stage) {
+      CsraAssessmentStage.PROVISIONAL -> {
+        if (review.interimResult != null) {
+          throw ValidationException("Cannot save answers for the provisional stage after the provisional rating has been submitted")
+        }
+      }
+      CsraAssessmentStage.FINAL -> {
+        if (review.interimResult == null) {
+          throw ValidationException("Cannot save answers for the final stage before the provisional rating has been submitted")
+        }
+      }
+      CsraAssessmentStage.INTERIM -> throw ValidationException("Only provisional and final stages can be saved")
+    }
+
     validateOffenceEvidence(request.offenceEvidence)
     val now = LocalDateTime.now(clock)
 
@@ -98,11 +117,14 @@ class CsraAssessmentService(
     review.lastModifiedAt = now
     review.lastModifiedBy = username
     csraReviewRepository.saveAndFlush(review)
+
+    val stages = csraAssessmentStageRepository.findAllByCsraReviewId(assessmentId)
+    return review.toAssessmentDto(stages)
   }
 
   /** Returns the full answer state of an in-progress or completed initial assessment so the UI can
    * resume it or display the check-answers screen. */
-  @org.springframework.transaction.annotation.Transactional(readOnly = true)
+  @Transactional(readOnly = true)
   fun getAssessment(prisonerNumber: String, assessmentId: UUID): CsraAssessmentDto {
     val review = loadInitialReview(prisonerNumber, assessmentId)
     val stages = csraAssessmentStageRepository.findAllByCsraReviewId(assessmentId)
@@ -231,8 +253,7 @@ class CsraAssessmentService(
       seenByHealthcare = request.seenByHealthcare
       healthcareIncreasedRisk = request.healthcareIncreasedRisk
       healthcareIncreasedRiskDetail = request.healthcareIncreasedRiskDetail
-      offenceEvidence.clear()
-      offenceEvidence.addAll(request.offenceEvidence.map { it.toEntity(this) })
+      replaceOffenceEvidence(this, request.offenceEvidence)
       riskTo.clear()
       riskTo.addAll(request.riskTo.map { CsraAssessmentStageRiskToEntity(stage = this, category = it.category, details = it.details) })
       vulnerabilities.clear()
@@ -254,6 +275,10 @@ class CsraAssessmentService(
   ) {
     val entity = csraAssessmentStageRepository.findByCsraReviewIdAndStage(review.id!!, stage)
       ?: CsraAssessmentStageEntity(csraReview = review, stage = stage)
+    if (request.version < entity.version) {
+      throw IllegalArgumentException("Request version ${request.version} is older than entity version ${entity.version}")
+    }
+
     entity.apply {
       lastSavedBy = username
       lastSavedAt = now
@@ -281,14 +306,41 @@ class CsraAssessmentService(
       seenByHealthcare = request.seenByHealthcare
       healthcareIncreasedRisk = request.healthcareIncreasedRisk
       healthcareIncreasedRiskDetail = request.healthcareIncreasedRiskDetail
-      offenceEvidence.clear()
-      offenceEvidence.addAll(request.offenceEvidence.map { it.toEntity(this) })
+      replaceOffenceEvidence(this, request.offenceEvidence)
       riskTo.clear()
       riskTo.addAll(request.riskTo.map { CsraAssessmentStageRiskToEntity(stage = this, category = it.category, details = it.details) })
       vulnerabilities.clear()
       vulnerabilities.addAll(request.vulnerabilities.map { CsraAssessmentStageVulnerabilityEntity(stage = this, category = it.category, details = it.details) })
     }
     csraAssessmentStageRepository.saveAndFlush(entity)
+  }
+
+  /**
+   * Replaces offence evidence by offence key: update existing rows in-place, add missing rows, and
+   * delete rows omitted from the request. This avoids delete/reinsert churn and sidesteps unique
+   * index ordering issues caused by inserting replacements before orphan deletes are flushed.
+   */
+  private fun replaceOffenceEvidence(stage: CsraAssessmentStageEntity, offenceEvidence: List<CsraOffenceEvidence>) {
+    val existingByOffence = stage.offenceEvidence.associateBy { it.offence }.toMutableMap()
+
+    offenceEvidence.forEach { requested ->
+      val existing = existingByOffence.remove(requested.offence)
+      if (existing != null) {
+        existing.pnc = CsraEvidenceSource.PNC in requested.sources
+        existing.warrant = CsraEvidenceSource.WARRANT in requested.sources
+        existing.dps = CsraEvidenceSource.DPS in requested.sources
+        existing.per = CsraEvidenceSource.PER in requested.sources
+        existing.other = CsraEvidenceSource.OTHER in requested.sources
+        existing.otherSourceDetail = requested.otherSourceDetail
+        existing.details = requested.details
+      } else {
+        stage.offenceEvidence.add(requested.toEntity(stage))
+      }
+    }
+
+    if (existingByOffence.isNotEmpty()) {
+      stage.offenceEvidence.removeAll(existingByOffence.values.toSet())
+    }
   }
 
   /** Sets the prisoner's single next review date: 12 months on for a high-risk final rating, else cleared. */
