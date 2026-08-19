@@ -148,5 +148,5 @@ fun CsraAssessmentStageEntity.toStageAnswersDto() = CsraAssessmentStageAnswersDt
   healthcareIncreasedRiskDetail = healthcareIncreasedRiskDetail,
   riskTo = riskTo.map { CsraRiskToDetail(category = it.category, details = it.details) },
   vulnerabilities = vulnerabilities.map { CsraVulnerabilityDetail(category = it.category, details = it.details) },
-  version = version
+  version = version,
 )

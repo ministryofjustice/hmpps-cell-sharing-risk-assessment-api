@@ -107,5 +107,5 @@ data class CsraAssessmentAnswersRequest(
   val vulnerabilities: List<CsraVulnerabilityDetail> = emptyList(),
 
   @param:Schema(description = "The version of the assessment answers")
-  val version: Int = 1
+  val version: Int = 1,
 )

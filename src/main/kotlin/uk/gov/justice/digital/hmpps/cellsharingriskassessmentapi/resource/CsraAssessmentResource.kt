@@ -225,7 +225,7 @@ class CsraAssessmentResource(
       ApiResponse(
         responseCode = "200",
         description = "The answers were saved",
-        content = [Content(mediaType = "application/json", schema = Schema(implementation = CsraAssessmentDto::class))]
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = CsraAssessmentDto::class))],
       ),
       ApiResponse(
         responseCode = "400",
