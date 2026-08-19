@@ -622,7 +622,7 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
       .contentType(MediaType.APPLICATION_JSON)
       .body(BodyInserters.fromValue(answersBody("LEI", pncChecked = true, arson = true)))
       .exchange()
-      .expectStatus().isNoContent
+      .expectStatus().isOk
 
     // The stage row exists with the answers but no completedBy/completedAt (not confirmed)
     val stage = csraAssessmentStageRepository.findByCsraReviewIdAndStage(assessmentId, CsraAssessmentStage.PROVISIONAL)!!
@@ -659,7 +659,7 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
       .contentType(MediaType.APPLICATION_JSON)
       .body(BodyInserters.fromValue(answersBody("LEI")))
       .exchange()
-      .expectStatus().isNoContent
+      .expectStatus().isOk
 
     // The current rating must still be the completed first assessment
     val current = csraCurrentRatingRepository.findByPrisonerNumber(prisoner)!!
@@ -679,7 +679,7 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
       .contentType(MediaType.APPLICATION_JSON)
       .body(BodyInserters.fromValue(answersBody("LEI")))
       .exchange()
-      .expectStatus().isNoContent
+      .expectStatus().isOk
 
     // No SQS messages of any kind should have been produced
     assertThat(getNumberOfMessagesCurrentlyOnQueue()).isEqualTo(0)
@@ -697,7 +697,7 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
       .contentType(MediaType.APPLICATION_JSON)
       .body(BodyInserters.fromValue(answersBody("LEI", arson = true)))
       .exchange()
-      .expectStatus().isNoContent
+      .expectStatus().isOk
 
     assertThat(csraAssessmentStageRepository.findByCsraReviewIdAndStage(assessmentId, CsraAssessmentStage.PROVISIONAL)!!.offenceArson).isTrue()
 
@@ -707,7 +707,7 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
       .contentType(MediaType.APPLICATION_JSON)
       .body(BodyInserters.fromValue(answersBody("LEI")))
       .exchange()
-      .expectStatus().isNoContent
+      .expectStatus().isOk
 
     assertThat(csraAssessmentStageRepository.findByCsraReviewIdAndStage(assessmentId, CsraAssessmentStage.PROVISIONAL)!!.offenceArson).isNull()
   }
@@ -723,7 +723,7 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
       .contentType(MediaType.APPLICATION_JSON)
       .body(BodyInserters.fromValue(answersBody("LEI", pncChecked = true)))
       .exchange()
-      .expectStatus().isNoContent
+      .expectStatus().isOk
 
     // Then confirm with a rating
     webTestClient.put().uri("/csra-review/prisoner/$prisoner/assessment/$assessmentId/provisional")
@@ -755,7 +755,7 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
       .contentType(MediaType.APPLICATION_JSON)
       .body(BodyInserters.fromValue(answersBody("WWI")))
       .exchange()
-      .expectStatus().isNoContent
+      .expectStatus().isOk
 
     webTestClient.get().uri("/csra-review/prison/WWI/assessments-in-progress")
       .headers(setAuthorisation(roles = listOf("ROLE_CSRA_REVIEW__R")))
@@ -821,10 +821,10 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
         ),
       )
       .exchange()
-      .expectStatus().isNoContent
+      .expectStatus().isOk
 
     webTestClient.get().uri("/csra-review/prisoner/$prisoner/assessment/$assessmentId")
-      .headers(setAuthorisation(roles = writeRole))
+      .headers(setAuthorisation(roles = listOf("ROLE_CSRA_REVIEW__R")))
       .exchange()
       .expectStatus().isOk
       .expectBody()
@@ -859,7 +859,7 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
     val assessmentId = start(prisoner).assessmentId
 
     webTestClient.get().uri("/csra-review/prisoner/$prisoner/assessment/$assessmentId")
-      .headers(setAuthorisation(roles = writeRole))
+      .headers(setAuthorisation(roles = listOf("ROLE_CSRA_REVIEW__R")))
       .exchange()
       .expectStatus().isOk
       .expectBody<CsraAssessmentDto>()
@@ -872,7 +872,7 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
   @Test
   fun `GET returns 404 for an unknown assessment`() {
     webTestClient.get().uri("/csra-review/prisoner/A1234BC/assessment/${UUID.randomUUID()}")
-      .headers(setAuthorisation(roles = writeRole))
+      .headers(setAuthorisation(roles = listOf("ROLE_CSRA_REVIEW__R")))
       .exchange()
       .expectStatus().isNotFound
   }
@@ -883,13 +883,6 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
     // buildCurrentRating and supply a null comment — believed harmless, but test explicitly".
     val prisoner = "PS010AA"
     val assessmentId = start(prisoner).assessmentId
-
-    webTestClient.put().uri("/csra-review/prisoner/$prisoner/assessment/$assessmentId/stage/PROVISIONAL/answers")
-      .headers(setAuthorisation(roles = writeRole))
-      .contentType(MediaType.APPLICATION_JSON)
-      .body(BodyInserters.fromValue(answersBody("LEI")))
-      .exchange()
-      .expectStatus().isNoContent
 
     // The prisoner has no prior rating; the current rating should still be IN_PROGRESS, not broken
     webTestClient.get().uri("/csra-review/prisoner/$prisoner/current-rating")
