@@ -907,8 +907,7 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
     .exchange()
 
   /** Each save changes likelyToHarmCellmateDetail so the entity is dirty and the version actually moves. */
-  private fun versionedAnswersBody(version: Int, detail: String) =
-    """{ "prisonId": "LEI", "version": $version, "likelyToHarmCellmateDetail": "$detail" }"""
+  private fun versionedAnswersBody(version: Int, detail: String) = """{ "prisonId": "LEI", "version": $version, "likelyToHarmCellmateDetail": "$detail" }"""
 
   @Test
   fun `version increments on each substantive save and is returned with the stage`() {
