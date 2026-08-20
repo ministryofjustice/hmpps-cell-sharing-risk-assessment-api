@@ -173,7 +173,7 @@ class CsraAssessmentResource(
 
   @GetMapping("/{assessmentId}")
   @ResponseStatus(HttpStatus.OK)
-  @PreAuthorize("hasRole('ROLE_CSRA_REVIEW__R')")
+  @PreAuthorize("hasAnyRole('ROLE_CSRA_REVIEW__R', 'ROLE_CSRA_REVIEW__RW')")
   @Operation(
     summary = "Returns the full answer set for an initial CSRA assessment",
     description = "Returns the review's status and, for each stage that has been written to, the full " +

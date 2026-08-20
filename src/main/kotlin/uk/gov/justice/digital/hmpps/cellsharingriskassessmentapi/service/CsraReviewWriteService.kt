@@ -212,7 +212,7 @@ class CsraReviewWriteService(
     now: LocalDateTime,
   ) {
     val entity = csraAssessmentStageRepository.findByCsraReviewIdAndStage(review.id!!, stage)
-      ?: CsraAssessmentStageEntity(csraReview = review, stage = stage)
+      ?: CsraAssessmentStageEntity(csraReview = review, stage = stage, version = 1)
     entity.apply {
       completedBy = username
       completedAt = now

@@ -13,4 +13,6 @@ enum class ErrorCode(val errorCode: Int) {
   RiskCategoriesInvalid(104),
   MissingAnswerDetail(105),
   NextReviewDateInvalid(106),
+  StaleAnswersVersion(107),
+  MethodArgumentTypeMismatch(108),
 }

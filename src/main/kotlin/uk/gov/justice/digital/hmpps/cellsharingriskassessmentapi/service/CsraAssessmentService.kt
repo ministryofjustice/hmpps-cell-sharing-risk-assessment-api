@@ -31,6 +31,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraReviewRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.resource.CsraReviewNotFoundException
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.resource.MandatoryHighRiskGeneralException
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.resource.StaleAnswersException
 import uk.gov.justice.hmpps.kotlin.auth.HmppsAuthenticationHolder
 import java.time.Clock
 import java.time.LocalDate
@@ -224,7 +225,7 @@ class CsraAssessmentService(
     now: LocalDateTime,
   ) {
     val entity = csraAssessmentStageRepository.findByCsraReviewIdAndStage(review.id!!, stage)
-      ?: CsraAssessmentStageEntity(csraReview = review, stage = stage)
+      ?: CsraAssessmentStageEntity(csraReview = review, stage = stage, version = 1)
     entity.apply {
       completedBy = username
       completedAt = now
@@ -275,8 +276,8 @@ class CsraAssessmentService(
   ) {
     val entity = csraAssessmentStageRepository.findByCsraReviewIdAndStage(review.id!!, stage)
       ?: CsraAssessmentStageEntity(csraReview = review, stage = stage)
-    if (request.version < entity.version) {
-      throw IllegalArgumentException("Request version ${request.version} is older than entity version ${entity.version}")
+    if (request.version != entity.version) {
+      throw StaleAnswersException(request.version, entity.version)
     }
 
     entity.apply {

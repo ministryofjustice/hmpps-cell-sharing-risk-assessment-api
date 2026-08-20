@@ -121,7 +121,7 @@ class CsraAssessmentStageEntity(
   val id: UUID? = null,
 
   @Version
-  val version: Int = 1,
+  var version: Int = 1,
 ) {
   override fun equals(other: Any?): Boolean {
     if (this === other) return true

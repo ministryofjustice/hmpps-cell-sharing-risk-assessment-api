@@ -109,10 +109,11 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
 
   private fun answersBody(
     prisonId: String,
+    version: Int = 1,
     pncChecked: Boolean? = null,
     arson: Boolean? = null,
   ) = buildString {
-    append("""{ "prisonId": "$prisonId"""")
+    append("""{ "prisonId": "$prisonId", "version": $version""")
     if (pncChecked != null) append(""", "pncChecked": $pncChecked""")
     if (arson != null) append(""", "offenceArson": $arson""")
     append(" }")
@@ -807,6 +808,7 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
           """
           {
             "prisonId": "LEI",
+            "version": 1,
             "pncChecked": true,
             "dpsChecked": false,
             "offenceArson": true,
@@ -893,5 +895,79 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
       .jsonPath("$.status").isEqualTo("IN_PROGRESS")
       .jsonPath("$.rating").doesNotExist()
       .jsonPath("$.prisonId").isEqualTo("LEI")
+  }
+
+  private val readRole = listOf("ROLE_CSRA_REVIEW__R")
+
+  private fun saveAnswers(prisonerNumber: String, assessmentId: UUID, body: String, stage: String = "PROVISIONAL") = webTestClient.put()
+    .uri("/csra-review/prisoner/$prisonerNumber/assessment/$assessmentId/stage/$stage/answers")
+    .headers(setAuthorisation(roles = writeRole))
+    .contentType(MediaType.APPLICATION_JSON)
+    .body(BodyInserters.fromValue(body))
+    .exchange()
+
+  /** Each save changes likelyToHarmCellmateDetail so the entity is dirty and the version actually moves. */
+  private fun versionedAnswersBody(version: Int, detail: String) =
+    """{ "prisonId": "LEI", "version": $version, "likelyToHarmCellmateDetail": "$detail" }"""
+
+  @Test
+  fun `version increments on each substantive save and is returned with the stage`() {
+    val prisoner = "PSV01AA"
+    val assessmentId = start(prisoner).assessmentId
+
+    saveAnswers(prisoner, assessmentId, versionedAnswersBody(version = 1, detail = "first"))
+      .expectStatus().isOk
+      .expectBody().jsonPath("$.stages[0].version").isEqualTo(1)
+
+    saveAnswers(prisoner, assessmentId, versionedAnswersBody(version = 1, detail = "second"))
+      .expectStatus().isOk
+      .expectBody().jsonPath("$.stages[0].version").isEqualTo(2)
+  }
+
+  @Test
+  fun `a save carrying a stale version is rejected as a conflict`() {
+    val prisoner = "PSV02AA"
+    val assessmentId = start(prisoner).assessmentId
+
+    saveAnswers(prisoner, assessmentId, versionedAnswersBody(version = 1, detail = "first")).expectStatus().isOk
+    saveAnswers(prisoner, assessmentId, versionedAnswersBody(version = 1, detail = "second")).expectStatus().isOk
+
+    // The row is now at version 2; a client still holding version 1 must be told it has lost the race.
+    saveAnswers(prisoner, assessmentId, versionedAnswersBody(version = 1, detail = "stale"))
+      .expectStatus().isEqualTo(409)
+  }
+
+  @Test
+  fun `a save carrying a version ahead of the stored version is rejected`() {
+    val prisoner = "PSV03AA"
+    val assessmentId = start(prisoner).assessmentId
+
+    saveAnswers(prisoner, assessmentId, versionedAnswersBody(version = 1, detail = "first")).expectStatus().isOk
+
+    saveAnswers(prisoner, assessmentId, versionedAnswersBody(version = 99, detail = "from the future"))
+      .expectStatus().isEqualTo(409)
+  }
+
+  @Test
+  fun `an unrecognised stage value is rejected as a bad request`() {
+    val prisoner = "PSV04AA"
+    val assessmentId = start(prisoner).assessmentId
+
+    saveAnswers(prisoner, assessmentId, versionedAnswersBody(version = 1, detail = "x"), stage = "BOGUS")
+      .expectStatus().isBadRequest
+  }
+
+  @Test
+  fun `the assessment can be read back by the role that wrote it`() {
+    val prisoner = "PSV05AA"
+    val assessmentId = start(prisoner).assessmentId
+
+    webTestClient.get().uri("/csra-review/prisoner/$prisoner/assessment/$assessmentId")
+      .headers(setAuthorisation(roles = writeRole))
+      .exchange().expectStatus().isOk
+
+    webTestClient.get().uri("/csra-review/prisoner/$prisoner/assessment/$assessmentId")
+      .headers(setAuthorisation(roles = readRole))
+      .exchange().expectStatus().isOk
   }
 }
