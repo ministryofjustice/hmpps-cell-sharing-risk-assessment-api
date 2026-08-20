@@ -184,4 +184,6 @@ class CsraMissingAnswerDetailException(questions: Collection<String>) :
 class CsraNextReviewDateInvalidException(message: String) : CsraAnswerValidationException(ErrorCode.NextReviewDateInvalid, message)
 
 class StaleAnswersException(requestVersion: Int, entityVersion: Int) :
-  Exception("Request version $requestVersion does not match current version $entityVersion — reload the answers and try again")
+  Exception(
+    "Request version $requestVersion does not match current version $entityVersion — reload the answers and try again",
+  )
