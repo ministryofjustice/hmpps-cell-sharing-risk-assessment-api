@@ -11,6 +11,7 @@ import jakarta.persistence.JoinColumn
 import jakarta.persistence.ManyToOne
 import jakarta.persistence.OneToMany
 import jakarta.persistence.Table
+import jakarta.persistence.Version
 import org.hibernate.Hibernate
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.helper.GeneratedUuidV7
 import java.time.LocalDateTime
@@ -46,6 +47,8 @@ class CsraAssessmentStageEntity(
 
   var completedBy: String? = null,
   var completedAt: LocalDateTime? = null,
+  var lastSavedBy: String? = null,
+  var lastSavedAt: LocalDateTime? = null,
   var prisonId: String? = null,
   var assessmentComment: String? = null,
   var questionSetVersion: Int? = null,
@@ -116,6 +119,9 @@ class CsraAssessmentStageEntity(
   @GeneratedUuidV7
   @Column(name = "id", updatable = false, nullable = false)
   val id: UUID? = null,
+
+  @Version
+  var version: Int = 1,
 ) {
   override fun equals(other: Any?): Boolean {
     if (this === other) return true

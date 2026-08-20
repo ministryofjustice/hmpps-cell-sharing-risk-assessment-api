@@ -13,6 +13,7 @@ import org.springframework.security.access.AccessDeniedException
 import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
 import org.springframework.web.servlet.resource.NoResourceFoundException
 import uk.gov.justice.hmpps.kotlin.common.ErrorResponse
 
@@ -109,6 +110,30 @@ class CellSharingRiskAssessmentApiExceptionHandler {
       ),
     ).also { log.info("Assessment already in progress: {}", e.message) }
 
+  @ExceptionHandler(StaleAnswersException::class)
+  fun handleStaleAnswersException(e: StaleAnswersException): ResponseEntity<ErrorResponse> = ResponseEntity
+    .status(CONFLICT)
+    .body(
+      ErrorResponse(
+        status = CONFLICT,
+        errorCode = ErrorCode.StaleAnswersVersion.name,
+        userMessage = "Conflict: ${e.message}",
+        developerMessage = e.message,
+      ),
+    ).also { log.info("Stale answers version: {}", e.message) }
+
+  @ExceptionHandler(MethodArgumentTypeMismatchException::class)
+  fun handleMethodArgumentTypeMismatchException(e: MethodArgumentTypeMismatchException): ResponseEntity<ErrorResponse> = ResponseEntity
+    .status(BAD_REQUEST)
+    .body(
+      ErrorResponse(
+        status = BAD_REQUEST,
+        errorCode = ErrorCode.MethodArgumentTypeMismatch.name,
+        userMessage = "Bad request: ${e.message}",
+        developerMessage = e.message,
+      ),
+    ).also { log.info("Method argument type mismatch: {}", e.message) }
+
   // One handler for the whole family: these differ only in their error code and message, so a class each
   // would be thirty lines of copy. New answer-validation rules subclass CsraAnswerValidationException.
   @ExceptionHandler(CsraAnswerValidationException::class)
@@ -157,3 +182,8 @@ class CsraMissingAnswerDetailException(questions: Collection<String>) :
   )
 
 class CsraNextReviewDateInvalidException(message: String) : CsraAnswerValidationException(ErrorCode.NextReviewDateInvalid, message)
+
+class StaleAnswersException(requestVersion: Int, entityVersion: Int) :
+  Exception(
+    "Request version $requestVersion does not match current version $entityVersion — reload the answers and try again",
+  )
