@@ -2,7 +2,7 @@ import org.gradle.kotlin.dsl.register
 import uk.gov.justice.digital.hmpps.gradle.PortForwardRDSTask
 
 plugins {
-  id("uk.gov.justice.hmpps.gradle-spring-boot") version "11.0.5"
+  id("uk.gov.justice.hmpps.gradle-spring-boot") version "11.0.6"
   kotlin("plugin.spring") version "2.4.10"
   kotlin("plugin.jpa") version "2.4.10"
   id("org.jetbrains.kotlinx.kover") version "0.9.9"
@@ -23,7 +23,7 @@ dependencies {
   implementation("org.springframework.boot:spring-boot-starter-webclient")
   implementation("org.springframework.security:spring-security-access")
   implementation("org.springframework.boot:spring-boot-starter-validation")
-  implementation("io.opentelemetry.instrumentation:opentelemetry-instrumentation-annotations:2.30.0")
+  implementation("io.opentelemetry.instrumentation:opentelemetry-instrumentation-annotations:2.31.0")
   implementation("io.opentelemetry:opentelemetry-extension-kotlin:1.65.0")
 
   runtimeOnly("org.flywaydb:flyway-database-postgresql")
@@ -41,7 +41,7 @@ dependencies {
   testImplementation("com.pauldijou:jwt-core_2.11:5.0.0")
   testImplementation("org.awaitility:awaitility-kotlin:4.3.0")
   testImplementation("org.mockito:mockito-inline:5.2.0")
-  testImplementation("io.swagger.parser.v3:swagger-parser:2.1.46") {
+  testImplementation("io.swagger.parser.v3:swagger-parser:2.1.47") {
     exclude(group = "io.swagger.core.v3")
   }
   testImplementation("org.springframework.security:spring-security-test")
