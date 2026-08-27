@@ -16,6 +16,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewS
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraType
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraCurrentRatingRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraReviewRepository
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.service.InformationSource
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.util.UUID
@@ -49,6 +50,24 @@ class PrisonerMovementListenerTest : SqsIntegrationTestBase() {
       createdBy = "NQP56Y",
     ),
   )
+
+  /** A completed rating from a previous period of custody, reflected into the current-rating projection. */
+  private fun completedRating(prisonerNumber: String, rating: CsraResult) {
+    csraReviewRepository.saveAndFlush(
+      CsraReviewEntity(
+        prisonerNumber = prisonerNumber,
+        prisonId = "LEI",
+        assessmentDate = LocalDate.parse("2023-06-01"),
+        type = CsraType.CSRA_INITIAL_REVIEW,
+        finalResult = rating,
+        finalResultDate = LocalDate.parse("2023-06-01"),
+        status = CsraReviewStatus.COMPLETE,
+        createdAt = LocalDateTime.parse("2023-06-01T09:00:00"),
+        createdBy = "NQP56Y",
+      ),
+    )
+    refreshCurrentRating(prisonerNumber)
+  }
 
   private fun receivedEvent(prisonerNumber: String, prisonId: String, reason: String) = """
     {
@@ -102,26 +121,53 @@ class PrisonerMovementListenerTest : SqsIntegrationTestBase() {
 
   @Test
   fun `readmission resets the current rating to No rating even when a prior rated review exists`() {
-    // A completed rating from a previous period of custody.
-    csraReviewRepository.saveAndFlush(
-      CsraReviewEntity(
-        prisonerNumber = "A6666AA",
-        prisonId = "LEI",
-        assessmentDate = LocalDate.parse("2023-06-01"),
-        type = CsraType.CSRA_INITIAL_REVIEW,
-        finalResult = CsraResult.STANDARD,
-        finalResultDate = LocalDate.parse("2023-06-01"),
-        status = CsraReviewStatus.COMPLETE,
-        createdAt = LocalDateTime.parse("2023-06-01T09:00:00"),
-        createdBy = "NQP56Y",
-      ),
-    )
-    csraCurrentRatingService.refreshFromReviews("A6666AA")
+    completedRating("A6666AA", CsraResult.STANDARD)
     assertThat(csraCurrentRatingRepository.findByPrisonerNumber("A6666AA")!!.rating).isEqualTo(CsraResult.STANDARD)
 
     send("A6666AA", "MDI", "READMISSION")
 
     await.until { csraCurrentRatingRepository.findByPrisonerNumber("A6666AA")?.rating == null }
+
+    // Clearing a rating changes the prisoner's CSRA, so it is announced like any other rating change. No
+    // review produced it, so there is no id to carry and consumers re-read the current rating.
+    val event = getDomainEvents(1).single()
+    assertThat(event.eventType).isEqualTo("cell.sharing.risk.assessment.amended")
+    assertThat(event.additionalInformation?.id).isNull()
+    assertThat(event.additionalInformation?.nomsNumber).isEqualTo("A6666AA")
+    assertThat(event.additionalInformation?.source).isEqualTo(InformationSource.DPS)
+  }
+
+  /**
+   * Publication is asynchronous, so "nothing was published" is asserted by performing the silent action and
+   * then a known-noisy one, and checking the noisy event is the only thing on the queue.
+   */
+  @Test
+  fun `a readmission that clears nothing publishes no event`() {
+    // Already at "No rating": the reset changes nothing, so there is nothing to announce.
+    send("A7777AA", "MDI", "READMISSION")
+    awaitCsraQueueDrained()
+
+    completedRating("A7778AA", CsraResult.STANDARD)
+    send("A7778AA", "MDI", "READMISSION")
+
+    val event = getDomainEvents(1).single()
+    assertThat(event.additionalInformation?.nomsNumber).isEqualTo("A7778AA")
+  }
+
+  @Test
+  fun `a transfer publishes nothing, even when it closes a review carrying an interim rating`() {
+    // R-02 retains the rating, so unlike a readmission the transfer path is deliberately silent.
+    val review = inProgressReview("A8888AA", interimResult = CsraResult.HIGH_GENERAL)
+    refreshCurrentRating("A8888AA")
+
+    send("A8888AA", "MDI", "TRANSFERRED")
+    awaitStatus(review.id!!, CsraReviewStatus.CLOSED)
+
+    completedRating("A8889AA", CsraResult.STANDARD)
+    send("A8889AA", "MDI", "READMISSION")
+
+    val event = getDomainEvents(1).single()
+    assertThat(event.additionalInformation?.nomsNumber).isEqualTo("A8889AA")
   }
 
   @Test

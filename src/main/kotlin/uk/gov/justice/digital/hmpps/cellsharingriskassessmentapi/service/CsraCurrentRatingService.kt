@@ -44,8 +44,15 @@ class CsraCurrentRatingService(
     upsert(prisonerNumber, updatedBy, CsraRatingSetReason.RATING_SAVED) { applyFrom(latestRated) }
   }
 
-  /** Resets a prisoner's current rating to "No rating" (R-01 readmission after release). */
-  fun resetToNoRating(prisonerNumber: String, updatedBy: String?) {
+  /**
+   * Resets a prisoner's current rating to "No rating" (R-01 readmission after release).
+   *
+   * Returns whether a rating was actually cleared. Most admissions find the prisoner already at "No rating"
+   * and change nothing, and the caller uses this to keep those silent — announcing a rating change that did
+   * not happen is the same mistake as publishing for an unrated draft.
+   */
+  fun resetToNoRating(prisonerNumber: String, updatedBy: String?): Boolean {
+    val hadRating = csraCurrentRatingRepository.findByPrisonerNumber(prisonerNumber)?.rating != null
     upsert(prisonerNumber, updatedBy, CsraRatingSetReason.NO_RATING_ON_READMISSION) {
       rating = null
       provisional = false
@@ -53,6 +60,7 @@ class CsraCurrentRatingService(
       ratingDate = null
       setByReviewId = null
     }
+    return hadRating
   }
 
   private fun CsraCurrentRatingEntity.applyFrom(review: CsraReviewEntity) {
