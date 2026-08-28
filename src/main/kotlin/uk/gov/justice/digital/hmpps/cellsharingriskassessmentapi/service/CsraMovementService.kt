@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.SYSTEM_USERNAME
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraClosureReason
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraRatingSetReason
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewStatus
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraReviewRepository
@@ -26,6 +27,7 @@ import java.time.LocalDateTime
 class CsraMovementService(
   private val csraReviewRepository: CsraReviewRepository,
   private val csraCurrentRatingService: CsraCurrentRatingService,
+  private val eventPublishAndAuditService: EventPublishAndAuditService,
   private val telemetryClient: TelemetryClient,
   private val clock: Clock,
 ) {
@@ -35,10 +37,28 @@ class CsraMovementService(
    */
   fun handleReadmission(prisonerNumber: String, prisonId: String?) {
     closeOrArchiveInProgress(prisonerNumber, prisonId, "readmission")
-    csraCurrentRatingService.resetToNoRating(prisonerNumber, SYSTEM_USERNAME)
+    // Clearing a rating changes the prisoner's CSRA just as saving one does, so it is announced the same
+    // way — otherwise a consumer (notably the DPS -> NOMIS sync) keeps the pre-release rating forever.
+    // Only when something was actually cleared: most admissions find the prisoner already at "No rating".
+    if (csraCurrentRatingService.resetToNoRating(prisonerNumber, SYSTEM_USERNAME)) {
+      eventPublishAndAuditService.publishRatingCleared(
+        prisonerNumber = prisonerNumber,
+        auditData = mapOf(
+          "prisonerNumber" to prisonerNumber,
+          "prisonId" to prisonId,
+          "reason" to CsraRatingSetReason.NO_RATING_ON_READMISSION.name,
+        ),
+      )
+    }
   }
 
-  /** Transfer to another establishment with no release between (R-02): close/archive any in-progress review. */
+  /**
+   * Transfer to another establishment with no release between (R-02): close/archive any in-progress review.
+   *
+   * Deliberately publishes nothing. Closing a rated review leaves its rating standing (R-06), and archiving
+   * an unrated one removes a draft no consumer ever saw — either way the prisoner's current CSRA is
+   * unchanged, so there is nothing to announce.
+   */
   fun handleTransfer(prisonerNumber: String, prisonId: String?) {
     closeOrArchiveInProgress(prisonerNumber, prisonId, "transfer")
   }

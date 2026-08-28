@@ -35,6 +35,33 @@ class EventPublishAndAuditService(
     source: InformationSource = InformationSource.DPS,
   ) = afterCommit { doPublishEvent(eventType, csraReview, auditData, source) }
 
+  /**
+   * Announces that a prisoner's current CSRA rating was cleared (R-01, readmission after a period of
+   * release). Unlike every other rating change there is no review behind it — the projection is reset, not
+   * derived from a record — so [AdditionalInformation.id] is null and a consumer reads the new state from
+   * `GET /csra-review/prisoner/{prisonerNumber}/current-rating`.
+   *
+   * Only called when a rating was actually cleared: an admission that finds the prisoner already at "No
+   * rating" publishes nothing, for the same reason an unrated draft does.
+   */
+  fun publishRatingCleared(prisonerNumber: String, auditData: Any) = afterCommit {
+    snsService.publishDomainEvent(
+      eventType = CSRADomainEventType.CSRA_AMENDED,
+      description = CSRADomainEventType.CSRA_AMENDED.description,
+      occurredAt = LocalDateTime.now(clock),
+      additionalInformation = AdditionalInformation(
+        id = null,
+        nomsNumber = prisonerNumber,
+        source = InformationSource.DPS,
+      ),
+    )
+    auditEvent(
+      auditType = CSRADomainEventType.CSRA_AMENDED.auditType,
+      id = prisonerNumber,
+      auditData = auditData,
+    )
+  }
+
   private fun doPublishEvent(
     eventType: CSRADomainEventType,
     csraReview: CsraReview,
