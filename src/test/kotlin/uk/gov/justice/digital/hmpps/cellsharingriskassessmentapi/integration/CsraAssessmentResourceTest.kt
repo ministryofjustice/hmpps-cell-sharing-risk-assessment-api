@@ -5,6 +5,8 @@ import org.awaitility.kotlin.await
 import org.awaitility.kotlin.matches
 import org.awaitility.kotlin.untilCallTo
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.CsvSource
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.http.MediaType
 import org.springframework.test.web.reactive.server.expectBody
@@ -17,6 +19,10 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.integration.wir
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.integration.wiremock.PrisonerSearchMockServer.RollMemberStub
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStage
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraOffence
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraResult
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewEntity
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewStatus
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraType
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraAssessmentStageOffenceEvidenceRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraAssessmentStageRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraCurrentRatingRepository
@@ -26,6 +32,7 @@ import uk.gov.justice.hmpps.sqs.HmppsQueue
 import uk.gov.justice.hmpps.sqs.HmppsQueueService
 import uk.gov.justice.hmpps.sqs.countMessagesOnQueue
 import java.time.LocalDate
+import java.time.LocalDateTime
 import java.util.UUID
 
 class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
@@ -83,6 +90,19 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
     .expectStatus().isCreated
     .expectBody<CsraAssessmentStarted>()
     .returnResult().responseBody!!
+
+  /** An assessment already in a terminal lifecycle state, as a prisoner movement would leave it. */
+  private fun seedAssessment(prisonerNumber: String, status: CsraReviewStatus) = csraReviewRepository.saveAndFlush(
+    CsraReviewEntity(
+      prisonerNumber = prisonerNumber,
+      prisonId = "LEI",
+      assessmentDate = LocalDate.parse("2023-12-01"),
+      type = CsraType.CSRA_INITIAL_REVIEW,
+      status = status,
+      createdAt = LocalDateTime.parse("2023-12-01T09:00:00"),
+      createdBy = "SCARTER",
+    ),
+  )
 
   /** A minimal STANDARD provisional body carrying only the offence evidence under test. */
   private fun evidenceBody(offenceEvidence: String) = """
@@ -968,5 +988,90 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
     webTestClient.get().uri("/csra-review/prisoner/$prisoner/assessment/$assessmentId")
       .headers(setAuthorisation(roles = readRole))
       .exchange().expectStatus().isOk
+  }
+
+  @ParameterizedTest
+  @CsvSource("CLOSED", "ARCHIVED")
+  fun `an assessment closed or archived by a movement can no longer be written to`(status: CsraReviewStatus) {
+    val prisoner = "C7001CC" + status.name.first()
+    val assessmentId = seedAssessment(prisoner, status).id!!
+    val body = stageBody("STANDARD", "should be refused")
+
+    listOf("provisional", "final").forEach { stage ->
+      webTestClient.put().uri("/csra-review/prisoner/$prisoner/assessment/$assessmentId/$stage")
+        .headers(setAuthorisation(roles = writeRole))
+        .contentType(MediaType.APPLICATION_JSON)
+        .body(BodyInserters.fromValue(body))
+        .exchange()
+        .expectStatus().isEqualTo(409)
+        .expectBody()
+        .jsonPath("$.errorCode").isEqualTo("CsraReviewNotWritable")
+    }
+
+    // The answers-only endpoint has to be covered too - it is a write like any other.
+    webTestClient.put().uri("/csra-review/prisoner/$prisoner/assessment/$assessmentId/stage/PROVISIONAL/answers")
+      .headers(setAuthorisation(roles = writeRole))
+      .contentType(MediaType.APPLICATION_JSON)
+      .body(BodyInserters.fromValue(answersBody("LEI")))
+      .exchange()
+      .expectStatus().isEqualTo(409)
+      .expectBody()
+      .jsonPath("$.errorCode").isEqualTo("CsraReviewNotWritable")
+
+    assertThat(csraReviewRepository.findById(assessmentId).get().status).isEqualTo(status)
+  }
+
+  @Test
+  fun `submitting a final to an archived assessment does not resurrect it as the current rating`() {
+    val prisoner = "C7002CC"
+    val assessmentId = seedAssessment(prisoner, CsraReviewStatus.ARCHIVED).id!!
+
+    webTestClient.put().uri("/csra-review/prisoner/$prisoner/assessment/$assessmentId/final")
+      .headers(setAuthorisation(roles = writeRole))
+      .contentType(MediaType.APPLICATION_JSON)
+      .body(BodyInserters.fromValue(stageBody("HIGH_GENERAL", "should be refused")))
+      .exchange()
+      .expectStatus().isEqualTo(409)
+
+    val review = csraReviewRepository.findById(assessmentId).get()
+    assertThat(review.status).isEqualTo(CsraReviewStatus.ARCHIVED)
+    assertThat(review.finalResult).isNull()
+    assertThat(csraCurrentRatingRepository.findByPrisonerNumber(prisoner)?.rating).isNull()
+  }
+
+  /** Amending a completed assessment is a real requirement, so COMPLETE must stay writable. */
+  @Test
+  fun `a completed assessment can still be amended`() {
+    val prisoner = "C7003CC"
+    val assessmentId = start(prisoner).assessmentId
+
+    webTestClient.put().uri("/csra-review/prisoner/$prisoner/assessment/$assessmentId/final")
+      .headers(setAuthorisation(roles = writeRole))
+      .contentType(MediaType.APPLICATION_JSON)
+      .body(BodyInserters.fromValue(stageBody("STANDARD", "first pass")))
+      .exchange().expectStatus().isOk
+
+    assertThat(csraReviewRepository.findById(assessmentId).get().status).isEqualTo(CsraReviewStatus.COMPLETE)
+
+    webTestClient.put().uri("/csra-review/prisoner/$prisoner/assessment/$assessmentId/final")
+      .headers(setAuthorisation(roles = writeRole))
+      .contentType(MediaType.APPLICATION_JSON)
+      .body(BodyInserters.fromValue(stageBody("HIGH_GENERAL", "amended after review")))
+      .exchange().expectStatus().isOk
+
+    assertThat(csraReviewRepository.findById(assessmentId).get().finalResult).isEqualTo(CsraResult.HIGH_GENERAL)
+  }
+
+  /** A closed or archived assessment must stay readable - the guard is on writes only. */
+  @Test
+  fun `a closed assessment can still be read back`() {
+    val prisoner = "C7004CC"
+    val assessmentId = seedAssessment(prisoner, CsraReviewStatus.CLOSED).id!!
+
+    webTestClient.get().uri("/csra-review/prisoner/$prisoner/assessment/$assessmentId")
+      .headers(setAuthorisation(roles = readRole))
+      .exchange().expectStatus().isOk
+      .expectBody()
+      .jsonPath("$.status").isEqualTo("CLOSED")
   }
 }

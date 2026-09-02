@@ -121,6 +121,11 @@ class CsraReviewWriteResource(
         description = "No such review for this prisoner",
         content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
       ),
+      ApiResponse(
+        responseCode = "409",
+        description = "The review has been closed or archived by a prisoner movement and can no longer be edited",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
+      ),
     ],
   )
   fun submitInterim(
@@ -165,6 +170,11 @@ class CsraReviewWriteResource(
       ApiResponse(
         responseCode = "404",
         description = "No such review for this prisoner",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
+      ),
+      ApiResponse(
+        responseCode = "409",
+        description = "The review has been closed or archived by a prisoner movement and can no longer be edited",
         content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
       ),
     ],

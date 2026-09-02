@@ -36,6 +36,7 @@ class CsraMigrationSyncService(
   private val csraNextReviewRepository: CsraNextReviewRepository,
   private val csraCurrentRatingService: CsraCurrentRatingService,
   private val eventPublishAndAuditService: EventPublishAndAuditService,
+  private val writeSupport: CsraWriteSupport,
   private val telemetryClient: TelemetryClient,
   private val clock: Clock,
 ) {
@@ -77,6 +78,10 @@ class CsraMigrationSyncService(
     } else {
       val existing = csraReviewRepository.findByIdOrNull(csraReviewId)
         ?: throw CsraReviewNotFoundException(csraReviewId.toString())
+      // A closed or archived review is not writable from here either. updateFromNomis forces the row
+      // back to COMPLETE, which would resurrect a record a movement has ended. NOMIS-sourced rows are
+      // always COMPLETE, so in practice this only fires after a data fix.
+      writeSupport.rejectIfNotWritable(existing)
       existing.updateFromNomis(prisonerNumber, request.review, clock)
       val existingNomis = csraReviewNomisRepository.findByCsraReviewId(csraReviewId)
       if (existingNomis == null) {
