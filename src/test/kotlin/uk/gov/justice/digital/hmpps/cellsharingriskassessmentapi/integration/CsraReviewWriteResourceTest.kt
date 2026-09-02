@@ -6,6 +6,8 @@ import org.awaitility.kotlin.matches
 import org.awaitility.kotlin.untilCallTo
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.CsvSource
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.http.MediaType
 import org.springframework.test.web.reactive.server.expectBody
@@ -21,6 +23,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewS
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraType
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraAssessmentStageEvidenceSourceRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraAssessmentStageRepository
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraCurrentRatingRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraNextReviewRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraReviewRepository
 import uk.gov.justice.hmpps.sqs.HmppsQueue
@@ -34,6 +37,9 @@ class CsraReviewWriteResourceTest : SqsIntegrationTestBase() {
 
   @Autowired
   private lateinit var csraReviewRepository: CsraReviewRepository
+
+  @Autowired
+  private lateinit var csraCurrentRatingRepository: CsraCurrentRatingRepository
 
   @Autowired
   private lateinit var csraAssessmentStageRepository: CsraAssessmentStageRepository
@@ -184,6 +190,36 @@ class CsraReviewWriteResourceTest : SqsIntegrationTestBase() {
       .body(BodyInserters.fromValue(startBody("LEI")))
       .exchange()
       .expectStatus().isEqualTo(409)
+  }
+
+  @ParameterizedTest
+  @CsvSource("CLOSED", "ARCHIVED")
+  fun `a review closed or archived by a movement can no longer be submitted to`(status: CsraReviewStatus) {
+    val prisoner = "R7001RR" + status.name.first()
+    val reviewId = seedInProgress(prisoner, CsraType.CSRA_REVIEW, status = status).id!!
+
+    listOf("interim", "final").forEach { stage ->
+      submit(prisoner, reviewId, stage)
+        .expectStatus().isEqualTo(409)
+        .expectBody()
+        .jsonPath("$.errorCode").isEqualTo("CsraReviewNotWritable")
+    }
+
+    // The rejection is the point: nothing was written.
+    assertThat(review(reviewId).status).isEqualTo(status)
+    assertThat(review(reviewId).finalResult).isNull()
+  }
+
+  @Test
+  fun `submitting a final to an archived review does not make it the current rating`() {
+    val prisoner = "R7002RR"
+    val reviewId = seedInProgress(prisoner, CsraType.CSRA_REVIEW, status = CsraReviewStatus.ARCHIVED).id!!
+
+    submit(prisoner, reviewId, "final", stageBody(rating = "HIGH_GENERAL"))
+      .expectStatus().isEqualTo(409)
+
+    assertThat(review(reviewId).status).isEqualTo(CsraReviewStatus.ARCHIVED)
+    assertThat(csraCurrentRatingRepository.findByPrisonerNumber(prisoner)?.rating).isNull()
   }
 
   @Test

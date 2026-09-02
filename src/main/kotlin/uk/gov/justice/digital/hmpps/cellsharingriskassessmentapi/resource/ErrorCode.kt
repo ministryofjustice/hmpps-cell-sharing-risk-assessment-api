@@ -15,4 +15,5 @@ enum class ErrorCode(val errorCode: Int) {
   NextReviewDateInvalid(106),
   StaleAnswersVersion(107),
   MethodArgumentTypeMismatch(108),
+  CsraReviewNotWritable(109),
 }

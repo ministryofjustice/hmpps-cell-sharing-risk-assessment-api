@@ -15,6 +15,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException
 import org.springframework.web.servlet.resource.NoResourceFoundException
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewStatus
 import uk.gov.justice.hmpps.kotlin.common.ErrorResponse
 
 @RestControllerAdvice
@@ -110,6 +111,18 @@ class CellSharingRiskAssessmentApiExceptionHandler {
       ),
     ).also { log.info("Assessment already in progress: {}", e.message) }
 
+  @ExceptionHandler(CsraReviewNotWritableException::class)
+  fun handleCsraReviewNotWritableException(e: CsraReviewNotWritableException): ResponseEntity<ErrorResponse> = ResponseEntity
+    .status(CONFLICT)
+    .body(
+      ErrorResponse(
+        status = CONFLICT,
+        errorCode = ErrorCode.CsraReviewNotWritable.name,
+        userMessage = "Conflict: ${e.message}",
+        developerMessage = e.message,
+      ),
+    ).also { log.info("CSRA review is no longer writable: {}", e.message) }
+
   @ExceptionHandler(StaleAnswersException::class)
   fun handleStaleAnswersException(e: StaleAnswersException): ResponseEntity<ErrorResponse> = ResponseEntity
     .status(CONFLICT)
@@ -169,6 +182,14 @@ class CsraReviewNotFoundException(id: String) : Exception("There is no CSRA revi
 class MandatoryHighRiskGeneralException : Exception("The rating must be HIGH_GENERAL when there is evidence of a mandatory high-risk offence")
 
 class CsraAssessmentInProgressException(prisonerNumber: String) : Exception("An assessment is already in progress for prisoner $prisonerNumber")
+
+/**
+ * A write against a CSRA that a prisoner movement has already closed or archived (R-03).
+ *
+ * A conflict rather than a 404: the record exists and the caller may legitimately have had it open when
+ * the prisoner moved. Only CLOSED and ARCHIVED are refused - amending a COMPLETE review is supported.
+ */
+class CsraReviewNotWritableException(id: String, status: CsraReviewStatus) : Exception("CSRA review $id is $status and can no longer be edited")
 
 /** A submitted answer set that is internally inconsistent. Always a 400, carrying [errorCode] to discriminate. */
 sealed class CsraAnswerValidationException(val errorCode: ErrorCode, message: String) : Exception(message)

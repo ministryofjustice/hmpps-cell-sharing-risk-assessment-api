@@ -116,6 +116,11 @@ class CsraAssessmentResource(
         description = "No such assessment for this prisoner",
         content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
       ),
+      ApiResponse(
+        responseCode = "409",
+        description = "The assessment has been closed or archived by a prisoner movement and can no longer be edited",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
+      ),
     ],
   )
   fun submitProvisional(
@@ -156,6 +161,11 @@ class CsraAssessmentResource(
       ApiResponse(
         responseCode = "404",
         description = "No such assessment for this prisoner",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
+      ),
+      ApiResponse(
+        responseCode = "409",
+        description = "The assessment has been closed or archived by a prisoner movement and can no longer be edited",
         content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
       ),
     ],
@@ -245,6 +255,11 @@ class CsraAssessmentResource(
       ApiResponse(
         responseCode = "404",
         description = "No such assessment for this prisoner",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
+      ),
+      ApiResponse(
+        responseCode = "409",
+        description = "The assessment has been closed or archived by a prisoner movement and can no longer be edited",
         content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
       ),
     ],
