@@ -40,6 +40,7 @@ class CsraMovementService(
    */
   fun handleReadmission(prisonerNumber: String, prisonId: String?) {
     closeOrArchiveInProgress(prisonerNumber, prisonId, CsraClosureReason.NOT_COMPLETED_PRISONER_RELEASE)
+    supersedePreviousCustody(prisonerNumber)
     // Clearing a rating changes the prisoner's CSRA just as saving one does, so it is announced the same
     // way — otherwise a consumer (notably the DPS -> NOMIS sync) keeps the pre-release rating forever.
     // Only when something was actually cleared: most admissions find the prisoner already at "No rating".
@@ -64,6 +65,31 @@ class CsraMovementService(
    */
   fun handleTransfer(prisonerNumber: String, prisonId: String?) {
     closeOrArchiveInProgress(prisonerNumber, prisonId, CsraClosureReason.NOT_COMPLETED_PRISONER_TRANSFER)
+  }
+
+  /**
+   * Closes off the custody period the prisoner has just returned from, so nothing in it can set their
+   * rating again (R-01).
+   *
+   * Without this the reset is only skin-deep: [CsraCurrentRatingService.refreshFromReviews] re-derives the
+   * rating from `csra_review` and excludes only ARCHIVED rows, so the pre-release COMPLETE/CLOSED reviews
+   * stayed eligible and the next NOMIS migrate or sync put the old rating straight back.
+   *
+   * Three things are deliberate:
+   *
+   * - It stamps **every** unstamped review, not just the rated ones. A migrated NOMIS PEND row carries no
+   *   rating today but gains one when NOMIS next syncs it, which would reopen the same hole.
+   * - It runs regardless of whether a rating was actually cleared. The prisoner may already read "No
+   *   rating" while rated reviews survive — that is precisely the state this bug leaves behind.
+   * - It only ever runs on the readmission path. A transfer must leave the rating standing (R-02), so
+   *   stamping from the shared close/archive helper would silently break it for the whole estate.
+   */
+  private fun supersedePreviousCustody(prisonerNumber: String) {
+    // Entity-level rather than a bulk update: the volumes are tiny, and a bulk update would bypass the
+    // persistence context, leaving the rows this transaction just closed holding a stale null in memory.
+    val now = LocalDateTime.now(clock)
+    csraReviewRepository.findAllByPrisonerNumberAndSupersededAtIsNull(prisonerNumber)
+      .forEach { it.supersededAt = now }
   }
 
   private fun closeOrArchiveInProgress(prisonerNumber: String, prisonId: String?, reason: CsraClosureReason) {
