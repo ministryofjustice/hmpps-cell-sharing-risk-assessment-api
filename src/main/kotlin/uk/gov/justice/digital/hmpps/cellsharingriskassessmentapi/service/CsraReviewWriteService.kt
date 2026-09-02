@@ -102,6 +102,7 @@ class CsraReviewWriteService(
     stage: CsraAssessmentStage,
   ): CsraCurrentRating {
     val review = loadReview(prisonerNumber, reviewId)
+    writeSupport.rejectIfNotWritable(review)
     // Deliberately no mandatory-high check — see the class doc.
     validateAnswerDetail(request)
     validateNextReviewDate(request)

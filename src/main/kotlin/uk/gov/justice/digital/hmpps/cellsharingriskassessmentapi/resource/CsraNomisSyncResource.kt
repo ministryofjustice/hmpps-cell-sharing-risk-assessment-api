@@ -85,6 +85,11 @@ class CsraNomisSyncResource(
         description = "Missing required role. Requires the PRISONER_CSRA__SYNC__RW role",
         content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
       ),
+      ApiResponse(
+        responseCode = "409",
+        description = "The review has been closed or archived by a prisoner movement and can no longer be updated",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
+      ),
     ],
   )
   fun sync(

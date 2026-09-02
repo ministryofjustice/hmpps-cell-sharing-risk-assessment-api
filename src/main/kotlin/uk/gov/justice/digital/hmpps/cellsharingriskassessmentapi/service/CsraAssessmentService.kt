@@ -91,6 +91,7 @@ class CsraAssessmentService(
    * request replaces the whole answer state for the stage so that a cleared answer results in null. */
   fun saveAnswers(prisonerNumber: String, assessmentId: UUID, stage: CsraAssessmentStage, request: CsraAssessmentAnswersRequest): CsraAssessmentDto {
     val review = loadInitialReview(prisonerNumber, assessmentId)
+    writeSupport.rejectIfNotWritable(review)
 
     if (review.finalResult != null) {
       throw ValidationException("Cannot save answers after the final rating has been submitted")
@@ -139,6 +140,9 @@ class CsraAssessmentService(
     stage: CsraAssessmentStage,
   ): CsraCurrentRating {
     val review = loadInitialReview(prisonerNumber, assessmentId)
+    // Before the content checks: a review the prisoner has moved away from is a lifecycle conflict, not
+    // a bad payload, and the caller should be told that rather than shown a validation error.
+    writeSupport.rejectIfNotWritable(review)
     validateMandatoryHigh(request)
     validateOffenceEvidence(request.offenceEvidence)
     riskCategoryValidator.validate(request.rating, request.riskTo, request.vulnerabilities)

@@ -7,6 +7,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewS
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraAssessmentStageRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraReviewRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.resource.CsraAssessmentInProgressException
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.resource.CsraReviewNotWritableException
 
 /**
  * The rules both CSRA write journeys share. Extracted so the assessment and review services cannot drift
@@ -28,6 +29,22 @@ class CsraWriteSupport(
       // A review closed/archived on a move is no longer in progress and does not block a new one.
       ?.takeIf { it.finalResult == null && it.interimResult == null && it.status != CsraReviewStatus.ARCHIVED }
       ?.let { throw CsraAssessmentInProgressException(prisonerNumber) }
+  }
+
+  /**
+   * A CSRA that a movement has closed or archived can no longer be edited (R-03). Until the prisoner is
+   * admitted at the receiving establishment the sending prison may still work on it; at that admission
+   * `CsraMovementService` ends it, and every write path has to honour that.
+   *
+   * The archived case is the damaging one: submitting a final rating would set the review COMPLETE and
+   * make it the prisoner's current rating, resurrecting a record the service is supposed to have hidden.
+   *
+   * COMPLETE is deliberately still writable — amending a completed assessment is a real requirement.
+   */
+  fun rejectIfNotWritable(review: CsraReviewEntity) {
+    if (review.status == CsraReviewStatus.CLOSED || review.status == CsraReviewStatus.ARCHIVED) {
+      throw CsraReviewNotWritableException(review.id.toString(), review.status)
+    }
   }
 
   /**
