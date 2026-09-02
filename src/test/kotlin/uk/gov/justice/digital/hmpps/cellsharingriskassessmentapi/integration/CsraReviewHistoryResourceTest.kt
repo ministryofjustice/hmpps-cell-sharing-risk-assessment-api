@@ -11,6 +11,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessm
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraResult
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewNomisEntity
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewStatus
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraType
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraAssessmentStageRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraReviewNomisRepository
@@ -36,6 +37,7 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
     assessmentDate: LocalDate,
     finalResult: CsraResult,
     prisonId: String,
+    status: CsraReviewStatus = CsraReviewStatus.COMPLETE,
   ) = csraReviewRepository.saveAndFlush(
     CsraReviewEntity(
       prisonerNumber = prisonerNumber,
@@ -44,6 +46,7 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
       type = CsraType.REVIEW,
       finalResult = finalResult,
       finalResultDate = assessmentDate,
+      status = status,
       createdAt = LocalDateTime.parse("2025-12-06T12:34:56"),
       createdBy = "NQP56Y",
     ),
@@ -345,5 +348,42 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
       .jsonPath("$.summary.establishments[0].prisonName").isEqualTo("Leeds (HMP)")
       .jsonPath("$.summary.establishments[1].prisonId").isEqualTo("MDI")
       .jsonPath("$.summary.establishments[1].prisonName").isEqualTo("MDI")
+  }
+
+  @Test
+  fun `an archived review is absent from the rows, the counts and the establishment list`() {
+    prisonRegister.stubGetPrisons(mapOf("LEI" to "Leeds (HMP)"))
+    review("A9999AA", LocalDate.parse("2024-01-01"), CsraResult.STANDARD, "LEI")
+    review("A9999AA", LocalDate.parse("2025-01-01"), CsraResult.HIGH_GENERAL, "MDI", CsraReviewStatus.ARCHIVED)
+
+    webTestClient.get().uri("/csra-review/prisoner/A9999AA/history")
+      .headers(setAuthorisation(roles = readRole))
+      .exchange()
+      .expectStatus().isOk
+      .expectBody()
+      .jsonPath("$.totalElements").isEqualTo(1)
+      .jsonPath("$.content[0].recordedDate").isEqualTo("2024-01-01")
+      // The counts sit beside the rows, so they have to drop it too - they come from a separate query.
+      .jsonPath("$.summary.totalCsras").isEqualTo(1)
+      .jsonPath("$.summary.highCount").isEqualTo(0)
+      .jsonPath("$.summary.standardCount").isEqualTo(1)
+      .jsonPath("$.summary.lastAssessmentDate").isEqualTo("2024-01-01")
+      // MDI was the archived review's prison and is its only appearance.
+      .jsonPath("$.summary.establishments.length()").isEqualTo(1)
+      .jsonPath("$.summary.establishments[0].prisonId").isEqualTo("LEI")
+  }
+
+  @Test
+  fun `a closed review is still shown - its rating stands`() {
+    prisonRegister.stubGetPrisons(mapOf("LEI" to "Leeds (HMP)"))
+    review("A9998AA", LocalDate.parse("2024-01-01"), CsraResult.STANDARD, "LEI", CsraReviewStatus.CLOSED)
+
+    webTestClient.get().uri("/csra-review/prisoner/A9998AA/history")
+      .headers(setAuthorisation(roles = readRole))
+      .exchange()
+      .expectStatus().isOk
+      .expectBody()
+      .jsonPath("$.totalElements").isEqualTo(1)
+      .jsonPath("$.summary.totalCsras").isEqualTo(1)
   }
 }
