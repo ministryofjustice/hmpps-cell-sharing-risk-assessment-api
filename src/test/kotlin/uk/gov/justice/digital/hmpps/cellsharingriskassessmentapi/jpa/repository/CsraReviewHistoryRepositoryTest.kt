@@ -12,6 +12,7 @@ import org.springframework.transaction.annotation.Transactional
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.integration.TestBase
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraResult
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewEntity
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewStatus
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraType
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -37,6 +38,7 @@ class CsraReviewHistoryRepositoryTest : TestBase() {
     finalResult: CsraResult? = CsraResult.STANDARD,
     interimResult: CsraResult? = null,
     prisonId: String? = "LEI",
+    status: CsraReviewStatus = CsraReviewStatus.COMPLETE,
   ) = CsraReviewEntity(
     prisonerNumber = prisonerNumber,
     prisonId = prisonId,
@@ -46,6 +48,7 @@ class CsraReviewHistoryRepositoryTest : TestBase() {
     finalResultDate = finalResult?.let { assessmentDate },
     interimResult = interimResult,
     interimResultDate = interimResult?.let { assessmentDate },
+    status = status,
     createdAt = LocalDateTime.parse("2025-12-06T12:34:56"),
     createdBy = "NQP56Y",
   )
@@ -183,5 +186,60 @@ class CsraReviewHistoryRepositoryTest : TestBase() {
     val rows = repository.findSummaryRows("A1234BC")
 
     assertThat(rows.map { it.prisonId }).containsExactlyInAnyOrder("LEI", "MDI", null)
+  }
+
+  /**
+   * The rated-and-archived combination is the one the rating check alone cannot catch. It does not arise
+   * from the movement listener, which archives only unrated work, but a cancelled review will carry an
+   * interim rating - so the status predicate has to be explicit.
+   */
+  @Test
+  fun `excludes an archived review even when it carries a rating`() {
+    repository.save(review(assessmentDate = LocalDate.parse("2025-01-01")))
+    repository.save(
+      review(
+        assessmentDate = LocalDate.parse("2025-02-01"),
+        finalResult = null,
+        interimResult = CsraResult.HIGH_GENERAL,
+        status = CsraReviewStatus.ARCHIVED,
+      ),
+    )
+    repository.flush()
+
+    val page = repository.findAll(spec(), pageable)
+
+    assertThat(page.content.map { it.assessmentDate }).containsExactly(LocalDate.parse("2025-01-01"))
+  }
+
+  @Test
+  fun `summary rows exclude an archived review carrying a rating`() {
+    repository.save(review(assessmentDate = LocalDate.parse("2025-01-01"), finalResult = CsraResult.STANDARD))
+    repository.save(
+      review(
+        assessmentDate = LocalDate.parse("2025-02-01"),
+        finalResult = CsraResult.HIGH_GENERAL,
+        status = CsraReviewStatus.ARCHIVED,
+      ),
+    )
+    repository.flush()
+
+    val rows = repository.findSummaryRows("A1234BC")
+
+    assertThat(rows.map { it.result }).containsExactly(CsraResult.STANDARD)
+  }
+
+  @Test
+  fun `keeps a closed review, whose rating still stands`() {
+    repository.saveAndFlush(
+      review(
+        assessmentDate = LocalDate.parse("2025-02-01"),
+        finalResult = null,
+        interimResult = CsraResult.HIGH_GENERAL,
+        status = CsraReviewStatus.CLOSED,
+      ),
+    )
+
+    assertThat(repository.findAll(spec(), pageable).content).hasSize(1)
+    assertThat(repository.findSummaryRows("A1234BC")).hasSize(1)
   }
 }
