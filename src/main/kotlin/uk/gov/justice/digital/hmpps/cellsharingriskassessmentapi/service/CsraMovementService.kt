@@ -21,6 +21,9 @@ import java.time.LocalDateTime
  * review that already has a provisional/interim rating is **closed** (it stops being in progress but its
  * rating stands), and one with no rating yet is **archived** (retained but hidden). Both are naturally
  * idempotent: a redelivered event finds no in-progress review and does nothing.
+ *
+ * The two paths differ in what they record as the closure reason: a readmission after release is not a
+ * transfer, and the record has to say so.
  */
 @Service
 @Transactional
@@ -36,7 +39,7 @@ class CsraMovementService(
    * prisoner's current CSRA rating to "No rating" (a fresh period of custody starts with no rating).
    */
   fun handleReadmission(prisonerNumber: String, prisonId: String?) {
-    closeOrArchiveInProgress(prisonerNumber, prisonId, "readmission")
+    closeOrArchiveInProgress(prisonerNumber, prisonId, CsraClosureReason.NOT_COMPLETED_PRISONER_RELEASE)
     // Clearing a rating changes the prisoner's CSRA just as saving one does, so it is announced the same
     // way — otherwise a consumer (notably the DPS -> NOMIS sync) keeps the pre-release rating forever.
     // Only when something was actually cleared: most admissions find the prisoner already at "No rating".
@@ -60,10 +63,10 @@ class CsraMovementService(
    * unchanged, so there is nothing to announce.
    */
   fun handleTransfer(prisonerNumber: String, prisonId: String?) {
-    closeOrArchiveInProgress(prisonerNumber, prisonId, "transfer")
+    closeOrArchiveInProgress(prisonerNumber, prisonId, CsraClosureReason.NOT_COMPLETED_PRISONER_TRANSFER)
   }
 
-  private fun closeOrArchiveInProgress(prisonerNumber: String, prisonId: String?, movement: String) {
+  private fun closeOrArchiveInProgress(prisonerNumber: String, prisonId: String?, reason: CsraClosureReason) {
     val inProgress = csraReviewRepository.findAllByPrisonerNumberAndStatus(prisonerNumber, CsraReviewStatus.IN_PROGRESS)
     inProgress.forEach { review ->
       // The review's own prisonId is deliberately left alone: it records where the assessment happened, not
@@ -72,16 +75,22 @@ class CsraMovementService(
       // worklists on status alone, so there is nothing to gain by moving it.
       val outcome = if (review.interimResult != null) CsraReviewStatus.CLOSED else CsraReviewStatus.ARCHIVED
       review.status = outcome
-      review.closureReason = CsraClosureReason.NOT_COMPLETED_PRISONER_TRANSFER
+      review.closureReason = reason
       review.closedAt = LocalDateTime.now(clock)
       review.closedBy = SYSTEM_USERNAME
       csraReviewRepository.save(review)
-      recordClosure(review, prisonId, movement, outcome)
+      recordClosure(review, prisonId, reason, outcome)
     }
   }
 
   // R-05: record close/archive events so the team can measure how often in-progress work is disrupted.
-  private fun recordClosure(review: CsraReviewEntity, prisonId: String?, movement: String, outcome: CsraReviewStatus) {
+  private fun recordClosure(review: CsraReviewEntity, prisonId: String?, reason: CsraClosureReason, outcome: CsraReviewStatus) {
+    // Derived from the reason rather than passed separately, so the label and the stored reason cannot
+    // drift. The existing values are kept because App Insights queries filter on them.
+    val movement = when (reason) {
+      CsraClosureReason.NOT_COMPLETED_PRISONER_RELEASE -> "readmission"
+      CsraClosureReason.NOT_COMPLETED_PRISONER_TRANSFER -> "transfer"
+    }
     log.info("CSRA review {} {} on {} for {}", review.id, outcome, movement, review.prisonerNumber)
     telemetryClient.trackEvent(
       "csra-in-progress-closed-on-admission",
@@ -91,7 +100,7 @@ class CsraMovementService(
         "prisonId" to (prisonId ?: ""),
         "movement" to movement,
         "outcome" to outcome.name,
-        "reason" to CsraClosureReason.NOT_COMPLETED_PRISONER_TRANSFER.name,
+        "reason" to reason.name,
       ),
       null,
     )

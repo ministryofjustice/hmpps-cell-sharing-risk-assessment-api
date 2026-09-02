@@ -7,9 +7,16 @@ import org.awaitility.kotlin.matches
 import org.awaitility.kotlin.untilCallTo
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.junit.jupiter.params.ParameterizedTest
+import org.junit.jupiter.params.provider.CsvSource
+import org.mockito.kotlin.any
+import org.mockito.kotlin.argumentCaptor
+import org.mockito.kotlin.eq
+import org.mockito.kotlin.isNull
 import org.mockito.kotlin.verify
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.test.context.bean.override.mockito.MockitoBean
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraClosureReason
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraResult
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewStatus
@@ -95,10 +102,10 @@ class PrisonerMovementListenerTest : SqsIntegrationTestBase() {
 
     awaitStatus(review.id!!, CsraReviewStatus.CLOSED)
     val closed = csraReviewRepository.findById(review.id!!).get()
-    assertThat(closed.closureReason?.name).isEqualTo("NOT_COMPLETED_PRISONER_TRANSFER")
+    assertThat(closed.closureReason).isEqualTo(CsraClosureReason.NOT_COMPLETED_PRISONER_TRANSFER)
     assertThat(closed.closedAt).isNotNull()
     assertThat(closed.closedBy).isEqualTo("CELL_SHARING_RISK_ASSESSMENT_API")
-    verify(telemetryClient).trackEvent(org.mockito.kotlin.eq("csra-in-progress-closed-on-admission"), org.mockito.kotlin.any(), org.mockito.kotlin.isNull())
+    verify(telemetryClient).trackEvent(eq("csra-in-progress-closed-on-admission"), any(), isNull())
   }
 
   @Test
@@ -117,6 +124,50 @@ class PrisonerMovementListenerTest : SqsIntegrationTestBase() {
     send("A3333AA", "MDI", "NEW_ADMISSION")
 
     awaitStatus(review.id!!, CsraReviewStatus.CLOSED)
+  }
+
+  /**
+   * A readmission after release is not a transfer, and the closed record has to say which it was - the
+   * movement type is recorded nowhere else on the row.
+   */
+  @ParameterizedTest
+  @CsvSource("NEW_ADMISSION", "READMISSION", "READMISSION_SWITCH_BOOKING")
+  fun `a review closed on readmission records the release closure reason`(reason: String) {
+    val prisoner = "A31" + reason.take(2) + "AA"
+    val review = inProgressReview(prisoner, interimResult = CsraResult.HIGH_GENERAL)
+
+    send(prisoner, "MDI", reason)
+
+    awaitStatus(review.id!!, CsraReviewStatus.CLOSED)
+    val closed = csraReviewRepository.findById(review.id!!).get()
+    assertThat(closed.closureReason).isEqualTo(CsraClosureReason.NOT_COMPLETED_PRISONER_RELEASE)
+    assertThat(closed.closedAt).isNotNull()
+    assertThat(closed.closedBy).isEqualTo("CELL_SHARING_RISK_ASSESSMENT_API")
+  }
+
+  @Test
+  fun `an unrated review archived on readmission records the release closure reason too`() {
+    val review = inProgressReview("A3999AA")
+
+    send("A3999AA", "MDI", "READMISSION")
+
+    awaitStatus(review.id!!, CsraReviewStatus.ARCHIVED)
+    assertThat(csraReviewRepository.findById(review.id!!).get().closureReason)
+      .isEqualTo(CsraClosureReason.NOT_COMPLETED_PRISONER_RELEASE)
+  }
+
+  @Test
+  fun `the telemetry reason matches the reason stored on the row`() {
+    val review = inProgressReview("A3998AA", interimResult = CsraResult.HIGH_GENERAL)
+
+    send("A3998AA", "MDI", "READMISSION")
+
+    awaitStatus(review.id!!, CsraReviewStatus.CLOSED)
+    val properties = argumentCaptor<Map<String, String>>()
+    verify(telemetryClient).trackEvent(eq("csra-in-progress-closed-on-admission"), properties.capture(), isNull())
+    assertThat(properties.firstValue["reason"]).isEqualTo("NOT_COMPLETED_PRISONER_RELEASE")
+    assertThat(properties.firstValue["movement"]).isEqualTo("readmission")
+    assertThat(properties.firstValue["outcome"]).isEqualTo("CLOSED")
   }
 
   @Test

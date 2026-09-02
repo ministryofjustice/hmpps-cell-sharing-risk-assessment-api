@@ -83,7 +83,8 @@ class ExportReferenceData {
       "csra_review.closure_reason",
       CsraClosureReason.entries,
       mapOf(
-        CsraClosureReason.NOT_COMPLETED_PRISONER_TRANSFER to "The prisoner was admitted to another establishment - a transfer or a readmission - before the review was completed.",
+        CsraClosureReason.NOT_COMPLETED_PRISONER_TRANSFER to "The prisoner was transferred to another establishment, with no release in between, before the review was completed.",
+        CsraClosureReason.NOT_COMPLETED_PRISONER_RELEASE to "The prisoner was readmitted following a period of release before the review was completed. The rating is also reset to No rating.",
       ),
     )
 
