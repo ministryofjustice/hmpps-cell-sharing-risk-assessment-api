@@ -55,7 +55,12 @@ interface CsraReviewRepository :
     status: CsraReviewStatus,
   ): List<CsraReviewEntity>
 
-  /** Every rated review for a prisoner, projected for computing whole-history summary counts. */
+  /**
+   * Every rated review for a prisoner, projected for computing whole-history summary counts.
+   *
+   * Excludes ARCHIVED for the same reason [CsraReviewSpecifications.history] does (R-04) — the counts
+   * are shown beside those rows and have to agree with them.
+   */
   @Query(
     """
     SELECT new uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraSummaryRow(
@@ -63,6 +68,7 @@ interface CsraReviewRepository :
     FROM CsraReviewEntity r
     WHERE r.prisonerNumber = :prisonerNumber
       AND (r.finalResult IS NOT NULL OR r.interimResult IS NOT NULL)
+      AND r.status <> uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewStatus.ARCHIVED
     """,
   )
   fun findSummaryRows(prisonerNumber: String): List<CsraSummaryRow>
