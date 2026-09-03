@@ -29,8 +29,12 @@ interface CsraReviewRepository :
   fun findFirstByPrisonerNumberAndStatusOrderByAssessmentDateDescIdDesc(prisonerNumber: String, status: CsraReviewStatus): CsraReviewEntity?
 
   /**
-   * A prisoner's rated, non-[excludedStatus] reviews, most recent first — the first is the review that
-   * sets the current rating (drives the csra_current_rating projection). Pass ARCHIVED for [excludedStatus].
+   * A prisoner's rated reviews from their current period of custody, most recent first — the first is the
+   * review that sets the current rating (drives the csra_current_rating projection). Pass ARCHIVED for
+   * [excludedStatus].
+   *
+   * Superseded reviews are excluded: a readmission after release resets the rating to "No rating" (R-01),
+   * and without this the very next refresh would re-derive the pre-release rating and undo it.
    */
   @Query(
     """
@@ -38,10 +42,14 @@ interface CsraReviewRepository :
     WHERE r.prisonerNumber = :prisonerNumber
       AND (r.finalResult IS NOT NULL OR r.interimResult IS NOT NULL)
       AND r.status <> :excludedStatus
+      AND r.supersededAt IS NULL
     ORDER BY r.assessmentDate DESC, r.id DESC
     """,
   )
   fun findRatedReviews(prisonerNumber: String, excludedStatus: CsraReviewStatus): List<CsraReviewEntity>
+
+  /** Every review for a prisoner that still belongs to their current period of custody. */
+  fun findAllByPrisonerNumberAndSupersededAtIsNull(prisonerNumber: String): List<CsraReviewEntity>
 
   /**
    * Genuinely in-progress reviews of a given type at a prison — the "assessments/reviews in progress"

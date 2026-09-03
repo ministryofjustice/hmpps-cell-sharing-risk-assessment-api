@@ -221,6 +221,92 @@ class PrisonerMovementListenerTest : SqsIntegrationTestBase() {
     assertThat(event.additionalInformation?.nomsNumber).isEqualTo("A8889AA")
   }
 
+  /**
+   * The reset used to be skin-deep: it cleared the projection but left the pre-release reviews eligible,
+   * so the very next refresh - which every NOMIS migrate and sync performs - put the old rating back.
+   */
+  @Test
+  fun `the No rating reset survives a later refresh`() {
+    completedRating("A9001AA", CsraResult.STANDARD)
+
+    send("A9001AA", "MDI", "READMISSION")
+    await.until { csraCurrentRatingRepository.findByPrisonerNumber("A9001AA")?.rating == null }
+
+    // What a NOMIS migrate or sync for this prisoner does next.
+    refreshCurrentRating("A9001AA")
+
+    assertThat(csraCurrentRatingRepository.findByPrisonerNumber("A9001AA")?.rating).isNull()
+  }
+
+  @Test
+  fun `a rating saved after the readmission still becomes the current rating`() {
+    completedRating("A9002AA", CsraResult.STANDARD)
+
+    send("A9002AA", "MDI", "READMISSION")
+    await.until { csraCurrentRatingRepository.findByPrisonerNumber("A9002AA")?.rating == null }
+
+    // A new assessment in the new custody period is not superseded, so it sets the rating as normal.
+    csraReviewRepository.saveAndFlush(
+      CsraReviewEntity(
+        prisonerNumber = "A9002AA",
+        prisonId = "MDI",
+        assessmentDate = LocalDate.parse("2023-12-06"),
+        type = CsraType.CSRA_INITIAL_REVIEW,
+        finalResult = CsraResult.HIGH_GENERAL,
+        finalResultDate = LocalDate.parse("2023-12-06"),
+        status = CsraReviewStatus.COMPLETE,
+        createdAt = LocalDateTime.parse("2023-12-06T09:00:00"),
+        createdBy = "NQP56Y",
+      ),
+    )
+    refreshCurrentRating("A9002AA")
+
+    assertThat(csraCurrentRatingRepository.findByPrisonerNumber("A9002AA")?.rating).isEqualTo(CsraResult.HIGH_GENERAL)
+  }
+
+  /**
+   * R-02: a transfer retains the rating, so it must supersede nothing. Superseding from the shared
+   * close/archive helper would silently wipe the rating of every transferred prisoner in the estate.
+   */
+  @Test
+  fun `a transfer supersedes nothing and leaves the rating standing`() {
+    completedRating("A9003AA", CsraResult.STANDARD)
+    val review = inProgressReview("A9003AA", interimResult = CsraResult.HIGH_GENERAL)
+
+    send("A9003AA", "MDI", "TRANSFERRED")
+    awaitStatus(review.id!!, CsraReviewStatus.CLOSED)
+
+    assertThat(csraReviewRepository.findAllByPrisonerNumberAndSupersededAtIsNull("A9003AA")).hasSize(2)
+    refreshCurrentRating("A9003AA")
+    assertThat(csraCurrentRatingRepository.findByPrisonerNumber("A9003AA")?.rating).isEqualTo(CsraResult.HIGH_GENERAL)
+  }
+
+  @Test
+  fun `a redelivered readmission does not move the supersede timestamp`() {
+    completedRating("A9004AA", CsraResult.STANDARD)
+
+    send("A9004AA", "MDI", "READMISSION")
+    await.until { csraCurrentRatingRepository.findByPrisonerNumber("A9004AA")?.rating == null }
+    val stampedAt = csraReviewRepository.findAll().single { it.prisonerNumber == "A9004AA" }.supersededAt
+    assertThat(stampedAt).isNotNull()
+
+    send("A9004AA", "MDI", "READMISSION")
+    awaitCsraQueueDrained()
+
+    assertThat(csraReviewRepository.findAll().single { it.prisonerNumber == "A9004AA" }.supersededAt).isEqualTo(stampedAt)
+  }
+
+  /** An unrated review is stamped too - it can gain a rating later when NOMIS next syncs it. */
+  @Test
+  fun `readmission supersedes unrated reviews as well as rated ones`() {
+    val unrated = inProgressReview("A9005AA")
+
+    send("A9005AA", "MDI", "READMISSION")
+    awaitStatus(unrated.id!!, CsraReviewStatus.ARCHIVED)
+
+    assertThat(csraReviewRepository.findById(unrated.id!!).get().supersededAt).isNotNull()
+  }
+
   @Test
   fun `a return from court leaves an in-progress review untouched`() {
     val review = inProgressReview("A4444AA")

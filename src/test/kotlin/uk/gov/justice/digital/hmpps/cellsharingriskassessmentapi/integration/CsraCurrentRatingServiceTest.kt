@@ -37,6 +37,7 @@ class CsraCurrentRatingServiceTest : SqsIntegrationTestBase() {
     interimResult: CsraResult? = null,
     type: CsraType = CsraType.CSRA_INITIAL_REVIEW,
     status: CsraReviewStatus = CsraReviewStatus.IN_PROGRESS,
+    supersededAt: LocalDateTime? = null,
   ) = csraReviewRepository.saveAndFlush(
     CsraReviewEntity(
       prisonerNumber = "A1234BC",
@@ -48,6 +49,7 @@ class CsraCurrentRatingServiceTest : SqsIntegrationTestBase() {
       finalResult = finalResult,
       finalResultDate = finalResult?.let { assessmentDate },
       status = status,
+      supersededAt = supersededAt,
       createdAt = LocalDateTime.parse("2026-01-02T09:00:00"),
       createdBy = "NQP56Y",
     ),
@@ -101,5 +103,42 @@ class CsraCurrentRatingServiceTest : SqsIntegrationTestBase() {
     assertThat(current.rating).isNull()
     assertThat(current.setByReviewId).isNull()
     assertThat(current.setReason.name).isEqualTo("NO_RATING_ON_READMISSION")
+  }
+
+  @Test
+  fun `a superseded review never sets the current rating`() {
+    review(LocalDate.parse("2026-02-01"), finalResult = CsraResult.HIGH, status = CsraReviewStatus.COMPLETE, supersededAt = LocalDateTime.parse("2026-03-01T09:00:00"))
+
+    service.refreshFromReviews("A1234BC")
+
+    assertThat(csraCurrentRatingRepository.findByPrisonerNumber("A1234BC")!!.rating).isNull()
+  }
+
+  @Test
+  fun `a review from the current custody period still wins over a superseded one`() {
+    review(LocalDate.parse("2026-02-01"), finalResult = CsraResult.HIGH, status = CsraReviewStatus.COMPLETE, supersededAt = LocalDateTime.parse("2026-03-01T09:00:00"))
+    val current = review(LocalDate.parse("2026-04-01"), finalResult = CsraResult.STANDARD, status = CsraReviewStatus.COMPLETE)
+
+    service.refreshFromReviews("A1234BC")
+
+    val projection = csraCurrentRatingRepository.findByPrisonerNumber("A1234BC")!!
+    assertThat(projection.rating).isEqualTo(CsraResult.STANDARD)
+    assertThat(projection.setByReviewId).isEqualTo(current.id)
+  }
+
+  /**
+   * The ordering is the point: a superseded review can be the most recent by assessment date and must
+   * still lose to a newer unsuperseded one - and to nothing at all.
+   */
+  @Test
+  fun `a later-dated superseded review does not beat an earlier one from this custody period`() {
+    val current = review(LocalDate.parse("2026-01-01"), finalResult = CsraResult.STANDARD, status = CsraReviewStatus.COMPLETE)
+    review(LocalDate.parse("2027-01-01"), finalResult = CsraResult.HIGH, status = CsraReviewStatus.COMPLETE, supersededAt = LocalDateTime.parse("2026-03-01T09:00:00"))
+
+    service.refreshFromReviews("A1234BC")
+
+    val projection = csraCurrentRatingRepository.findByPrisonerNumber("A1234BC")!!
+    assertThat(projection.rating).isEqualTo(CsraResult.STANDARD)
+    assertThat(projection.setByReviewId).isEqualTo(current.id)
   }
 }

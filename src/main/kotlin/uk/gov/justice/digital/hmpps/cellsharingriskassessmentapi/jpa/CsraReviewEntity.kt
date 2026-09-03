@@ -62,6 +62,10 @@ class CsraReviewEntity(
   var closedAt: LocalDateTime? = null,
   var closedBy: String? = null,
 
+  // Set when a readmission after release ended the custody period this review belongs to (R-01). A
+  // superseded review still appears in the prisoner's history but can never set their current rating.
+  var supersededAt: LocalDateTime? = null,
+
   var createdAt: LocalDateTime,
   var createdBy: String,
   var lastModifiedAt: LocalDateTime? = null,
