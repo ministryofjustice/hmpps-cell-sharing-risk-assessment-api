@@ -61,6 +61,12 @@ data class AdditionalInformation(
   val nomsNumber: String? = null,
   val key: String? = null,
   val source: InformationSource? = null,
+  /**
+   * On a prisoner-merge event, the retired prisoner number whose data now lives under [nomsNumber].
+   * Null on every other event. It is the only way a consumer holding data keyed on the old number can
+   * tell what to re-key, since no event is ever published against the retired number itself.
+   */
+  val removedNomsNumber: String? = null,
 )
 
 data class HMPPSDomainEvent(
