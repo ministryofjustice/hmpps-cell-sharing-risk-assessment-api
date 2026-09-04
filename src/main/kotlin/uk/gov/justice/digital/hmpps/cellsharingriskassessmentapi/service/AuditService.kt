@@ -73,4 +73,11 @@ data class AuditEvent(
 enum class AuditType {
   CSRA_CREATED,
   CSRA_AMENDED,
+
+  /**
+   * A NOMIS prisoner-number merge moved a prisoner's CSRA data onto their surviving number. Not a
+   * [CSRA_AMENDED]: that value is bound to a [CSRADomainEventType] and so implies a domain event went out
+   * with it, whereas every merge is audited but only a merge that changes the current rating is published.
+   */
+  PRISONER_NUMBER_MERGE,
 }
