@@ -2,6 +2,7 @@ package uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.integration
 
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.integration.wiremock.PrisonRegisterApiExtension.Companion.prisonRegister
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStage
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStageEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStageRiskToEntity
@@ -108,6 +109,7 @@ class CsraCurrentRatingResourceTest : SqsIntegrationTestBase() {
   @Test
   fun `reports an unrated review in progress alongside the rating an earlier review produced`() {
     val prisoner = "IP001IP"
+    prisonRegister.stubGetPrisons(mapOf("LEI" to "Leeds (HMP)", "BXI" to "Brixton (HMP)"))
     // A completed Standard rating...
     val completed = review(
       prisonerNumber = prisoner,
@@ -131,10 +133,14 @@ class CsraCurrentRatingResourceTest : SqsIntegrationTestBase() {
       .jsonPath("$.rating").isEqualTo("STANDARD")
       .jsonPath("$.reviewId").isEqualTo(completed.id.toString())
       .jsonPath("$.type").isEqualTo("CSRA_INITIAL_REVIEW")
+      .jsonPath("$.prisonId").isEqualTo("LEI")
+      .jsonPath("$.prisonName").isEqualTo("Leeds (HMP)")
       // The in-progress record is a different review, and the UI needs its id to offer Continue/Cancel
       .jsonPath("$.inProgress.reviewId").isEqualTo(started.id.toString())
       .jsonPath("$.inProgress.type").isEqualTo("CSRA_REVIEW")
       .jsonPath("$.inProgress.prisonId").isEqualTo("BXI")
+      // A different prison from the one that produced the rating, so both names are needed.
+      .jsonPath("$.inProgress.prisonName").isEqualTo("Brixton (HMP)")
       .jsonPath("$.inProgress.startedBy").isEqualTo("NQP56Y")
   }
 
@@ -255,10 +261,13 @@ class CsraCurrentRatingResourceTest : SqsIntegrationTestBase() {
       .jsonPath("$.rating").isEmpty
       .jsonPath("$.reviewId").isEmpty
       .jsonPath("$.provisional").isEqualTo(false)
+      .jsonPath("$.prisonId").isEmpty
+      .jsonPath("$.prisonName").isEmpty
   }
 
   @Test
   fun `returns a complete migrated legacy rating with its NOMIS comment and next review date`() {
+    prisonRegister.stubGetPrisons(mapOf("LEI" to "Leeds (HMP)"))
     val legacy = review(
       prisonerNumber = "L1111LL",
       assessmentDate = LocalDate.parse("2023-07-14"),
@@ -279,6 +288,7 @@ class CsraCurrentRatingResourceTest : SqsIntegrationTestBase() {
       .jsonPath("$.rating").isEqualTo("HIGH")
       .jsonPath("$.provisional").isEqualTo(false)
       .jsonPath("$.prisonId").isEqualTo("LEI")
+      .jsonPath("$.prisonName").isEqualTo("Leeds (HMP)")
       .jsonPath("$.assessmentComment").isEqualTo("Legacy high comment")
       .jsonPath("$.provisionalAssessmentComment").isEmpty
       .jsonPath("$.riskTo").isEmpty
@@ -288,6 +298,7 @@ class CsraCurrentRatingResourceTest : SqsIntegrationTestBase() {
 
   @Test
   fun `returns a complete two-stage standard rating with both comments and dates`() {
+    prisonRegister.stubGetPrisons(mapOf("LEI" to "Leeds (HMP)"))
     val standard = review(
       prisonerNumber = "S2222SS",
       assessmentDate = LocalDate.parse("2026-06-30"),
@@ -307,6 +318,7 @@ class CsraCurrentRatingResourceTest : SqsIntegrationTestBase() {
       .jsonPath("$.status").isEqualTo("COMPLETE")
       .jsonPath("$.rating").isEqualTo("STANDARD")
       .jsonPath("$.prisonId").isEqualTo("LEI")
+      .jsonPath("$.prisonName").isEqualTo("Leeds (HMP)")
       .jsonPath("$.assessmentComment").isEqualTo("PNC checked. No issues found.")
       .jsonPath("$.provisionalAssessmentComment").isEqualTo("pnc not checked on day 1. No evidence of increased risk.")
       .jsonPath("$.provisionalDate").isEqualTo("2026-06-30")
@@ -378,5 +390,31 @@ class CsraCurrentRatingResourceTest : SqsIntegrationTestBase() {
       .expectBody()
       .jsonPath("$.rating").isEqualTo("STANDARD")
       .jsonPath("$.reviewId").isEqualTo(latest.id.toString())
+  }
+
+  @Test
+  fun `falls back to the prison id when prison-register cannot resolve the name`() {
+    val prisoner = "U6666UU"
+    prisonRegister.stubGetPrisons(mapOf("LEI" to "Leeds (HMP)"))
+    review(
+      prisonerNumber = prisoner,
+      assessmentDate = LocalDate.parse("2026-03-01"),
+      finalResult = CsraResult.STANDARD,
+      finalResultDate = LocalDate.parse("2026-03-01"),
+      prisonId = "XYZ",
+      status = CsraReviewStatus.COMPLETE,
+    )
+    review(
+      prisonerNumber = prisoner,
+      assessmentDate = LocalDate.parse("2026-04-01"),
+      type = CsraType.CSRA_REVIEW,
+      prisonId = "ZZZ",
+    )
+
+    get(prisoner)
+      .jsonPath("$.prisonId").isEqualTo("XYZ")
+      .jsonPath("$.prisonName").isEqualTo("XYZ")
+      .jsonPath("$.inProgress.prisonId").isEqualTo("ZZZ")
+      .jsonPath("$.inProgress.prisonName").isEqualTo("ZZZ")
   }
 }
