@@ -328,4 +328,27 @@ class PrisonerMovementListenerTest : SqsIntegrationTestBase() {
 
     assertThat(csraReviewRepository.findById(review.id!!).get().status).isEqualTo(CsraReviewStatus.CLOSED)
   }
+
+  @Test
+  fun `a merge event on the same queue does not disturb in-progress movement work`() {
+    // Both event types share one listener, so this guards the dispatch: a merge naming a prisoner with an
+    // in-progress review must not take the received branch and close or archive it.
+    val review = inProgressReview("A6666AA", interimResult = CsraResult.HIGH_GENERAL)
+
+    publishDomainEvent(
+      "prison-offender-events.prisoner.merged",
+      """
+        {
+          "eventType":"prison-offender-events.prisoner.merged",
+          "additionalInformation":{"nomsNumber":"A6666AA","removedNomsNumber":"A7777AA","reason":"MERGE"},
+          "version":"1.0",
+          "occurredAt":"2023-12-05T12:00:00+00:00",
+          "description":"A prisoner has been merged from A7777AA to A6666AA"
+        }
+      """.trimIndent(),
+    )
+    awaitCsraQueueDrained()
+
+    assertThat(csraReviewRepository.findById(review.id!!).get().status).isEqualTo(CsraReviewStatus.IN_PROGRESS)
+  }
 }

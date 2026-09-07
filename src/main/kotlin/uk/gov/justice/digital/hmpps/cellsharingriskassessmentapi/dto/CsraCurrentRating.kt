@@ -45,6 +45,9 @@ data class CsraCurrentRating(
   @param:Schema(description = "The prison the current assessment/review took place at", example = "LEI")
   val prisonId: String?,
 
+  @param:Schema(description = "The name of the prison the current assessment/review took place at, falling back to the id if it cannot be resolved", example = "Leeds (HMP)")
+  val prisonName: String?,
+
   @param:Schema(description = "The final assessment comment (or, for a migrated legacy review, its review comment)", example = "PNC checked. No issues found.")
   val assessmentComment: String?,
 
@@ -111,6 +114,9 @@ data class CsraInProgressReview(
 
   @param:Schema(description = "The prison it was started at", example = "LEI")
   val prisonId: String?,
+
+  @param:Schema(description = "The name of the prison it was started at, falling back to the id if it cannot be resolved", example = "Brixton (HMP)")
+  val prisonName: String?,
 )
 
 @Schema(description = "A group the prisoner is a risk to, with optional free-text detail")

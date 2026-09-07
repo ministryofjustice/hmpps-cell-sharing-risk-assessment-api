@@ -413,11 +413,11 @@ class CsraReviewService(
 
     if (ratingReview != null) {
       val status = if (current.provisional) CsraRatingStatus.PROVISIONAL else CsraRatingStatus.COMPLETE
-      return buildCurrentRating(prisonerNumber, ratingReview, status, inProgress)
+      return buildCurrentRating(prisonerNumber, ratingReview, status, inProgress, prisonRegisterClient.getPrisonNames())
     }
 
     return if (inProgress != null) {
-      buildCurrentRating(prisonerNumber, inProgress, CsraRatingStatus.IN_PROGRESS, inProgress)
+      buildCurrentRating(prisonerNumber, inProgress, CsraRatingStatus.IN_PROGRESS, inProgress, prisonRegisterClient.getPrisonNames())
     } else {
       CsraCurrentRating(
         prisonerNumber = prisonerNumber,
@@ -426,6 +426,8 @@ class CsraReviewService(
         provisional = false,
         reviewId = null,
         prisonId = null,
+        // No review, so no prison to name; the prison-register lookup is skipped entirely on this path.
+        prisonName = null,
         assessmentComment = null,
         provisionalAssessmentComment = null,
         riskTo = emptyList(),
@@ -447,6 +449,7 @@ class CsraReviewService(
     review: CsraReviewEntity,
     status: CsraRatingStatus,
     inProgress: CsraReviewEntity?,
+    prisonNames: Map<String, String>,
   ): CsraCurrentRating {
     val stages = csraAssessmentStageRepository.findAllByCsraReviewId(review.id!!)
     val finalStage = stages.firstOrNull { it.stage == CsraAssessmentStage.FINAL }
@@ -459,6 +462,8 @@ class CsraReviewService(
     val ratingStage = finalStage ?: provisionalStage
     // Migrated legacy reviews have no stages; their comment lives on the adjacent NOMIS record.
     val nomis = if (stages.isEmpty()) csraReviewNomisRepository.findByCsraReviewId(review.id!!) else null
+    // Held in a local so the id and its name can never be derived from different reviews.
+    val prisonId = ratingStage?.prisonId ?: review.prisonId
 
     return CsraCurrentRating(
       prisonerNumber = prisonerNumber,
@@ -468,7 +473,8 @@ class CsraReviewService(
       // rating is provisional, but arrives here with status IN_PROGRESS.
       provisional = review.finalResult == null && review.interimResult != null,
       reviewId = review.id,
-      prisonId = ratingStage?.prisonId ?: review.prisonId,
+      prisonId = prisonId,
+      prisonName = prisonId?.let { prisonNames[it] ?: it },
       assessmentComment = finalStage?.assessmentComment ?: nomis?.reviewComment ?: nomis?.comment,
       provisionalAssessmentComment = provisionalStage?.assessmentComment,
       riskTo = ratingStage?.riskTo?.map { CsraRiskToDetail(it.category, it.details) }.orEmpty(),
@@ -486,6 +492,7 @@ class CsraReviewService(
           startedBy = it.createdBy,
           startedAt = it.createdAt,
           prisonId = it.prisonId,
+          prisonName = it.prisonId?.let { id -> prisonNames[id] ?: id },
         )
       },
     )
