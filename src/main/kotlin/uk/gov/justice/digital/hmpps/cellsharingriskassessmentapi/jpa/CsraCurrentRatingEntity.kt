@@ -8,6 +8,7 @@ import jakarta.persistence.Id
 import jakarta.persistence.Table
 import org.hibernate.Hibernate
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentTypeBucket
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraRatingStage
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.helper.GeneratedUuidV7
 import java.time.LocalDate
 import java.time.LocalDateTime
@@ -19,8 +20,9 @@ import java.util.UUID
  * One row per prisoner. It changes only when a rating is saved (assessment/review/migration) or a
  * readmission after release resets it to "No rating" (R-01); it deliberately persists when a new
  * assessment is merely started. `rating == null` means "No rating". Denormalised (rating/provisional/
- * assessmentType/ratingDate) so prison-scoped reads are single-table lookups; `setByReviewId` points at the
- * review that set it (null on a No-rating reset) for loading the richer detail.
+ * ratingStage/assessmentType/ratingDate) so prison-scoped reads are single-table lookups;
+ * `setByReviewId` points at the review that set it (null on a No-rating reset) for loading the richer
+ * detail.
  */
 @Entity
 @Table(name = "csra_current_rating")
@@ -32,6 +34,11 @@ class CsraCurrentRatingEntity(
   var rating: CsraResult? = null,
 
   var provisional: Boolean = false,
+
+  // Which stage the rating came from. Narrower than `provisional`, which cannot tell an assessment's
+  // Day 1 rating from a review's interim one. Null when there is no rating.
+  @Enumerated(EnumType.STRING)
+  var ratingStage: CsraRatingStage? = null,
 
   @Enumerated(EnumType.STRING)
   var assessmentType: CsraAssessmentTypeBucket? = null,

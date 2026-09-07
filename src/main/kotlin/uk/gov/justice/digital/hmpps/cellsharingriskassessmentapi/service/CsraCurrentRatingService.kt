@@ -2,6 +2,7 @@ package uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.service
 
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.ratingStageFor
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toAssessmentBucket
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraCurrentRatingEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraRatingSetReason
@@ -35,6 +36,7 @@ class CsraCurrentRatingService(
       upsert(prisonerNumber, updatedBy, CsraRatingSetReason.RATING_SAVED) {
         rating = null
         provisional = false
+        ratingStage = null
         assessmentType = null
         ratingDate = null
         setByReviewId = null
@@ -56,6 +58,7 @@ class CsraCurrentRatingService(
     upsert(prisonerNumber, updatedBy, CsraRatingSetReason.NO_RATING_ON_READMISSION) {
       rating = null
       provisional = false
+      ratingStage = null
       assessmentType = null
       ratingDate = null
       setByReviewId = null
@@ -66,6 +69,7 @@ class CsraCurrentRatingService(
   private fun CsraCurrentRatingEntity.applyFrom(review: CsraReviewEntity) {
     rating = review.finalResult ?: review.interimResult
     provisional = review.finalResult == null && review.interimResult != null
+    ratingStage = ratingStageFor(review.type, review.finalResult, review.interimResult)
     assessmentType = review.type.toAssessmentBucket()
     ratingDate = review.finalResultDate ?: review.assessmentDate
     setByReviewId = review.id

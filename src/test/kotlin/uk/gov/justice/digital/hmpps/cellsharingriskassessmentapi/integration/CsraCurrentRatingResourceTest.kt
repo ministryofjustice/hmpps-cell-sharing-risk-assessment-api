@@ -160,6 +160,9 @@ class CsraCurrentRatingResourceTest : SqsIntegrationTestBase() {
     get(prisoner)
       .jsonPath("$.rating").isEqualTo("HIGH_GENERAL")
       .jsonPath("$.provisional").isEqualTo(true)
+      // A review's unconfirmed rating is an interim, not a provisional — the same provisional flag as
+      // the Day 1 assessment case below, told apart only by this.
+      .jsonPath("$.ratingStage").isEqualTo("INTERIM")
       .jsonPath("$.reviewId").isEqualTo(interim.id.toString())
       // Equal ids are what tell the UI to render "an interim rating has been entered, complete the review"
       .jsonPath("$.inProgress.reviewId").isEqualTo(interim.id.toString())
@@ -261,6 +264,7 @@ class CsraCurrentRatingResourceTest : SqsIntegrationTestBase() {
       .jsonPath("$.rating").isEmpty
       .jsonPath("$.reviewId").isEmpty
       .jsonPath("$.provisional").isEqualTo(false)
+      .jsonPath("$.ratingStage").isEmpty
       .jsonPath("$.prisonId").isEmpty
       .jsonPath("$.prisonName").isEmpty
   }
@@ -294,6 +298,31 @@ class CsraCurrentRatingResourceTest : SqsIntegrationTestBase() {
       .jsonPath("$.riskTo").isEmpty
       .jsonPath("$.finalDate").isEqualTo("2023-07-20")
       .jsonPath("$.nextReviewDate").isEqualTo("2024-01-14")
+  }
+
+  @Test
+  fun `a migrated legacy review NOMIS still holds as provisional is PROVISIONAL, not INTERIM`() {
+    // The trap this guards: a legacy NOMIS REVIEW and a new-model CSRA_REVIEW both bucket to REVIEW, so
+    // deriving the stage from provisional + assessmentType would label this one interim. Only a DPS review
+    // produces an interim rating; this is an unfinished legacy rating and reads as provisional.
+    review(
+      prisonerNumber = "L2222LL",
+      assessmentDate = LocalDate.parse("2023-07-14"),
+      type = CsraType.REVIEW,
+      interimResult = CsraResult.HIGH,
+      interimResultDate = LocalDate.parse("2023-07-14"),
+      status = CsraReviewStatus.COMPLETE,
+    )
+
+    webTestClient.get().uri("/csra-review/prisoner/L2222LL/current-rating")
+      .headers(setAuthorisation(roles = readRole))
+      .exchange()
+      .expectStatus().isOk
+      .expectBody()
+      .jsonPath("$.rating").isEqualTo("HIGH")
+      .jsonPath("$.provisional").isEqualTo(true)
+      .jsonPath("$.ratingStage").isEqualTo("PROVISIONAL")
+      .jsonPath("$.type").isEqualTo("REVIEW")
   }
 
   @Test
@@ -371,6 +400,7 @@ class CsraCurrentRatingResourceTest : SqsIntegrationTestBase() {
       .jsonPath("$.status").isEqualTo("PROVISIONAL")
       .jsonPath("$.rating").isEqualTo("HIGH_GENERAL")
       .jsonPath("$.provisional").isEqualTo(true)
+      .jsonPath("$.ratingStage").isEqualTo("PROVISIONAL")
       .jsonPath("$.provisionalAssessmentComment").isEqualTo("No PNC or access to warrant. Very late arrival.")
       .jsonPath("$.assessmentComment").isEmpty
       .jsonPath("$.provisionalDate").isEqualTo("2026-05-07")

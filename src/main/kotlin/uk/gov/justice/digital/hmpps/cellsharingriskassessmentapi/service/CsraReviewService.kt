@@ -29,6 +29,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraPrisone
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraProvisionalRatingRow
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraRatingBucket
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraRatingFilter
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraRatingStage
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraRatingStatus
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraRecentArrivals
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraReviewDetail
@@ -41,6 +42,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraRiskToD
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraSortDirection
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraVulnerabilityDetail
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.isHigh
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.ratingStageFor
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toDetail
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toLegacyDetail
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toResults
@@ -148,6 +150,7 @@ class CsraReviewService(
         lastName = member.lastName,
         rating = current?.rating,
         provisional = current?.provisional ?: false,
+        ratingStage = current?.ratingStage,
         assessmentType = current?.assessmentType,
         assessedOn = current?.ratingDate,
       )
@@ -179,7 +182,7 @@ class CsraReviewService(
       CsraPrisonerSortField.NAME -> compareBy({ it.lastName?.lowercase() }, { it.firstName?.lowercase() })
       CsraPrisonerSortField.ASSESSMENT_TYPE -> compareBy { it.assessmentType }
       CsraPrisonerSortField.ASSESSED_ON -> compareBy { it.assessedOn }
-      CsraPrisonerSortField.RATING -> compareBy { ratingSortOrder(it.rating, it.provisional) }
+      CsraPrisonerSortField.RATING -> compareBy { ratingSortOrder(it.rating, it.ratingStage) }
     }
     return if (direction == CsraSortDirection.DESC) base.reversed() else base
   }
@@ -218,6 +221,7 @@ class CsraReviewService(
         ratingType = CsraHighRiskType.from(rating, current.provisional)!!,
         rating = rating,
         provisional = current.provisional,
+        ratingStage = current.ratingStage,
         lastRatingSource = current.assessmentType!!,
         lastRatingDate = current.ratingDate!!,
       )
@@ -424,6 +428,7 @@ class CsraReviewService(
         status = CsraRatingStatus.NO_RATING,
         rating = null,
         provisional = false,
+        ratingStage = null,
         reviewId = null,
         prisonId = null,
         // No review, so no prison to name; the prison-register lookup is skipped entirely on this path.
@@ -472,6 +477,10 @@ class CsraReviewService(
       // Derived from the rating itself, not the status argument: an in-progress review carrying an interim
       // rating is provisional, but arrives here with status IN_PROGRESS.
       provisional = review.finalResult == null && review.interimResult != null,
+      // Narrower than `provisional`: only a new-model review produces an interim rating, so an
+      // assessment's Day 1 rating and a migrated NOMIS one still in provisional status read as
+      // PROVISIONAL. Named for the DTO field, not the `ratingStage` entity local above.
+      ratingStage = ratingStageFor(review.type, review.finalResult, review.interimResult),
       reviewId = review.id,
       prisonId = prisonId,
       prisonName = prisonId?.let { prisonNames[it] ?: it },
@@ -602,15 +611,25 @@ class CsraReviewService(
 
     /**
      * Severity ordering for the RATING sort:
-     * No rating < Standard < High < High-specific < High-specific (provisional)
-     * < High-general < High-general (provisional).
+     * No rating < Standard < High < High-specific < High-specific (provisional) < High-specific (interim)
+     * < High-general < High-general (provisional) < High-general (interim).
+     *
+     * An unconfirmed rating sorts above its confirmed equivalent, and a review's interim above an
+     * assessment's provisional, because an unconfirmed high is the one most in need of attention.
      */
-    private fun ratingSortOrder(rating: CsraResult?, provisional: Boolean): Int = when (rating) {
+    private fun ratingSortOrder(rating: CsraResult?, stage: CsraRatingStage?): Int = when (rating) {
       null -> 0
       CsraResult.STANDARD -> 1
       CsraResult.HIGH -> 2
-      CsraResult.HIGH_SPECIFIC -> if (provisional) 4 else 3
-      CsraResult.HIGH_GENERAL -> if (provisional) 6 else 5
+      CsraResult.HIGH_SPECIFIC -> 3 + stageOffset(stage)
+      CsraResult.HIGH_GENERAL -> 6 + stageOffset(stage)
+    }
+
+    /** How far above its confirmed equivalent an unconfirmed rating sorts. */
+    private fun stageOffset(stage: CsraRatingStage?): Int = when (stage) {
+      CsraRatingStage.INTERIM -> 2
+      CsraRatingStage.PROVISIONAL -> 1
+      else -> 0
     }
   }
 }
