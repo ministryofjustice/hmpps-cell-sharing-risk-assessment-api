@@ -3,6 +3,7 @@ package uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.integration
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Test
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentTypeBucket
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraRatingStage
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraCommitteeCode
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraEvaluationResultCode
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraLevel
@@ -223,6 +224,16 @@ class ExportReferenceData {
       mapOf(
         CsraAssessmentTypeBucket.ASSESSMENT to "An initial assessment. Covers the new-model initial journey and the legacy rating, reception, health and locate types.",
         CsraAssessmentTypeBucket.REVIEW to "A review. Covers the new-model CSRA_REVIEW and the legacy NOMIS REVIEW type.",
+      ),
+    )
+
+    rows += enumRows(
+      "csra_current_rating.rating_stage",
+      CsraRatingStage.entries,
+      mapOf(
+        CsraRatingStage.FINAL to "A confirmed rating, from a completed assessment or review.",
+        CsraRatingStage.PROVISIONAL to "An initial assessment's Day 1 rating, given before all information was available.",
+        CsraRatingStage.INTERIM to "A review's first-sitting rating, given before the multidisciplinary team has met to confirm it.",
       ),
     )
 

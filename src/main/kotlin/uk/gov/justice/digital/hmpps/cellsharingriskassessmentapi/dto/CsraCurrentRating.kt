@@ -39,6 +39,9 @@ data class CsraCurrentRating(
   @param:Schema(description = "Whether the current rating is provisional (a final rating has not yet been confirmed)", example = "false")
   val provisional: Boolean,
 
+  @param:Schema(description = "Which stage the current rating came from. Distinguishes an assessment's provisional rating from a review's interim one, which the provisional flag cannot. Null when there is no rating.", example = "FINAL")
+  val ratingStage: CsraRatingStage?,
+
   @param:Schema(description = "The id of the review that produced the current rating, if any", example = "de91dfa7-821f-4552-a427-bf2f32eafeb0")
   val reviewId: UUID?,
 

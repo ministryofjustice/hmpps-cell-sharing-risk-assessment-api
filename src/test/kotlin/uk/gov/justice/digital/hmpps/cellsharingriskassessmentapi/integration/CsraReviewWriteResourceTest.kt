@@ -240,6 +240,7 @@ class CsraReviewWriteResourceTest : SqsIntegrationTestBase() {
       .expectBody()
       .jsonPath("$.rating").isEqualTo("STANDARD")
       .jsonPath("$.provisional").isEqualTo(true)
+      .jsonPath("$.ratingStage").isEqualTo("INTERIM")
 
     val entity = review(reviewId)
     assertThat(entity.interimResult).isEqualTo(CsraResult.STANDARD)

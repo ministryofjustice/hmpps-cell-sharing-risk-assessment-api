@@ -42,6 +42,9 @@ data class CsraHighRiskReviewRow(
   @param:Schema(description = "Whether the current rating is provisional (an interim Day 1 rating)", example = "false")
   val provisional: Boolean,
 
+  @param:Schema(description = "Which stage the current rating came from. Distinguishes an assessment's provisional rating from a review's interim one, which the provisional flag cannot.", example = "FINAL")
+  val ratingStage: CsraRatingStage?,
+
   @param:Schema(description = "Whether the current rating was reached via an assessment or a review (drives 'Last assessed' vs 'Last reviewed')", example = "REVIEW")
   val lastRatingSource: CsraAssessmentTypeBucket,
 

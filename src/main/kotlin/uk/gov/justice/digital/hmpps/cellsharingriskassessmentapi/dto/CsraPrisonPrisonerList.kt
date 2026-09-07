@@ -39,6 +39,9 @@ data class CsraPrisonPrisoner(
   @param:Schema(description = "Whether the current rating is provisional (a Day 1 interim rating not yet finalised)", example = "false")
   val provisional: Boolean,
 
+  @param:Schema(description = "Which stage the current rating came from. Distinguishes an assessment's provisional rating from a review's interim one, which the provisional flag cannot. Null when there is no rating.", example = "FINAL")
+  val ratingStage: CsraRatingStage?,
+
   @param:Schema(description = "The type of the assessment that produced the current rating; null when no rating", example = "ASSESSMENT")
   val assessmentType: CsraAssessmentTypeBucket?,
 
