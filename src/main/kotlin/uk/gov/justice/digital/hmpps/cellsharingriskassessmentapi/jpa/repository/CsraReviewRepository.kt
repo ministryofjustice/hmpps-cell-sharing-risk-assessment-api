@@ -48,6 +48,12 @@ interface CsraReviewRepository :
   )
   fun findRatedReviews(prisonerNumber: String, excludedStatus: CsraReviewStatus): List<CsraReviewEntity>
 
+  /**
+   * Every review for a prisoner, in no particular order — used by the prisoner-merge repoint, which must
+   * move all of them regardless of status, rating or supersession.
+   */
+  fun findAllByPrisonerNumber(prisonerNumber: String): List<CsraReviewEntity>
+
   /** Every review for a prisoner that still belongs to their current period of custody. */
   fun findAllByPrisonerNumberAndSupersededAtIsNull(prisonerNumber: String): List<CsraReviewEntity>
 

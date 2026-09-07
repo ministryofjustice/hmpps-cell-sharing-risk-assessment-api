@@ -62,6 +62,54 @@ class EventPublishAndAuditService(
     )
   }
 
+  /**
+   * Announces that a NOMIS prisoner-number merge moved a prisoner's CSRA data onto [prisonerNumber].
+   *
+   * Two rules are load-bearing here.
+   *
+   * **Only the retained number is announced.** Publishing against [removedNomsNumber] would tell consumers
+   * to re-read a prisoner number NOMIS has deleted; the read would correctly answer "No rating", and a
+   * consumer that cached it would have recorded "this person has no CSRA" against a number that no longer
+   * exists. Instead the retired number rides along on the retained number's event, so a consumer holding
+   * data under the old key learns what to re-key from an event it is certain to receive.
+   *
+   * **Nothing is published unless the rating actually changed** ([ratingChanged]) — the same principle as
+   * the unrated-draft suppression and the silent no-op readmission. The consequence to be aware of: a
+   * merge that leaves the survivor's rating untouched still moves their history, and no consumer is told.
+   * That is accepted because every consumer of CSRA also consumes `prison-offender-events.prisoner.merged`
+   * and re-keys off that. The audit event is unconditional either way, so the repoint is always recorded.
+   *
+   * [InformationSource.NOMIS] because NOMIS has already re-parented the assessments — a sync service must
+   * not treat this as a DPS-side edit and push it back.
+   */
+  fun publishPrisonerNumberMerged(
+    prisonerNumber: String,
+    removedNomsNumber: String,
+    ratingChanged: Boolean,
+    auditData: Any,
+  ) = afterCommit {
+    if (ratingChanged) {
+      snsService.publishDomainEvent(
+        eventType = CSRADomainEventType.CSRA_AMENDED,
+        description = CSRADomainEventType.CSRA_AMENDED.description,
+        occurredAt = LocalDateTime.now(clock),
+        additionalInformation = AdditionalInformation(
+          // No single review produced this: the rating was re-derived across two merged histories, so the
+          // consumer re-reads `current-rating` rather than following an id.
+          id = null,
+          nomsNumber = prisonerNumber,
+          source = InformationSource.NOMIS,
+          removedNomsNumber = removedNomsNumber,
+        ),
+      )
+    }
+    auditEvent(
+      auditType = AuditType.PRISONER_NUMBER_MERGE,
+      id = prisonerNumber,
+      auditData = auditData,
+    )
+  }
+
   private fun doPublishEvent(
     eventType: CSRADomainEventType,
     csraReview: CsraReview,
