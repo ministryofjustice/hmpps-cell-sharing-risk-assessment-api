@@ -291,6 +291,23 @@
                                     </td>
                                     <td><p>Username that last set the rating, or the system user when a movement event did it. Identifies a member of staff. <a href="./../null">Sensitivity: STAFF</a></p></td>
                                 </tr>
+                                <tr>
+                                    <td><span id="rating_stage">rating_stage</span></td>
+                                    <td>varchar</td>
+                                    <td>20</td>
+                                    <td title='nullable'>√</td>
+                                    <td title=''></td>
+                                    <td>null</td>
+                                    <td>
+                                        <table border='0' cellspacing='0' cellpadding='0'>
+                                        </table>
+                                    </td>
+                                    <td>
+                                        <table border='0' cellspacing='0' cellpadding='0'>
+                                        </table>
+                                    </td>
+                                    <td><p>Which stage the current rating came from - FINAL (confirmed), PROVISIONAL (an initial assessment&rsquo;s Day 1 rating) or INTERIM (a review&rsquo;s first-sitting rating, issued before the multidisciplinary team has met). Null when there is no rating. A narrower form of the provisional flag, which cannot distinguish the last two. <a href="./../null">Sensitivity: NONE</a></p></td>
+                                </tr>
                                 </tbody>
                             </table>
                         </div>

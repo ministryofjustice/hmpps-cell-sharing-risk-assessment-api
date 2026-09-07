@@ -153,6 +153,7 @@
          <column autoUpdated="false" defaultValue="null" digits="0" id="7" name="set_reason" nullable="false" remarks="Why the rating was last set - RATING_SAVED, or NO_RATING_ON_READMISSION when a readmission after release cleared it. The latter indicates the prisoner was released and returned to custody. [Sensitivity: PERSONAL]" size="40" type="varchar" typeCode="12"/>
          <column autoUpdated="false" defaultValue="null" digits="6" id="8" name="set_at" nullable="false" remarks="When the rating was last set. [Sensitivity: NONE]" size="29" type="timestamp" typeCode="93"/>
          <column autoUpdated="false" defaultValue="null" digits="0" id="9" name="set_by" nullable="true" remarks="Username that last set the rating, or the system user when a movement event did it. Identifies a member of staff. [Sensitivity: STAFF]" size="40" type="varchar" typeCode="12"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="10" name="rating_stage" nullable="true" remarks="Which stage the current rating came from - FINAL (confirmed), PROVISIONAL (an initial assessment's Day 1 rating) or INTERIM (a review's first-sitting rating, issued before the multidisciplinary team has met). Null when there is no rating. A narrower form of the provisional flag, which cannot distinguish the last two. [Sensitivity: NONE]" size="20" type="varchar" typeCode="12"/>
          <primaryKey column="id" sequenceNumberInPK="1"/>
          <index name="csra_current_rating_pk" unique="true">
             <column ascending="true" name="id"/>
