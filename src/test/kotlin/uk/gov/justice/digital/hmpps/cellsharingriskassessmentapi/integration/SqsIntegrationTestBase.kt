@@ -11,6 +11,7 @@ import org.springframework.test.context.ActiveProfiles
 import org.springframework.test.context.DynamicPropertyRegistry
 import org.springframework.test.context.DynamicPropertySource
 import org.springframework.test.context.bean.override.mockito.MockitoBean
+import software.amazon.awssdk.services.sqs.model.DeleteMessageRequest
 import software.amazon.awssdk.services.sqs.model.PurgeQueueRequest
 import software.amazon.awssdk.services.sqs.model.ReceiveMessageRequest
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.config.LocalStackContainer
@@ -20,6 +21,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.service.HMPPSDo
 import uk.gov.justice.hmpps.sqs.HmppsQueue
 import uk.gov.justice.hmpps.sqs.HmppsQueueService
 import uk.gov.justice.hmpps.sqs.HmppsTopic
+import uk.gov.justice.hmpps.sqs.countAllMessagesOnQueue
 import uk.gov.justice.hmpps.sqs.countMessagesOnQueue
 import uk.gov.justice.hmpps.sqs.publish
 import java.time.Clock
@@ -55,12 +57,24 @@ class SqsIntegrationTestBase : IntegrationTestBase() {
 
   @BeforeEach
   fun cleanQueue() {
-    auditQueue.sqsClient.purgeQueue(PurgeQueueRequest.builder().queueUrl(auditQueue.queueUrl).build())
-    testDomainEventQueue.sqsClient.purgeQueue(PurgeQueueRequest.builder().queueUrl(testDomainEventQueue.queueUrl).build())
-    csraQueue.sqsClient.purgeQueue(PurgeQueueRequest.builder().queueUrl(csraQueue.queueUrl).build())
-    auditQueue.sqsClient.countMessagesOnQueue(auditQueue.queueUrl).get()
-    testDomainEventQueue.sqsClient.countMessagesOnQueue(testDomainEventQueue.queueUrl).get()
-    csraQueue.sqsClient.countMessagesOnQueue(csraQueue.queueUrl).get()
+    auditQueue.purgeAndAwaitEmpty()
+    testDomainEventQueue.purgeAndAwaitEmpty()
+    csraQueue.purgeAndAwaitEmpty()
+  }
+
+  /**
+   * Empties a queue before a test runs. purgeQueue is asynchronous and does not remove messages that are in flight, so
+   * we wait for the queue to be genuinely empty - counting the invisible messages too - rather than assume the purge
+   * has taken effect. Without the wait a message left behind by the previous test can reappear part way through the
+   * next one and fail an assertion that nothing was published.
+   */
+  private fun HmppsQueue.purgeAndAwaitEmpty() {
+    sqsClient.purgeQueue(PurgeQueueRequest.builder().queueUrl(queueUrl).build()).get()
+    await untilCallTo { sqsClient.countAllMessagesOnQueue(queueUrl).get() } matches { it == 0 }
+  }
+
+  private fun HmppsQueue.deleteMessage(receiptHandle: String) {
+    sqsClient.deleteMessage(DeleteMessageRequest.builder().queueUrl(queueUrl).receiptHandle(receiptHandle).build()).get()
   }
 
   /** Publishes an HMPPS domain event to the domainevents topic (routed to the csra queue by its filter). */
@@ -95,6 +109,9 @@ class SqsIntegrationTestBase : IntegrationTestBase() {
         sqsClient.receiveMessage(ReceiveMessageRequest.builder().queueUrl(testDomainEventQueue.queueUrl).build())
           .get()
           .messages()
+          // delete as we read, otherwise the message is merely invisible and returns to the queue once its
+          // visibility timeout expires - during a later test, which then sees a message it never published
+          .onEach { testDomainEventQueue.deleteMessage(it.receiptHandle()) }
           .map { objectMapper.readValue(it.body(), HMPPSMessage::class.java) }
           .map { objectMapper.readValue(it.Message, HMPPSDomainEvent::class.java) },
       )
