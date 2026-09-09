@@ -78,7 +78,7 @@
                         <div class="col-md-12">
                             <div class="callout callout-info">
                                 <h4>SchemaSpy Analysis of cell_sharing_risk_assessment.public</h4>
-                                <p>Generated on Wed Sep 09 15:32 UTC 2026</p>
+                                <p>Generated on Wed Sep 09 18:08 UTC 2026</p>
                             </div>
                         </div>
                     </div>
@@ -302,7 +302,7 @@
                                         <td class="detail" align="right">5</td>
                                         <td class="detail" align="right">-1</td>
                                         <td class="detail" align="right">Table</td>
-                                        <td class="comment detail" style="display: table-cell;"><p>One row per prison that has ever been switched on for CSRA in DPS. The switched-on ids are published unauthenticated on the actuator /info payload, which is how the DPS home page decides whether to show the CSRA tile. Switching a prison off flips the flag rather than deleting the row, so deactivation stays auditable and the toggle is idempotent. Note the API itself enforces no rollout check - this drives the front end only.</p></td>
+                                        <td class="comment detail" style="display: table-cell;"><p>One row per prison that has ever been switched on for CSRA in DPS. The switched-on ids are published unauthenticated on the actuator /info payload, which is how the DPS home page decides whether to show the CSRA tile. Switching a prison off flips the flag rather than deleting the row, so deactivation stays auditable and the toggle is idempotent. The API enforces this list on the user-facing CSRA write endpoints: a write for a prison that is not switched on is rejected with 403 PrisonNotActive, unless the caller holds the rollout override role. The NOMIS migrate/sync endpoints and the movement/merge listeners are deliberately not gated, and reads are open.</p></td>
                                     </tr>
                             </table>
                         </div>
