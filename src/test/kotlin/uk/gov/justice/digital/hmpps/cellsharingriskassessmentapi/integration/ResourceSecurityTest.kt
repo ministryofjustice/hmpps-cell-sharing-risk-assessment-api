@@ -51,7 +51,7 @@ class ResourceSecurityTest : SqsIntegrationTestBase() {
   }
 }
 
-private fun RequestMappingInfo.getMappings() = methodsCondition.methods
+internal fun RequestMappingInfo.getMappings() = methodsCondition.methods
   .map { it.name }
   .ifEmpty { listOf("") } // if no methods defined then match all rather than none
   .flatMap { method ->

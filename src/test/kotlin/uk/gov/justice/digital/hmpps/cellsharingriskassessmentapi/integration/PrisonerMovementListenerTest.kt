@@ -95,6 +95,18 @@ class PrisonerMovementListenerTest : SqsIntegrationTestBase() {
   }
 
   @Test
+  fun `a movement is handled for a prison CSRA is not switched on for - the listener is deliberately not gated`() {
+    // No active_agency row: IntegrationTestBase clears the table before every test. A prisoner arriving
+    // is a fact about the estate, not a user write, so it must be handled whatever the receiving
+    // prison's rollout state - and a rejected SQS message goes to a DLQ nobody watches (MAPA-363).
+    val review = inProgressReview("A3333AA")
+
+    send("A3333AA", "MDI", "TRANSFERRED")
+
+    awaitStatus(review.id!!, CsraReviewStatus.ARCHIVED)
+  }
+
+  @Test
   fun `transfer closes an in-progress review that has a provisional rating`() {
     val review = inProgressReview("A1111AA", interimResult = CsraResult.HIGH_GENERAL)
 

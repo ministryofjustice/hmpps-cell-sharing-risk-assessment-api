@@ -7,7 +7,9 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewS
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraAssessmentStageRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraReviewRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.resource.CsraAssessmentInProgressException
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.resource.CsraPrisonNotActiveException
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.resource.CsraReviewNotWritableException
+import uk.gov.justice.hmpps.kotlin.auth.HmppsAuthenticationHolder
 
 /**
  * The rules both CSRA write journeys share. Extracted so the assessment and review services cannot drift
@@ -17,7 +19,39 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.resource.CsraRe
 class CsraWriteSupport(
   private val csraReviewRepository: CsraReviewRepository,
   private val csraAssessmentStageRepository: CsraAssessmentStageRepository,
+  private val activeAgenciesService: ActiveAgenciesService,
+  private val authenticationHolder: HmppsAuthenticationHolder,
 ) {
+
+  /**
+   * CSRA is rolled out prison by prison, and a user write is only accepted for a prison it is switched on
+   * for (MAPA-363). This reverses MAPA-246, which left rollout to the frontend: that held only while the
+   * UI was the sole writer and gated correctly, and it turned out to be neither.
+   *
+   * Every stage checks, not just the starts, so switching a prison off strands work already in progress.
+   * That is accepted and tested.
+   *
+   * [ROLLOUT_OVERRIDE_ROLE] bypasses the check. It is the escape hatch MAPA-246 was protecting - data
+   * fixes, migration catch-up and support work must not be blocked by a prison's rollout state - and it
+   * is deliberately outside the CSRA_REVIEW__ family and outside ROLE_PRISONER_CSRA__ADMIN, all three of
+   * which the UI's client-credentials client already holds. Granting it there would disable the gate for
+   * every user of the service.
+   *
+   * Only user HTTP writes call this. The NOMIS migrate/sync path and the movement/merge listeners must
+   * keep working at any prison whatever its rollout state, so they deliberately do not - and must not:
+   * [HmppsAuthenticationHolder.isOverrideRole] reads the throwing `authentication` property, so off an
+   * authenticated request this would raise a 500, or poison an SQS message, rather than reject cleanly.
+   *
+   * The prison checked is the one on the request, so a caller sending a switched-on prison for a review
+   * belonging elsewhere passes - indistinguishable from a real transfer. Closing that needs a caseload
+   * check, which the API cannot do: it only ever sees a client-credentials token stamped with the acting
+   * username, never the user's own roles or caseloads.
+   */
+  fun rejectIfPrisonNotActive(prisonId: String) {
+    // Checked first: it is free, and it saves the read for the support path that most needs to be quick.
+    if (authenticationHolder.isOverrideRole(ROLLOUT_OVERRIDE_ROLE)) return
+    if (!activeAgenciesService.isActive(prisonId)) throw CsraPrisonNotActiveException(prisonId)
+  }
 
   /**
    * A prisoner may have only one CSRA in progress at a time, assessment or review. Deliberately
@@ -66,5 +100,10 @@ class CsraWriteSupport(
     ) {
       review.prisonId = prisonId
     }
+  }
+
+  companion object {
+    /** Bypasses [rejectIfPrisonNotActive]. Must never be granted to the CSRA UI's client. */
+    const val ROLLOUT_OVERRIDE_ROLE = "ROLE_PRISONER_CSRA__ROLLOUT_OVERRIDE"
   }
 }

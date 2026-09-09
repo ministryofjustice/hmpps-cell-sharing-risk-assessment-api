@@ -61,6 +61,19 @@ class CsraNomisSyncResourceTest : SqsIntegrationTestBase() {
   @Nested
   inner class Migrate {
     @Test
+    fun `migrates for a prison CSRA is not switched on for - NOMIS ingest is deliberately not gated`() {
+      // No active_agency row: IntegrationTestBase clears the table before every test. NOMIS remains the
+      // source of truth during rollout, so migration catch-up must land whatever a prison's state is
+      // (MAPA-363). If someone adds rejectIfPrisonNotActive to CsraMigrationSyncService, this fails.
+      webTestClient.post().uri("/nomis-sync/migrate/A1234BC")
+        .headers(setAuthorisation(roles = syncRole))
+        .contentType(MediaType.APPLICATION_JSON)
+        .body(BodyInserters.fromValue("[${reviewJson(10, 1, "2026-05-01")}]"))
+        .exchange()
+        .expectStatus().isCreated
+    }
+
+    @Test
     fun `persists each review and returns the ids`() {
       val migrated = webTestClient.post().uri("/nomis-sync/migrate/A1234BC")
         .headers(setAuthorisation(roles = syncRole))

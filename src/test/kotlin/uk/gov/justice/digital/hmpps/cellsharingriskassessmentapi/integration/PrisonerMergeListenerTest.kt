@@ -97,6 +97,21 @@ class PrisonerMergeListenerTest : SqsIntegrationTestBase() {
   // ---------------------------------------------------------------- tests
 
   @Test
+  fun `a merge is handled for a prison CSRA is not switched on for - the listener is deliberately not gated`() {
+    // No active_agency row: IntegrationTestBase clears the table before every test. A merge is NOMIS
+    // resolving two prisoner numbers for one person; it happens whatever a prison's rollout state, and a
+    // rejected SQS message goes to a DLQ nobody watches. If someone gates this path, this test fails
+    // (MAPA-363).
+    ratedReview("A2222BB", CsraResult.HIGH_GENERAL, LocalDate.parse("2023-06-01"))
+    refreshCurrentRating("A2222BB")
+
+    sendMerge(retained = "A1111AA", removed = "A2222BB")
+
+    await untilCallTo { currentRating("A1111AA")?.rating } matches { it == CsraResult.HIGH_GENERAL }
+    assertThat(csraReviewRepository.findAllByPrisonerNumber("A2222BB")).isEmpty()
+  }
+
+  @Test
   fun `every review moves to the retained prisoner number`() {
     ratedReview("A2222BB", CsraResult.STANDARD, LocalDate.parse("2023-01-10"))
     ratedReview("A2222BB", CsraResult.STANDARD, LocalDate.parse("2023-02-10"))

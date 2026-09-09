@@ -123,6 +123,18 @@ class CellSharingRiskAssessmentApiExceptionHandler {
       ),
     ).also { log.info("CSRA review is no longer writable: {}", e.message) }
 
+  @ExceptionHandler(CsraPrisonNotActiveException::class)
+  fun handleCsraPrisonNotActiveException(e: CsraPrisonNotActiveException): ResponseEntity<ErrorResponse> = ResponseEntity
+    .status(FORBIDDEN)
+    .body(
+      ErrorResponse(
+        status = FORBIDDEN,
+        errorCode = ErrorCode.PrisonNotActive.name,
+        userMessage = "Forbidden: ${e.message}",
+        developerMessage = e.message,
+      ),
+    ).also { log.info("Write rejected, prison not switched on for CSRA: {}", e.message) }
+
   @ExceptionHandler(StaleAnswersException::class)
   fun handleStaleAnswersException(e: StaleAnswersException): ResponseEntity<ErrorResponse> = ResponseEntity
     .status(CONFLICT)
@@ -190,6 +202,16 @@ class CsraAssessmentInProgressException(prisonerNumber: String) : Exception("An 
  * the prisoner moved. Only CLOSED and ARCHIVED are refused - amending a COMPLETE review is supported.
  */
 class CsraReviewNotWritableException(id: String, status: CsraReviewStatus) : Exception("CSRA review $id is $status and can no longer be edited")
+
+/**
+ * A user write for a prison the CSRA service is not switched on for in DPS (MAPA-363).
+ *
+ * A 403 rather than a 409: the identical request from a caller holding the rollout override role
+ * succeeds, so this is an authorisation decision about the caller, not a state conflict they could
+ * resolve and retry. Spring's own 403 carries no error code, so [ErrorCode.PrisonNotActive] is what lets
+ * a client tell "this prison is not switched on" from "the client is missing a role".
+ */
+class CsraPrisonNotActiveException(prisonId: String) : Exception("CSRA is not switched on for prison $prisonId")
 
 /** A submitted answer set that is internally inconsistent. Always a 400, carrying [errorCode] to discriminate. */
 sealed class CsraAnswerValidationException(val errorCode: ErrorCode, message: String) : Exception(message)

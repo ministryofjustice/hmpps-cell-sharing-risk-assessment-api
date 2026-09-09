@@ -1,6 +1,7 @@
 package uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.integration
 
 import org.assertj.core.api.Assertions.assertThat
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.http.MediaType
 import org.springframework.test.web.reactive.server.expectBody
@@ -18,6 +19,12 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.service.Informa
  * then a known-noisy one, and checking the noisy event is the only thing on the queue.
  */
 class CsraEventPublishingTest : SqsIntegrationTestBase() {
+
+  /** The rollout gate (MAPA-363) refuses the user write endpoints unless the prison is switched on. */
+  @BeforeEach
+  fun switchOnTestPrisons() {
+    switchOn("LEI")
+  }
 
   private val writeRole = listOf("ROLE_CSRA_REVIEW__RW")
   private val syncRole = listOf("ROLE_PRISONER_CSRA__SYNC__RW")

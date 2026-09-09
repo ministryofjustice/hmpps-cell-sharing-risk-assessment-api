@@ -69,6 +69,9 @@ class CsraReviewWriteService(
 
   /** Starts a new draft review. Rejects if a CSRA — assessment or review — is already in progress. */
   fun start(prisonerNumber: String, request: CsraReviewStartRequest): CsraReviewStarted {
+    // Rollout gate first: it is about the caller, not the record, so it must not depend on the id
+    // existing or on what state the record is in.
+    writeSupport.rejectIfPrisonNotActive(request.prisonId)
     writeSupport.rejectIfInProgress(prisonerNumber)
 
     val review = csraReviewRepository.saveAndFlush(
@@ -101,6 +104,9 @@ class CsraReviewWriteService(
     request: CsraReviewStageRequest,
     stage: CsraAssessmentStage,
   ): CsraCurrentRating {
+    // Rollout gate first: it is about the caller, not the record, so it must not depend on the id
+    // existing or on what state the record is in.
+    writeSupport.rejectIfPrisonNotActive(request.prisonId)
     val review = loadReview(prisonerNumber, reviewId)
     writeSupport.rejectIfNotWritable(review)
     // Deliberately no mandatory-high check — see the class doc.

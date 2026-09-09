@@ -21,7 +21,10 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.integration.wir
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.integration.wiremock.PrisonRegisterApiExtension.Companion.prisonRegister
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.integration.wiremock.PrisonerSearchApiExtension
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.integration.wiremock.PrisonerSearchApiExtension.Companion.prisonerSearch
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.ActiveAgencyEntity
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.ActiveAgencyRepository
 import uk.gov.justice.hmpps.test.kotlin.auth.JwtAuthorisationHelper
+import java.time.LocalDateTime
 
 @ExtendWith(HmppsAuthApiExtension::class, PrisonRegisterApiExtension::class, PrisonerSearchApiExtension::class, PrisonApiApiExtension::class)
 @SpringBootTest(webEnvironment = RANDOM_PORT)
@@ -42,10 +45,48 @@ abstract class IntegrationTestBase : TestBase() {
   @Autowired
   private lateinit var prisonRegisterClient: PrisonRegisterClient
 
+  @Autowired
+  private lateinit var activeAgencyRepository: ActiveAgencyRepository
+
   // The prison-name cache is a singleton shared across tests; evict it so each test sees its own stub.
   @BeforeEach
   fun evictPrisonRegisterCache() {
     prisonRegisterClient.evictCache()
+  }
+
+  /**
+   * Every test starts with no prison switched on for CSRA.
+   *
+   * `active_agency` rows are not rolled back between tests and the container is shared across classes, so
+   * without this a class that switches a prison on would silently weaken every later test asserting that
+   * a path is *not* gated. A write test switches on what it needs with [switchOn]; deliberately not done
+   * here, or the ungated paths would stop proving anything.
+   */
+  @BeforeEach
+  fun clearActiveAgencies() {
+    activeAgencyRepository.deleteAll()
+  }
+
+  /** Switches CSRA on for prisons, so the gated write endpoints accept writes for them. */
+  protected fun switchOn(vararg prisonIds: String) = setActive(prisonIds, active = true)
+
+  /** Switches CSRA off, leaving the row in place — the same thing the admin endpoint does. */
+  protected fun switchOff(vararg prisonIds: String) = setActive(prisonIds, active = false)
+
+  private fun setActive(prisonIds: Array<out String>, active: Boolean) {
+    prisonIds.forEach { prisonId ->
+      val existing = activeAgencyRepository.findByAgencyId(prisonId)
+      activeAgencyRepository.save(
+        existing?.apply { this.active = active }
+          ?: ActiveAgencyEntity(
+            agencyId = prisonId,
+            active = active,
+            updatedAt = LocalDateTime.now(clock),
+            updatedBy = "TEST_USER",
+          ),
+      )
+    }
+    activeAgencyRepository.flush()
   }
 
   init {

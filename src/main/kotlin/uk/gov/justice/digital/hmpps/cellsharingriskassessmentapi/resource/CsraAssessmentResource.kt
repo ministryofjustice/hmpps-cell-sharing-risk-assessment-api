@@ -69,7 +69,9 @@ class CsraAssessmentResource(
       ),
       ApiResponse(
         responseCode = "403",
-        description = "Missing required role. Requires the ROLE_CSRA_REVIEW__RW role",
+        description = "Missing required role (requires ROLE_CSRA_REVIEW__RW), or CSRA is not switched on in DPS " +
+          "for the prison on the request — errorCode PrisonNotActive. ROLE_PRISONER_CSRA__ROLLOUT_OVERRIDE bypasses " +
+          "the rollout check",
         content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
       ),
       ApiResponse(
@@ -108,7 +110,9 @@ class CsraAssessmentResource(
       ),
       ApiResponse(
         responseCode = "403",
-        description = "Missing required role. Requires the ROLE_CSRA_REVIEW__RW role",
+        description = "Missing required role (requires ROLE_CSRA_REVIEW__RW), or CSRA is not switched on in DPS " +
+          "for the prison on the request — errorCode PrisonNotActive. ROLE_PRISONER_CSRA__ROLLOUT_OVERRIDE bypasses " +
+          "the rollout check",
         content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
       ),
       ApiResponse(
@@ -155,7 +159,9 @@ class CsraAssessmentResource(
       ),
       ApiResponse(
         responseCode = "403",
-        description = "Missing required role. Requires the ROLE_CSRA_REVIEW__RW role",
+        description = "Missing required role (requires ROLE_CSRA_REVIEW__RW), or CSRA is not switched on in DPS " +
+          "for the prison on the request — errorCode PrisonNotActive. ROLE_PRISONER_CSRA__ROLLOUT_OVERRIDE bypasses " +
+          "the rollout check",
         content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
       ),
       ApiResponse(
@@ -249,7 +255,9 @@ class CsraAssessmentResource(
       ),
       ApiResponse(
         responseCode = "403",
-        description = "Missing required role. Requires the ROLE_CSRA_REVIEW__RW role",
+        description = "Missing required role (requires ROLE_CSRA_REVIEW__RW), or CSRA is not switched on in DPS " +
+          "for the prison on the request — errorCode PrisonNotActive. ROLE_PRISONER_CSRA__ROLLOUT_OVERRIDE bypasses " +
+          "the rollout check",
         content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
       ),
       ApiResponse(
