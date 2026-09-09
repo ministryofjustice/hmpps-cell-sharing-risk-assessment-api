@@ -17,8 +17,11 @@ import java.util.UUID
  * changed it and when.
  *
  * The active ids are published on the public /info endpoint as `activeAgencies`, which the DPS home
- * page reads to decide whether to show the CSRA tile, and which gates the CSRA journeys so a prison
- * still managed in NOMIS cannot also be worked in DPS.
+ * page reads to decide whether to show the CSRA tile.
+ *
+ * The same list gates the CSRA journeys, so a prison still managed in NOMIS cannot also be worked in
+ * DPS: the frontend hides the journeys, and `CsraWriteSupport.rejectIfPrisonNotActive` refuses the user
+ * write endpoints server-side (MAPA-363). NOMIS sync and the movement/merge listeners are not gated.
  */
 @Entity
 @Table(name = "active_agency")

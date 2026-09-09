@@ -4,6 +4,7 @@ import org.assertj.core.api.Assertions.assertThat
 import org.awaitility.kotlin.await
 import org.awaitility.kotlin.matches
 import org.awaitility.kotlin.untilCallTo
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.CsvSource
@@ -36,6 +37,12 @@ import java.time.LocalDateTime
 import java.util.UUID
 
 class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
+
+  /** Every prison this class writes at. Without this the rollout gate (MAPA-363) refuses every write. */
+  @BeforeEach
+  fun switchOnTestPrisons() {
+    switchOn("LEI", "BXI", "WWI")
+  }
 
   @Autowired
   private lateinit var csraAssessmentStageRepository: CsraAssessmentStageRepository

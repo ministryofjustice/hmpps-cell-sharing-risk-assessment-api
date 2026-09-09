@@ -60,6 +60,8 @@ class CsraReviewWriteResourceTest : SqsIntegrationTestBase() {
   @BeforeEach
   fun setUp() {
     hmppsAuth.stubGrantToken()
+    // Without this the rollout gate (MAPA-363) refuses every write in this class.
+    switchOn("LEI", "WWI")
   }
 
   private fun startBody(prisonId: String) = """{ "prisonId": "$prisonId" }"""

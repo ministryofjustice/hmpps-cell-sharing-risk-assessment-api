@@ -61,6 +61,19 @@ rather than computed as twelve months on.
 | `PUT /csra-review/prisoner/{prisonerNumber}/review/{reviewId}/interim` | Submit the interim stage |
 | `PUT /csra-review/prisoner/{prisonerNumber}/review/{reviewId}/final` | Submit the final stage, completing the review |
 
+Both write journeys are gated on prison rollout: a write is refused with `403` and
+`errorCode` `PrisonNotActive` unless CSRA is switched on for the `prisonId` on the request. Every stage
+checks, not just the starts, so switching a prison off strands work already in progress.
+
+**Rollout override** — `ROLE_PRISONER_CSRA__ROLLOUT_OVERRIDE`
+
+Bypasses the rollout check on the write endpoints, for data fixes, migration catch-up and support work.
+It grants nothing on its own — a caller still needs `ROLE_CSRA_REVIEW__RW` to write at all.
+
+It is deliberately outside the `CSRA_REVIEW__` family, and outside `ROLE_PRISONER_CSRA__ADMIN`, because
+the CSRA UI's client-credentials client already holds all three of those. **It must never be granted to
+that client**: doing so would switch the rollout gate off for every user of the service.
+
 **NOMIS sync** — `ROLE_PRISONER_CSRA__SYNC__RW`
 
 | Path | Purpose |
@@ -77,7 +90,9 @@ rather than computed as twelve months on.
 | `PUT /active-agencies/{agencyId}` | Switch a prison on or off (idempotent) |
 
 The switched-on prison ids are also published unauthenticated as `activeAgencies` on `/info`, which is how
-the DPS home page decides whether to show the CSRA tile.
+the DPS home page decides whether to show the CSRA tile — and the same list is what the write endpoints
+enforce. NOMIS sync and the movement/merge listeners are deliberately not gated: they must reconcile at
+any prison whatever its rollout state. Reads are open.
 
 ## Building and testing
 

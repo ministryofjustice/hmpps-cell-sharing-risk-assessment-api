@@ -61,6 +61,9 @@ class CsraAssessmentService(
 
   /** Starts a new draft assessment. Rejects if a CSRA is already in progress for the prisoner. */
   fun start(prisonerNumber: String, request: CsraAssessmentStartRequest): CsraAssessmentStarted {
+    // Rollout gate first: it is about the caller, not the record, so it must not depend on the id
+    // existing or on what state the record is in.
+    writeSupport.rejectIfPrisonNotActive(request.prisonId)
     writeSupport.rejectIfInProgress(prisonerNumber)
 
     val review = csraReviewRepository.saveAndFlush(
@@ -90,6 +93,9 @@ class CsraAssessmentService(
    * current rating, does not publish a domain event, and does not mark the stage as completed. The
    * request replaces the whole answer state for the stage so that a cleared answer results in null. */
   fun saveAnswers(prisonerNumber: String, assessmentId: UUID, stage: CsraAssessmentStage, request: CsraAssessmentAnswersRequest): CsraAssessmentDto {
+    // Rollout gate first: it is about the caller, not the record, so it must not depend on the id
+    // existing or on what state the record is in.
+    writeSupport.rejectIfPrisonNotActive(request.prisonId)
     val review = loadInitialReview(prisonerNumber, assessmentId)
     writeSupport.rejectIfNotWritable(review)
 
@@ -139,6 +145,9 @@ class CsraAssessmentService(
     request: CsraAssessmentStageRequest,
     stage: CsraAssessmentStage,
   ): CsraCurrentRating {
+    // Rollout gate first: it is about the caller, not the record, so it must not depend on the id
+    // existing or on what state the record is in.
+    writeSupport.rejectIfPrisonNotActive(request.prisonId)
     val review = loadInitialReview(prisonerNumber, assessmentId)
     // Before the content checks: a review the prisoner has moved away from is a lifecycle conflict, not
     // a bad payload, and the caller should be told that rather than shown a validation error.
