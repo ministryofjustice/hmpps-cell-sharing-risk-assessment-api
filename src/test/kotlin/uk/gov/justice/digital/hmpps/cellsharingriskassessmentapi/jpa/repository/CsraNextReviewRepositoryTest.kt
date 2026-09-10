@@ -38,7 +38,7 @@ class CsraNextReviewRepositoryTest : TestBase() {
         prisonerNumber = prisonerNumber,
         prisonId = "LEI",
         assessmentDate = LocalDate.parse("2026-01-01"),
-        type = CsraType.CSRA_INITIAL_REVIEW,
+        type = CsraType.CSRA_INITIAL_ASSESSMENT,
         finalResult = CsraResult.HIGH_GENERAL,
         finalResultDate = LocalDate.parse("2026-01-01"),
         createdAt = LocalDateTime.parse("2026-01-02T09:00:00"),

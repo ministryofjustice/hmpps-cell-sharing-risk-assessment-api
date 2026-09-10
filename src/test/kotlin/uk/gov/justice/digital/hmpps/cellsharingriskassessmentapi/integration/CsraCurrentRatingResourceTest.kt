@@ -47,7 +47,7 @@ class CsraCurrentRatingResourceTest : SqsIntegrationTestBase() {
   private fun review(
     prisonerNumber: String,
     assessmentDate: LocalDate,
-    type: CsraType = CsraType.CSRA_INITIAL_REVIEW,
+    type: CsraType = CsraType.CSRA_INITIAL_ASSESSMENT,
     interimResult: CsraResult? = null,
     interimResultDate: LocalDate? = null,
     finalResult: CsraResult? = null,
@@ -132,8 +132,8 @@ class CsraCurrentRatingResourceTest : SqsIntegrationTestBase() {
       .jsonPath("$.status").isEqualTo("COMPLETE")
       .jsonPath("$.rating").isEqualTo("STANDARD")
       .jsonPath("$.reviewId").isEqualTo(completed.id.toString())
-      .jsonPath("$.type").isEqualTo("CSRA_INITIAL_REVIEW")
-      // CSRA_INITIAL_REVIEW is an assessment despite the name — this is the field a consumer
+      .jsonPath("$.type").isEqualTo("CSRA_INITIAL_ASSESSMENT")
+      // CSRA_INITIAL_ASSESSMENT is an assessment despite the name — this is the field a consumer
       // should read rather than decoding the type (MAPA-366).
       .jsonPath("$.assessmentType").isEqualTo("ASSESSMENT")
       .jsonPath("$.prisonId").isEqualTo("LEI")
@@ -280,7 +280,7 @@ class CsraCurrentRatingResourceTest : SqsIntegrationTestBase() {
     val legacy = review(
       prisonerNumber = "L1111LL",
       assessmentDate = LocalDate.parse("2023-07-14"),
-      type = CsraType.REVIEW,
+      type = CsraType.NOMIS_REVIEW,
       finalResult = CsraResult.HIGH,
       finalResultDate = LocalDate.parse("2023-07-20"),
       prisonId = "LEI",
@@ -313,7 +313,7 @@ class CsraCurrentRatingResourceTest : SqsIntegrationTestBase() {
     review(
       prisonerNumber = "L2222LL",
       assessmentDate = LocalDate.parse("2023-07-14"),
-      type = CsraType.REVIEW,
+      type = CsraType.NOMIS_REVIEW,
       interimResult = CsraResult.HIGH,
       interimResultDate = LocalDate.parse("2023-07-14"),
       status = CsraReviewStatus.COMPLETE,
@@ -327,7 +327,7 @@ class CsraCurrentRatingResourceTest : SqsIntegrationTestBase() {
       .jsonPath("$.rating").isEqualTo("HIGH")
       .jsonPath("$.provisional").isEqualTo(true)
       .jsonPath("$.ratingStage").isEqualTo("PROVISIONAL")
-      .jsonPath("$.type").isEqualTo("REVIEW")
+      .jsonPath("$.type").isEqualTo("NOMIS_REVIEW")
   }
 
   @Test

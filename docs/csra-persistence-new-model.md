@@ -75,8 +75,10 @@ The new journey captures a series of questions/answers in the front end, similar
 
 - **Reuse `csra_review`** for the common, queryable fields it already holds (type, interim/final
   result + dates, next review date, audit). `CsraType` already distinguishes new-model values
-  (`CSRA_INITIAL_REVIEW`, `CSRA_REVIEW`) from legacy ones via a `legacy` flag — finish wiring that
-  flag as a stored/usable property.
+  (`CSRA_INITIAL_ASSESSMENT`, `CSRA_REVIEW`) from legacy ones via a `legacy` flag — finish wiring that
+  flag as a stored/usable property. *(Done under MAPA-366; the flag was a constructor parameter with no
+  `val`, so it was discarded at construction. `CSRA_INITIAL_ASSESSMENT` was `CSRA_INITIAL_REVIEW` and
+  the legacy `NOMIS_REVIEW` was `REVIEW` until V20 — see MAPA-367.)*
 - **New child table `csra_assessment_answers`** (FK `csra_review_id`, 1:0..1) with an `answers`
   **JSONB** document holding the full captured questionnaire, plus **promoted typed columns only**
   for the handful of fields that must be queried / reported on / drive logic.

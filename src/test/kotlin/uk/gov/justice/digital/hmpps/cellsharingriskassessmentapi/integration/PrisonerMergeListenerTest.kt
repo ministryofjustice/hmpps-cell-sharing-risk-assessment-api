@@ -64,7 +64,7 @@ class PrisonerMergeListenerTest : SqsIntegrationTestBase() {
       prisonerNumber = prisonerNumber,
       prisonId = "LEI",
       assessmentDate = assessmentDate,
-      type = CsraType.CSRA_INITIAL_REVIEW,
+      type = CsraType.CSRA_INITIAL_ASSESSMENT,
       finalResult = rating,
       finalResultDate = assessmentDate,
       status = CsraReviewStatus.COMPLETE,

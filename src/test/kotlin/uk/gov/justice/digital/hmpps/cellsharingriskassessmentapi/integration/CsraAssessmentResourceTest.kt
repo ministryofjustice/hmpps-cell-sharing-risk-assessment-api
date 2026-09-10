@@ -104,7 +104,7 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
       prisonerNumber = prisonerNumber,
       prisonId = "LEI",
       assessmentDate = LocalDate.parse("2023-12-01"),
-      type = CsraType.CSRA_INITIAL_REVIEW,
+      type = CsraType.CSRA_INITIAL_ASSESSMENT,
       status = status,
       createdAt = LocalDateTime.parse("2023-12-01T09:00:00"),
       createdBy = "SCARTER",
@@ -346,7 +346,12 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
 
   @Test
   fun `rejects starting a second assessment while one is in progress`() {
-    val prisoner = "P4444PP"
+    // Deliberately not P4444PP: CsraCurrentRatingResourceTest seeds that number with a rated review
+    // dated 2026, and csra_review is not cleared between test classes. rejectIfInProgress only
+    // inspects the *latest* review, so whichever class ran first decided whether this saw its own
+    // unrated draft or the other one's rated row — and with the rated row it returned 201, not 409.
+    // The production weakness that makes the ordering matter at all is MAPA-332.
+    val prisoner = "P4455PP"
     start(prisoner)
 
     webTestClient.post().uri("/csra-review/prisoner/$prisoner/assessment")

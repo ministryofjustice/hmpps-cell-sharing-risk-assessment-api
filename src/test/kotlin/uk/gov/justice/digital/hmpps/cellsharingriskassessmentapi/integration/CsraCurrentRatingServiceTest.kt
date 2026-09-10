@@ -35,7 +35,7 @@ class CsraCurrentRatingServiceTest : SqsIntegrationTestBase() {
     assessmentDate: LocalDate,
     finalResult: CsraResult? = null,
     interimResult: CsraResult? = null,
-    type: CsraType = CsraType.CSRA_INITIAL_REVIEW,
+    type: CsraType = CsraType.CSRA_INITIAL_ASSESSMENT,
     status: CsraReviewStatus = CsraReviewStatus.IN_PROGRESS,
     supersededAt: LocalDateTime? = null,
   ) = csraReviewRepository.saveAndFlush(

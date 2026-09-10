@@ -43,7 +43,7 @@ class CsraReviewHistoryRepositoryTest : TestBase() {
     prisonerNumber = prisonerNumber,
     prisonId = prisonId,
     assessmentDate = assessmentDate,
-    type = CsraType.REVIEW,
+    type = CsraType.NOMIS_REVIEW,
     finalResult = finalResult,
     finalResultDate = finalResult?.let { assessmentDate },
     interimResult = interimResult,

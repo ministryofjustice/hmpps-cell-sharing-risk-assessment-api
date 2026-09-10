@@ -55,7 +55,7 @@ class CsraReviewsInProgressResourceTest : SqsIntegrationTestBase() {
     review("RV02", LocalDateTime.parse("2026-07-06T14:40:00"), createdBy = "MSTANLEY")
     // Decoys
     review("RVDONE", LocalDateTime.parse("2026-07-01T09:00:00"), finalResult = CsraResult.HIGH) // completed review
-    review("ASMT", LocalDateTime.parse("2026-07-02T09:00:00"), type = CsraType.CSRA_INITIAL_REVIEW) // an assessment
+    review("ASMT", LocalDateTime.parse("2026-07-02T09:00:00"), type = CsraType.CSRA_INITIAL_ASSESSMENT) // an assessment
     review("RVOTHER", LocalDateTime.parse("2026-07-06T09:00:00"), prisonId = "BXI") // in progress at another prison
     review("RVOUT", LocalDateTime.parse("2026-07-04T09:00:00")) // started here, since released
     review("RVGONE", LocalDateTime.parse("2026-07-05T09:00:00")) // started here, unknown to prisoner-search

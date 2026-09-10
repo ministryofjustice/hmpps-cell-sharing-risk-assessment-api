@@ -36,7 +36,7 @@ class CsraPrisonRatingSummaryResourceTest : SqsIntegrationTestBase() {
       prisonerNumber = prisonerNumber,
       prisonId = prisonId,
       assessmentDate = assessmentDate,
-      type = CsraType.CSRA_INITIAL_REVIEW,
+      type = CsraType.CSRA_INITIAL_ASSESSMENT,
       interimResult = interimResult,
       interimResultDate = interimResult?.let { assessmentDate },
       finalResult = finalResult,

@@ -22,7 +22,7 @@ fun CsraAssessmentType.toCsraType(): CsraType = when (this) {
   CsraAssessmentType.CSRDO -> CsraType.LOCATE
   CsraAssessmentType.CSR -> CsraType.RATING
   CsraAssessmentType.CSR1 -> CsraType.RECEPTION
-  CsraAssessmentType.CSRREV -> CsraType.REVIEW
+  CsraAssessmentType.CSRREV -> CsraType.NOMIS_REVIEW
 }
 
 /**

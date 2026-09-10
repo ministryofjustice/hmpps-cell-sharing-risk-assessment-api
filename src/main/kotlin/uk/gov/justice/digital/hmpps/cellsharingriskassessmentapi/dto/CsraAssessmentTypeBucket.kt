@@ -5,7 +5,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraType
 
 /**
  * The coarse "Assessment type" column/filter on the prison prisoner list: every CSRA is either an
- * initial **Assessment** or a **Review**. The legacy NOMIS `REVIEW` and the new-model `CSRA_REVIEW`
+ * initial **Assessment** or a **Review**. The legacy `NOMIS_REVIEW` and the new-model `CSRA_REVIEW`
  * map to REVIEW; everything else (initial/rating/reception/health/locate) maps to ASSESSMENT.
  */
 @Schema(description = "The coarse CSRA assessment type: an initial assessment or a review")
@@ -16,6 +16,6 @@ enum class CsraAssessmentTypeBucket {
 
 /** Maps a [CsraType] to its coarse [CsraAssessmentTypeBucket]. */
 fun CsraType.toAssessmentBucket(): CsraAssessmentTypeBucket = when (this) {
-  CsraType.REVIEW, CsraType.CSRA_REVIEW -> CsraAssessmentTypeBucket.REVIEW
+  CsraType.NOMIS_REVIEW, CsraType.CSRA_REVIEW -> CsraAssessmentTypeBucket.REVIEW
   else -> CsraAssessmentTypeBucket.ASSESSMENT
 }

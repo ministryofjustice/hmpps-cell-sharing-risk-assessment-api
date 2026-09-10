@@ -49,7 +49,7 @@ class CsraReviewRepositoryTest : TestBase() {
     prisonerNumber = prisonerNumber,
     prisonId = "LEI",
     assessmentDate = assessmentDate,
-    type = CsraType.CSRA_INITIAL_REVIEW,
+    type = CsraType.CSRA_INITIAL_ASSESSMENT,
     interimResult = interimResult,
     interimResultDate = interimResult?.let { assessmentDate },
     finalResult = finalResult,
@@ -126,15 +126,15 @@ class CsraReviewRepositoryTest : TestBase() {
       createdAt = LocalDateTime.parse("2025-12-06T12:34:56"),
       createdBy = "NQP56Y",
     )
-    repository.save(entity("INPROG", CsraType.CSRA_INITIAL_REVIEW, null, "LEI")) // match
-    repository.save(entity("DONE", CsraType.CSRA_INITIAL_REVIEW, CsraResult.STANDARD, "LEI")) // completed
+    repository.save(entity("INPROG", CsraType.CSRA_INITIAL_ASSESSMENT, null, "LEI")) // match
+    repository.save(entity("DONE", CsraType.CSRA_INITIAL_ASSESSMENT, CsraResult.STANDARD, "LEI")) // completed
     repository.save(entity("REVIEW", CsraType.CSRA_REVIEW, null, "LEI")) // wrong type
-    repository.save(entity("OTHERP", CsraType.CSRA_INITIAL_REVIEW, null, "MDI")) // wrong prison
+    repository.save(entity("OTHERP", CsraType.CSRA_INITIAL_ASSESSMENT, null, "MDI")) // wrong prison
     repository.save(entity("LEGACY", CsraType.RATING, null, "LEI")) // legacy null-result, wrong type
-    repository.save(entity("CLOSED", CsraType.CSRA_INITIAL_REVIEW, null, "LEI").apply { status = CsraReviewStatus.CLOSED }) // no longer in progress
+    repository.save(entity("CLOSED", CsraType.CSRA_INITIAL_ASSESSMENT, null, "LEI").apply { status = CsraReviewStatus.CLOSED }) // no longer in progress
     repository.flush()
 
-    val found = repository.findAllByPrisonIdAndTypeAndFinalResultIsNullAndStatus("LEI", CsraType.CSRA_INITIAL_REVIEW, CsraReviewStatus.IN_PROGRESS)
+    val found = repository.findAllByPrisonIdAndTypeAndFinalResultIsNullAndStatus("LEI", CsraType.CSRA_INITIAL_ASSESSMENT, CsraReviewStatus.IN_PROGRESS)
 
     assertThat(found.map { it.prisonerNumber }).containsExactly("INPROG")
   }

@@ -36,7 +36,7 @@ class CsraAssessmentsInProgressResourceTest : SqsIntegrationTestBase() {
   private fun review(
     prisonerNumber: String,
     startedAt: LocalDateTime,
-    type: CsraType = CsraType.CSRA_INITIAL_REVIEW,
+    type: CsraType = CsraType.CSRA_INITIAL_ASSESSMENT,
     interimResult: CsraResult? = null,
     finalResult: CsraResult? = null,
     prisonId: String = "LEI",
