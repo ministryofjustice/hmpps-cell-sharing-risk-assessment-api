@@ -141,6 +141,7 @@ class CsraReviewResourceTest : SqsIntegrationTestBase() {
       .jsonPath("$.prisonId").isEqualTo("LEI")
       .jsonPath("$.prisonName").isEqualTo("Leeds (HMP)")
       .jsonPath("$.type").isEqualTo("CSRA_INITIAL_REVIEW")
+      .jsonPath("$.assessmentType").isEqualTo("ASSESSMENT")
       .jsonPath("$.finalResult").isEqualTo("STANDARD")
       .jsonPath("$.legacy").doesNotExist()
   }

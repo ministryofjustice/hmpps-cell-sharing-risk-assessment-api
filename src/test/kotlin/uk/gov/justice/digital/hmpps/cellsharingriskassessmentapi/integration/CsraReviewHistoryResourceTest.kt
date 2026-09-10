@@ -148,6 +148,9 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
       .jsonPath("$.totalElements").isEqualTo(3)
       .jsonPath("$.content.length()").isEqualTo(3)
       .jsonPath("$.content[0].rating").isEqualTo("HIGH_SPECIFIC")
+      // Seeded as the legacy NOMIS REVIEW type, which buckets to REVIEW — the point of the field is
+      // that a consumer never has to know which of the eight type values it was (MAPA-366).
+      .jsonPath("$.content[0].assessmentType").isEqualTo("REVIEW")
       .jsonPath("$.content[0].reviewComment").isEqualTo("History of racist incidents.")
       .jsonPath("$.content[0].prisonId").isEqualTo("MDI")
       .jsonPath("$.content[0].recordedDate").isEqualTo("2025-10-11")

@@ -133,11 +133,15 @@ class CsraCurrentRatingResourceTest : SqsIntegrationTestBase() {
       .jsonPath("$.rating").isEqualTo("STANDARD")
       .jsonPath("$.reviewId").isEqualTo(completed.id.toString())
       .jsonPath("$.type").isEqualTo("CSRA_INITIAL_REVIEW")
+      // CSRA_INITIAL_REVIEW is an assessment despite the name — this is the field a consumer
+      // should read rather than decoding the type (MAPA-366).
+      .jsonPath("$.assessmentType").isEqualTo("ASSESSMENT")
       .jsonPath("$.prisonId").isEqualTo("LEI")
       .jsonPath("$.prisonName").isEqualTo("Leeds (HMP)")
       // The in-progress record is a different review, and the UI needs its id to offer Continue/Cancel
       .jsonPath("$.inProgress.reviewId").isEqualTo(started.id.toString())
       .jsonPath("$.inProgress.type").isEqualTo("CSRA_REVIEW")
+      .jsonPath("$.inProgress.assessmentType").isEqualTo("REVIEW")
       .jsonPath("$.inProgress.prisonId").isEqualTo("BXI")
       // A different prison from the one that produced the rating, so both names are needed.
       .jsonPath("$.inProgress.prisonName").isEqualTo("Brixton (HMP)")
@@ -167,6 +171,7 @@ class CsraCurrentRatingResourceTest : SqsIntegrationTestBase() {
       // Equal ids are what tell the UI to render "an interim rating has been entered, complete the review"
       .jsonPath("$.inProgress.reviewId").isEqualTo(interim.id.toString())
       .jsonPath("$.inProgress.type").isEqualTo("CSRA_REVIEW")
+      .jsonPath("$.inProgress.assessmentType").isEqualTo("REVIEW")
   }
 
   @Test

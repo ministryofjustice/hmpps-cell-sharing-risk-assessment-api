@@ -78,8 +78,11 @@ data class CsraCurrentRating(
   @param:Schema(description = "When the current assessment was started", example = "2026-06-26T11:20:00")
   val startedAt: LocalDateTime?,
 
-  @param:Schema(description = "Whether the rating came from an assessment or a review. Absent when there is no rating.", example = "CSRA_INITIAL_REVIEW")
+  @param:Schema(description = "The exact kind of record the rating came from, legacy NOMIS types included. Absent when there is no rating. Note CSRA_INITIAL_REVIEW is an assessment — use `assessmentType` unless you need the precise type.", example = "CSRA_INITIAL_REVIEW")
   val type: CsraType? = null,
+
+  @param:Schema(description = "Whether the rating came from an assessment or a review. Absent when there is no rating.", example = "ASSESSMENT")
+  val assessmentType: CsraAssessmentTypeBucket? = null,
 
   @param:Schema(description = "The assessment or review currently in progress, if any. Absent when nothing is in progress.")
   val inProgress: CsraInProgressReview? = null,
@@ -106,8 +109,11 @@ data class CsraInProgressReview(
   @param:Schema(description = "The id of the in-progress assessment or review. Point 'Continue' and 'Cancel' at this.", example = "de91dfa7-821f-4552-a427-bf2f32eafeb0", requiredMode = Schema.RequiredMode.REQUIRED)
   val reviewId: UUID,
 
-  @param:Schema(description = "Whether this is an assessment or a review — the card is captioned accordingly", example = "CSRA_INITIAL_REVIEW", requiredMode = Schema.RequiredMode.REQUIRED)
+  @param:Schema(description = "The exact kind of record in progress. Always a new-model type: a migrated NOMIS review is never in progress, so the legacy values cannot appear here.", example = "CSRA_INITIAL_REVIEW", requiredMode = Schema.RequiredMode.REQUIRED)
   val type: CsraType,
+
+  @param:Schema(description = "Whether this is an assessment or a review — the card is captioned accordingly", example = "ASSESSMENT", requiredMode = Schema.RequiredMode.REQUIRED)
+  val assessmentType: CsraAssessmentTypeBucket,
 
   @param:Schema(description = "The username that started it", example = "BPONDS")
   val startedBy: String?,
