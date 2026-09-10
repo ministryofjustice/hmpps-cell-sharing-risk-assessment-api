@@ -430,7 +430,7 @@ class CsraReviewService(
         status = CsraRatingStatus.NO_RATING,
         rating = null,
         provisional = false,
-        inheritedProvisionalRating = false,
+        inheritedAfterTransfer = false,
         ratingStage = null,
         reviewId = null,
         prisonId = null,
@@ -481,7 +481,7 @@ class CsraReviewService(
       // Derived from the rating itself, not the status argument: an in-progress review carrying an interim
       // rating is provisional, but arrives here with status IN_PROGRESS.
       provisional = review.finalResult == null && review.interimResult != null,
-      inheritedProvisionalRating = review.finalResult == null &&
+      inheritedAfterTransfer = review.finalResult == null &&
         review.interimResult != null &&
         review.status == CsraReviewStatus.CLOSED &&
         review.closureReason == CsraClosureReason.NOT_COMPLETED_PRISONER_TRANSFER,

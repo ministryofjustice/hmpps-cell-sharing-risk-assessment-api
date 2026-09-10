@@ -39,8 +39,8 @@ data class CsraCurrentRating(
   @param:Schema(description = "Whether the current rating is provisional (a final rating has not yet been confirmed)", example = "false")
   val provisional: Boolean,
 
-  @param:Schema(description = "Whether the current provisional rating was inherited because the prisoner transferred before it was completed", example = "false")
-  val inheritedProvisionalRating: Boolean,
+  @param:Schema(description = "Whether the current provisional or interim rating was inherited because the prisoner transferred before it was completed. Use ratingStage to decide which copy to show.", example = "false")
+  val inheritedAfterTransfer: Boolean,
 
   @param:Schema(description = "Which stage the current rating came from. Distinguishes an assessment's provisional rating from a review's interim one, which the provisional flag cannot. Null when there is no rating.", example = "FINAL")
   val ratingStage: CsraRatingStage?,
