@@ -27,6 +27,30 @@ old enum — every read of a migrated review fails, which is a total outage of t
 either roll-forward with a `V21` reverting the values, or hand-running the reverse UPDATEs *before*
 rolling back. See the bottom of this page.
 
+## What dev actually measured
+
+Dev ran Option A on 2026-09-10 (commit `be644d9`). Flyway applied V20 in **19.5 seconds**, one pod, no
+restarts, and afterwards:
+
+| type | rows |
+| --- | ---: |
+| `RATING` | 1,350,413 |
+| `NOMIS_REVIEW` | 193,264 |
+| `RECEPTION` | 70,539 |
+| `FULL` | 16,265 |
+| `LOCATE` | 280 |
+| `HEALTH` | 28 |
+| `CSRA_INITIAL_ASSESSMENT` | 11 |
+| `CSRA_REVIEW` | 3 |
+
+Zero rows on either old name, and `type` is now `character varying(40)`. So the 193k-row UPDATE — the one
+this whole page is about — costs ~20 seconds against a table of 1.6M rows.
+
+Use that to size prod rather than guessing, but **do not treat it as prod's answer**. Dev holds a full
+NOMIS migration, so it is the right shape, but prod's row count and RDS instance class both differ, and
+the number that matters is `count(*) WHERE type = 'REVIEW'`, not the table total. Scale from 193k rows
+≈ 20s and check the result against the liveness budget below.
+
 ## Option A — let Flyway do it (dev, preprod)
 
 Deploy normally. V20 runs at startup. The old pod serves and 500s on migrated reviews for the 30–90
@@ -34,6 +58,11 @@ seconds until the new pod is ready.
 
 Fine where the data is small and nobody is watching. **Not** the prod path if the UPDATE runs long: a
 migration slower than the liveness budget gets its pod killed mid-flight.
+
+On dev's numbers this is comfortable — 19.5s against a ~6 minute budget. If prod's `REVIEW` count is
+within a few multiples of dev's, Option A is defensible there too. Option B stays the recommendation
+anyway, because its cost is a scheduled window rather than a risk, and it also closes the poisoned-row
+hazard in step 2 that Option A leaves open.
 
 ## Option B — planned window with a manual UPDATE (prod)
 
@@ -46,7 +75,8 @@ unconditional updates.
 ### 1. Measure first
 
 Preprod is **not** a volume rehearsal — `values-prod.yaml` has `postgresDatabaseRestore: enabled: false`,
-so there is no prod→preprod refresh. Restore a prod snapshot into a scratch instance and time it:
+so there is no prod→preprod refresh. Dev's 19.5s (above) is the closest thing to a rehearsal we have. To
+do better, restore a prod snapshot into a scratch instance and time it:
 
 ```sql
 SELECT type, count(*) FROM csra_review GROUP BY type ORDER BY 2 DESC;
