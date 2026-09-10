@@ -7,8 +7,10 @@ MAPA-367 renames two values of `csra_review.type`:
 | `CSRA_INITIAL_REVIEW` | `CSRA_INITIAL_ASSESSMENT` |
 | `REVIEW` | `NOMIS_REVIEW` |
 
-This page exists because the rename is **not** backwards compatible, and the second UPDATE touches a
-large share of the migrated NOMIS population. Read it before deploying to preprod or prod.
+**Done: dev, preprod and prod, all on 2026-09-10.** This is now the record of what it cost rather than a
+plan, but the reasoning is kept intact — the rename is not backwards compatible, the second UPDATE touches
+a large share of the migrated NOMIS population, and the next migration of this shape will need the same
+thinking.
 
 ## Why there has to be a window
 
@@ -27,53 +29,68 @@ old enum — every read of a migrated review fails, which is a total outage of t
 either roll-forward with a `V21` reverting the values, or hand-running the reverse UPDATEs *before*
 rolling back. See the bottom of this page.
 
-## What dev actually measured
+## What it actually cost
 
-Dev ran Option A on 2026-09-10 (commit `be644d9`). Flyway applied V20 in **19.5 seconds**, one pod, no
-restarts, and afterwards:
+V20 ran with plain Flyway (Option A) in all three environments on 2026-09-10, commit `be644d9`. Every one:
+migration succeeded, single pod, no restarts, no `ERROR` lines, no `No enum constant`, DLQ empty.
 
-| type | rows |
-| --- | ---: |
-| `RATING` | 1,350,413 |
-| `NOMIS_REVIEW` | 193,264 |
-| `RECEPTION` | 70,539 |
-| `FULL` | 16,265 |
-| `LOCATE` | 280 |
-| `HEALTH` | 28 |
-| `CSRA_INITIAL_ASSESSMENT` | 11 |
-| `CSRA_REVIEW` | 3 |
+| | dev | preprod | prod |
+| --- | ---: | ---: | ---: |
+| `NOMIS_REVIEW` (rows V20 rewrote) | 193,264 | 549,953 | 556,117 |
+| `csra_review` total | 1,630,803 | 3,476,764 | 3,503,746 |
+| **V20 execution** | **19.5 s** | **56.3 s** | **30.3 s** |
+| rows left on an old name | 0 | 0 | 0 |
+| `type` column | `varchar(40)` | `varchar(40)` | `varchar(40)` |
 
-Zero rows on either old name, and `type` is now `character varying(40)`. So the 193k-row UPDATE — the one
-this whole page is about — costs ~20 seconds against a table of 1.6M rows.
+The worst case was 56 seconds against a liveness budget of roughly six minutes.
 
-Use that to size prod rather than guessing, but **do not treat it as prod's answer**. Dev holds a full
-NOMIS migration, so it is the right shape, but prod's row count and RDS instance class both differ, and
-the number that matters is `count(*) WHERE type = 'REVIEW'`, not the table total. Scale from 193k rows
-≈ 20s and check the result against the liveness budget below.
+### Two things the numbers contradict
+
+**Preprod is a genuine volume rehearsal.** An earlier draft of this page said it was not, reasoning from
+`values-prod.yaml` having `postgresDatabaseRestore: enabled: false` — no prod→preprod refresh, therefore
+no prod-like data. Wrong: preprod is within **1.1%** of prod on the rows that matter. It gets there by
+running the same NOMIS migration, not by being copied from prod. For anything of this shape, rehearse in
+preprod and believe the result.
+
+**Do not size these migrations by row count alone.** Prod rewrote 1.1% *more* rows than preprod in 54% of
+the time. Volume did not explain the spread — instance class, cache state and autovacuum timing did, and
+we did not pin down which. The useful direction is that preprod ran *slower* than prod, so it errs
+conservative, which is the right way round for a rehearsal.
+
+### What prod did not exercise
+
+Prod held **zero** `CSRA_INITIAL_ASSESSMENT` and `CSRA_REVIEW` rows — no prison had been switched on, so
+no new-model record had ever been written there (the MAPA-363 rollout gate working as intended).
+
+All three environments read the column back as `varchar(40)`, so the widening is applied everywhere. But
+no *data* in prod exercises it yet: the first real assessment write at a live prison is what will. That
+widening is the whole reason this migration is not a one-line `UPDATE` — `CSRA_INITIAL_ASSESSMENT` is 23
+characters, the column was `varchar(20)`, and with `ddl-auto: none` nothing validates the column against
+the entity. Without it the first symptom would have been SQLSTATE 22001 on the next assessment start,
+long after a clean deploy.
 
 ## Option A — let Flyway do it (dev, preprod)
 
-Deploy normally. V20 runs at startup. The old pod serves and 500s on migrated reviews for the 30–90
-seconds until the new pod is ready.
+**This is what was used, in all three environments including prod.** Deploy normally; V20 runs at startup.
+The old pod serves and 500s on migrated reviews for the 30-90 seconds until the new pod is ready.
 
-Fine where the data is small and nobody is watching. **Not** the prod path if the UPDATE runs long: a
-migration slower than the liveness budget gets its pod killed mid-flight.
+It was the right call because the measurements came back an order of magnitude inside the liveness budget.
+The condition under which it stops being the right call is unchanged: a migration slower than that budget
+gets its pod killed mid-flight, and this page's Option B exists for that case.
 
-On the measured numbers this is comfortable — 19.5s in dev, and preprod's 549,953 `REVIEW` rows scale to
-roughly a minute against a ~6 minute budget. Option A is therefore the right call for preprod, and
-defensible for prod if prod's `REVIEW` count is the same order.
+**Preprod was the one environment where this carried real risk**, which is worth remembering because it is
+the opposite of what people assume. `activeAgencies` there is `["PVI"]` — a prison switched on and a live
+NOMIS feed — while prod had none. So preprod, not prod, was where the read 500s and the poisoned-row
+hazard in Option B step 2 were live. Both came back clean, but the step 5 verification is what established
+that, and it is not optional anywhere.
 
-**Preprod is not a quiet environment, though.** `activeAgencies` there is `["PVI"]`, so unlike prod it has
-a prison switched on and a live NOMIS feed. Option A in preprod means accepting both the read 500s during
-the rolling update and the poisoned-row hazard from step 2 — which is exactly why the verification query
-in step 5 is not optional there.
+## Option B — planned window with a manual UPDATE
 
-Option B stays the recommendation for prod: its cost is a scheduled window rather than a risk, and it is
-what closes the poisoned-row hazard rather than merely surviving it.
+**Not used in the end.** It was the plan for production until dev and preprod produced timings that made
+it unnecessary. Kept because the reasoning holds for the next migration of this shape, and because the
+`WHERE` filters it depends on are still in V20 and must not be "tidied" away.
 
-## Option B — planned window with a manual UPDATE (prod)
-
-Chosen for production, because it takes the clock off the big UPDATE entirely.
+It takes the clock off the big UPDATE entirely.
 
 Both statements in V20 are `WHERE`-filtered, so once the data is renamed by hand the migration matches
 nothing and completes instantly. That is the whole point of the filters — don't "tidy" them into
