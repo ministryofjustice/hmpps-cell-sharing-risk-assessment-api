@@ -59,10 +59,17 @@ seconds until the new pod is ready.
 Fine where the data is small and nobody is watching. **Not** the prod path if the UPDATE runs long: a
 migration slower than the liveness budget gets its pod killed mid-flight.
 
-On dev's numbers this is comfortable — 19.5s against a ~6 minute budget. If prod's `REVIEW` count is
-within a few multiples of dev's, Option A is defensible there too. Option B stays the recommendation
-anyway, because its cost is a scheduled window rather than a risk, and it also closes the poisoned-row
-hazard in step 2 that Option A leaves open.
+On the measured numbers this is comfortable — 19.5s in dev, and preprod's 549,953 `REVIEW` rows scale to
+roughly a minute against a ~6 minute budget. Option A is therefore the right call for preprod, and
+defensible for prod if prod's `REVIEW` count is the same order.
+
+**Preprod is not a quiet environment, though.** `activeAgencies` there is `["PVI"]`, so unlike prod it has
+a prison switched on and a live NOMIS feed. Option A in preprod means accepting both the read 500s during
+the rolling update and the poisoned-row hazard from step 2 — which is exactly why the verification query
+in step 5 is not optional there.
+
+Option B stays the recommendation for prod: its cost is a scheduled window rather than a risk, and it is
+what closes the poisoned-row hazard rather than merely surviving it.
 
 ## Option B — planned window with a manual UPDATE (prod)
 
@@ -74,9 +81,16 @@ unconditional updates.
 
 ### 1. Measure first
 
-Preprod is **not** a volume rehearsal — `values-prod.yaml` has `postgresDatabaseRestore: enabled: false`,
-so there is no prod→preprod refresh. Dev's 19.5s (above) is the closest thing to a rehearsal we have. To
-do better, restore a prod snapshot into a scratch instance and time it:
+**Preprod is the rehearsal.** An earlier draft of this page said it was not, reasoning from
+`values-prod.yaml` having `postgresDatabaseRestore: enabled: false` — no prod→preprod refresh, therefore
+no prod-like volume. That inference was wrong, and measuring beats inferring: preprod holds 3,476,764
+`csra_review` rows in 774 MB, of which **549,953** are `REVIEW` — 2.8x dev's share, and the same order as
+prod. It got there by running the same NOMIS migration, not by being refreshed from prod.
+
+Preprod also has a precedent at this exact scale: **V18 took 25.7 seconds** there, and it is the heavier
+operation of the two.
+
+Restore a prod snapshot into a scratch instance only if you want a number for prod specifically:
 
 ```sql
 SELECT type, count(*) FROM csra_review GROUP BY type ORDER BY 2 DESC;
