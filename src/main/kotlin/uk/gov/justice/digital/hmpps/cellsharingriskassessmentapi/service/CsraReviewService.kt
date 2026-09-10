@@ -49,6 +49,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toLegacyDet
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toResults
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStage
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStageEntity
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraClosureReason
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraResult
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewNomisEntity
@@ -429,6 +430,7 @@ class CsraReviewService(
         status = CsraRatingStatus.NO_RATING,
         rating = null,
         provisional = false,
+        inheritedAfterTransfer = false,
         ratingStage = null,
         reviewId = null,
         prisonId = null,
@@ -479,6 +481,10 @@ class CsraReviewService(
       // Derived from the rating itself, not the status argument: an in-progress review carrying an interim
       // rating is provisional, but arrives here with status IN_PROGRESS.
       provisional = review.finalResult == null && review.interimResult != null,
+      inheritedAfterTransfer = review.finalResult == null &&
+        review.interimResult != null &&
+        review.status == CsraReviewStatus.CLOSED &&
+        review.closureReason == CsraClosureReason.NOT_COMPLETED_PRISONER_TRANSFER,
       // Narrower than `provisional`: only a new-model review produces an interim rating, so an
       // assessment's Day 1 rating and a migrated NOMIS one still in provisional status read as
       // PROVISIONAL. Named for the DTO field, not the `ratingStage` entity local above.
