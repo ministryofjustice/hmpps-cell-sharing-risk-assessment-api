@@ -43,6 +43,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraSortDir
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraVulnerabilityDetail
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.isHigh
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.ratingStageFor
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toAssessmentBucket
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toDetail
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toLegacyDetail
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toResults
@@ -444,6 +445,7 @@ class CsraReviewService(
         startedBy = null,
         startedAt = null,
         type = null,
+        assessmentType = null,
         inProgress = null,
       )
     }
@@ -494,10 +496,12 @@ class CsraReviewService(
       startedBy = review.createdBy,
       startedAt = review.createdAt,
       type = review.type,
+      assessmentType = review.type.toAssessmentBucket(),
       inProgress = inProgress?.let {
         CsraInProgressReview(
           reviewId = it.id!!,
           type = it.type,
+          assessmentType = it.type.toAssessmentBucket(),
           startedBy = it.createdBy,
           startedAt = it.createdAt,
           prisonId = it.prisonId,
@@ -597,6 +601,7 @@ class CsraReviewService(
   ) = CsraReviewSummary(
     id = id!!,
     type = type,
+    assessmentType = type.toAssessmentBucket(),
     rating = finalResult ?: interimResult!!,
     reviewComment = stageComment ?: nomisComment(nomis),
     prisonId = prisonId,
