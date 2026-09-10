@@ -46,16 +46,16 @@ class ExportReferenceData {
       "csra_review.type",
       CsraType.entries,
       mapOf(
-        CsraType.CSRA_INITIAL_REVIEW to "New DPS initial assessment - the two-stage provisional/final journey.",
+        CsraType.CSRA_INITIAL_ASSESSMENT to "New DPS initial assessment - the two-stage provisional/final journey.",
         CsraType.CSRA_REVIEW to "New DPS review of an existing rating - a separate journey from the initial assessment.",
         CsraType.FULL to "Legacy NOMIS full assessment.",
         CsraType.HEALTH to "Legacy NOMIS health assessment.",
         CsraType.LOCATE to "Legacy NOMIS location assessment.",
         CsraType.RATING to "Legacy NOMIS rating assessment.",
         CsraType.RECEPTION to "Legacy NOMIS reception assessment.",
-        CsraType.REVIEW to "Legacy NOMIS review.",
+        CsraType.NOMIS_REVIEW to "Legacy NOMIS review.",
       ),
-      notes = { if (it == CsraType.CSRA_INITIAL_REVIEW || it == CsraType.CSRA_REVIEW) "origin=DPS" else "origin=NOMIS (mapped on during migration)" },
+      notes = { if (it == CsraType.CSRA_INITIAL_ASSESSMENT || it == CsraType.CSRA_REVIEW) "origin=DPS" else "origin=NOMIS (mapped on during migration)" },
     )
 
     rows += enumRows(

@@ -261,12 +261,12 @@ class CsraReviewService(
    */
   fun getAssessmentsInProgress(prisonId: String): CsraAssessmentsInProgress {
     val ours = csraReviewRepository
-      .findAllByPrisonIdAndTypeAndFinalResultIsNullAndStatus(prisonId, CsraType.CSRA_INITIAL_REVIEW, CsraReviewStatus.IN_PROGRESS)
+      .findAllByPrisonIdAndTypeAndFinalResultIsNullAndStatus(prisonId, CsraType.CSRA_INITIAL_ASSESSMENT, CsraReviewStatus.IN_PROGRESS)
     val names = prisonerSearchClient.getPrisonerNames(ours.map { it.prisonerNumber })
     val reviews = ours.stillAt(prisonId, names)
     val provisionalStageByReviewId = csraAssessmentStageRepository.findAllByCsraReviewIdIn(reviews.mapNotNull { it.id })
       // PROVISIONAL only, deliberately: a review's INTERIM stage cannot reach here anyway, because these
-      // rows are already filtered to CSRA_INITIAL_REVIEW. Reviews belong on the reviews-in-progress list.
+      // rows are already filtered to CSRA_INITIAL_ASSESSMENT. Reviews belong on the reviews-in-progress list.
       .filter { it.stage == CsraAssessmentStage.PROVISIONAL }
       .associateBy { it.csraReview.id }
 

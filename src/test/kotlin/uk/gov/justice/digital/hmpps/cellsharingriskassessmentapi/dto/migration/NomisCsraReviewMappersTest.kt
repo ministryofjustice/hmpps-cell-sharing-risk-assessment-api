@@ -43,7 +43,7 @@ class NomisCsraReviewMappersTest {
   )
 
   @ParameterizedTest
-  @CsvSource("CSRF,FULL", "CSRH,HEALTH", "CSRDO,LOCATE", "CSR,RATING", "CSR1,RECEPTION", "CSRREV,REVIEW")
+  @CsvSource("CSRF,FULL", "CSRH,HEALTH", "CSRDO,LOCATE", "CSR,RATING", "CSR1,RECEPTION", "CSRREV,NOMIS_REVIEW")
   fun `maps every NOMIS assessment type to a clean type`(nomis: CsraAssessmentType, expected: CsraType) {
     assertThat(nomis.toCsraType()).isEqualTo(expected)
   }

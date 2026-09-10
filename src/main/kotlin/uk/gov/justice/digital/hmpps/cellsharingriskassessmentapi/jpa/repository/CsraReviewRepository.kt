@@ -59,7 +59,7 @@ interface CsraReviewRepository :
 
   /**
    * Genuinely in-progress reviews of a given type at a prison — the "assessments/reviews in progress"
-   * worklists. Callers pass a new-model type ([CsraType.CSRA_INITIAL_REVIEW] / [CsraType.CSRA_REVIEW]) and
+   * worklists. Callers pass a new-model type ([CsraType.CSRA_INITIAL_ASSESSMENT] / [CsraType.CSRA_REVIEW]) and
    * status IN_PROGRESS, so completed rows (final result set), legacy rows (excluded by type) and closed/
    * archived rows (excluded by status) all drop out.
    */

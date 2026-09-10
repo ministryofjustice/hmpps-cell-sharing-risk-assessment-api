@@ -40,7 +40,7 @@ data class CsraReviewDetail(
   @param:Schema(description = "The date the assessment was started", example = "2025-11-22")
   val assessmentDate: LocalDate,
 
-  @param:Schema(description = "The exact kind of record, legacy NOMIS types included. Note CSRA_INITIAL_REVIEW is an assessment — use `assessmentType` unless you need the precise type.", example = "CSRA_INITIAL_REVIEW")
+  @param:Schema(description = "The exact kind of record, legacy NOMIS types included. Note CSRA_INITIAL_ASSESSMENT is an assessment — use `assessmentType` unless you need the precise type.", example = "CSRA_INITIAL_ASSESSMENT")
   val type: CsraType,
 
   @param:Schema(description = "Whether this is an assessment or a review", example = "ASSESSMENT")

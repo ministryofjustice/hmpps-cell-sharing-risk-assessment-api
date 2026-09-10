@@ -72,7 +72,7 @@ class CsraAssessmentService(
         // Set here as well as per-stage so the draft reaches this prison's worklist before Day 1 is submitted.
         prisonId = request.prisonId,
         assessmentDate = LocalDate.now(clock),
-        type = CsraType.CSRA_INITIAL_REVIEW,
+        type = CsraType.CSRA_INITIAL_ASSESSMENT,
         createdAt = LocalDateTime.now(clock),
         createdBy = username,
       ),
@@ -200,7 +200,7 @@ class CsraAssessmentService(
   private fun loadInitialReview(prisonerNumber: String, assessmentId: UUID): CsraReviewEntity {
     val review = csraReviewRepository.findByIdOrNull(assessmentId)
       ?: throw CsraReviewNotFoundException(assessmentId.toString())
-    if (review.prisonerNumber != prisonerNumber || review.type != CsraType.CSRA_INITIAL_REVIEW) {
+    if (review.prisonerNumber != prisonerNumber || review.type != CsraType.CSRA_INITIAL_ASSESSMENT) {
       throw CsraReviewNotFoundException(assessmentId.toString())
     }
     return review

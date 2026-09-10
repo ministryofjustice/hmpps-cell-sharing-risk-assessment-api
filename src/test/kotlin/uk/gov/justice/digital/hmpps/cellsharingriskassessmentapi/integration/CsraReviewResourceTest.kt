@@ -44,7 +44,7 @@ class CsraReviewResourceTest : SqsIntegrationTestBase() {
   private fun review(
     prisonerNumber: String,
     prisonId: String? = "LEI",
-    type: CsraType = CsraType.REVIEW,
+    type: CsraType = CsraType.NOMIS_REVIEW,
     finalResult: CsraResult? = CsraResult.STANDARD,
   ) = csraReviewRepository.saveAndFlush(
     CsraReviewEntity(
@@ -131,7 +131,7 @@ class CsraReviewResourceTest : SqsIntegrationTestBase() {
   @Test
   fun `returns the core review with no legacy block for a DPS-created review`() {
     prisonRegister.stubGetPrisons(mapOf("LEI" to "Leeds (HMP)"))
-    val review = review("D1111DD", type = CsraType.CSRA_INITIAL_REVIEW)
+    val review = review("D1111DD", type = CsraType.CSRA_INITIAL_ASSESSMENT)
 
     get(review.id!!)
       .expectStatus().isOk
@@ -140,7 +140,7 @@ class CsraReviewResourceTest : SqsIntegrationTestBase() {
       .jsonPath("$.prisonerNumber").isEqualTo("D1111DD")
       .jsonPath("$.prisonId").isEqualTo("LEI")
       .jsonPath("$.prisonName").isEqualTo("Leeds (HMP)")
-      .jsonPath("$.type").isEqualTo("CSRA_INITIAL_REVIEW")
+      .jsonPath("$.type").isEqualTo("CSRA_INITIAL_ASSESSMENT")
       .jsonPath("$.assessmentType").isEqualTo("ASSESSMENT")
       .jsonPath("$.finalResult").isEqualTo("STANDARD")
       .jsonPath("$.legacy").doesNotExist()

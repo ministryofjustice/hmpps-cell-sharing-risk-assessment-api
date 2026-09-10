@@ -37,7 +37,7 @@ class CsraHighRiskDueForReviewResourceTest : SqsIntegrationTestBase() {
   private fun review(
     prisonerNumber: String,
     assessmentDate: LocalDate,
-    type: CsraType = CsraType.CSRA_INITIAL_REVIEW,
+    type: CsraType = CsraType.CSRA_INITIAL_ASSESSMENT,
     interimResult: CsraResult? = null,
     finalResult: CsraResult? = null,
     finalResultDate: LocalDate? = null,
@@ -88,7 +88,7 @@ class CsraHighRiskDueForReviewResourceTest : SqsIntegrationTestBase() {
     )
     // Included: legacy High via a review
     nextReview(
-      review("PN_H", LocalDate.parse("2025-03-08"), type = CsraType.REVIEW, finalResult = CsraResult.HIGH, finalResultDate = LocalDate.parse("2025-03-11")),
+      review("PN_H", LocalDate.parse("2025-03-08"), type = CsraType.NOMIS_REVIEW, finalResult = CsraResult.HIGH, finalResultDate = LocalDate.parse("2025-03-11")),
       "PN_H",
       LocalDate.parse("2026-08-12"),
     )

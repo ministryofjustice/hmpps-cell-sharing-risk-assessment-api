@@ -65,7 +65,7 @@ data class CsraReviewSummary(
   @param:Schema(description = "The unique id of the CSRA review", example = "de91dfa7-821f-4552-a427-bf2f32eafeb0")
   val id: UUID,
 
-  @param:Schema(description = "The exact kind of record, legacy NOMIS types included. Note CSRA_INITIAL_REVIEW is an assessment — use `assessmentType` unless you need the precise type.", example = "REVIEW")
+  @param:Schema(description = "The exact kind of record, legacy NOMIS types included. Note CSRA_INITIAL_ASSESSMENT is an assessment — use `assessmentType` unless you need the precise type.", example = "NOMIS_REVIEW")
   val type: CsraType,
 
   @param:Schema(description = "Whether this is an assessment or a review", example = "REVIEW")

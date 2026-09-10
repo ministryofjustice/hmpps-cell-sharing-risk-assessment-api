@@ -29,7 +29,7 @@ class CsraPrisonPrisonersResourceTest : SqsIntegrationTestBase() {
   private fun review(
     prisonerNumber: String,
     assessmentDate: LocalDate,
-    type: CsraType = CsraType.CSRA_INITIAL_REVIEW,
+    type: CsraType = CsraType.CSRA_INITIAL_ASSESSMENT,
     interimResult: CsraResult? = null,
     finalResult: CsraResult? = null,
     finalResultDate: LocalDate? = null,

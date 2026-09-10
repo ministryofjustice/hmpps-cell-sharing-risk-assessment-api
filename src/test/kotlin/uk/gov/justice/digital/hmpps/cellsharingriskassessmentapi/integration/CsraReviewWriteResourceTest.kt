@@ -169,7 +169,7 @@ class CsraReviewWriteResourceTest : SqsIntegrationTestBase() {
   @Test
   fun `starting a review is rejected when an unrated assessment is already in progress`() {
     val prisoner = "R2222RR"
-    seedInProgress(prisoner, CsraType.CSRA_INITIAL_REVIEW)
+    seedInProgress(prisoner, CsraType.CSRA_INITIAL_ASSESSMENT)
 
     webTestClient.post().uri("/csra-review/prisoner/$prisoner/review")
       .headers(setAuthorisation(roles = writeRole))
@@ -437,7 +437,7 @@ class CsraReviewWriteResourceTest : SqsIntegrationTestBase() {
   @Test
   fun `returns 404 for an assessment id submitted to the review endpoint`() {
     val prisoner = "RX111RR"
-    val assessment = seedInProgress(prisoner, CsraType.CSRA_INITIAL_REVIEW)
+    val assessment = seedInProgress(prisoner, CsraType.CSRA_INITIAL_ASSESSMENT)
 
     submit(prisoner, assessment.id!!, "interim")
       .expectStatus().isNotFound

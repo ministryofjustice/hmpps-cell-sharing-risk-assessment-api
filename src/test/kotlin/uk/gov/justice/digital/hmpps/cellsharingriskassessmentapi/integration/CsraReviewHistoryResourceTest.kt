@@ -43,7 +43,7 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
       prisonerNumber = prisonerNumber,
       prisonId = prisonId,
       assessmentDate = assessmentDate,
-      type = CsraType.REVIEW,
+      type = CsraType.NOMIS_REVIEW,
       finalResult = finalResult,
       finalResultDate = assessmentDate,
       status = status,
