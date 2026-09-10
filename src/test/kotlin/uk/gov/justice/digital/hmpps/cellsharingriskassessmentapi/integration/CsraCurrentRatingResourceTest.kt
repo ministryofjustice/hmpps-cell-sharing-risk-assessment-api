@@ -7,6 +7,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessm
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStageEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStageRiskToEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStageVulnerabilityEntity
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraClosureReason
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraCurrentRatingEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraNextReviewEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraRatingSetReason
@@ -54,6 +55,7 @@ class CsraCurrentRatingResourceTest : SqsIntegrationTestBase() {
     finalResultDate: LocalDate? = null,
     prisonId: String? = null,
     status: CsraReviewStatus = CsraReviewStatus.IN_PROGRESS,
+    closureReason: CsraClosureReason? = null,
   ) = csraReviewRepository.saveAndFlush(
     CsraReviewEntity(
       prisonerNumber = prisonerNumber,
@@ -65,6 +67,7 @@ class CsraCurrentRatingResourceTest : SqsIntegrationTestBase() {
       interimResultDate = interimResultDate,
       finalResult = finalResult,
       finalResultDate = finalResultDate,
+      closureReason = closureReason,
       createdAt = LocalDateTime.parse("2026-01-02T09:00:00"),
       createdBy = "NQP56Y",
     ),
@@ -269,6 +272,7 @@ class CsraCurrentRatingResourceTest : SqsIntegrationTestBase() {
       .jsonPath("$.rating").isEmpty
       .jsonPath("$.reviewId").isEmpty
       .jsonPath("$.provisional").isEqualTo(false)
+      .jsonPath("$.inheritedProvisionalRating").isEqualTo(false)
       .jsonPath("$.ratingStage").isEmpty
       .jsonPath("$.prisonId").isEmpty
       .jsonPath("$.prisonName").isEmpty
@@ -405,11 +409,32 @@ class CsraCurrentRatingResourceTest : SqsIntegrationTestBase() {
       .jsonPath("$.status").isEqualTo("PROVISIONAL")
       .jsonPath("$.rating").isEqualTo("HIGH_GENERAL")
       .jsonPath("$.provisional").isEqualTo(true)
+      .jsonPath("$.inheritedProvisionalRating").isEqualTo(false)
       .jsonPath("$.ratingStage").isEqualTo("PROVISIONAL")
       .jsonPath("$.provisionalAssessmentComment").isEqualTo("No PNC or access to warrant. Very late arrival.")
       .jsonPath("$.assessmentComment").isEmpty
       .jsonPath("$.provisionalDate").isEqualTo("2026-05-07")
       .jsonPath("$.finalDate").isEmpty
+  }
+
+  @Test
+  fun `identifies an inherited provisional rating after transfer`() {
+    val inherited = review(
+      prisonerNumber = "T4444TT",
+      assessmentDate = LocalDate.parse("2026-05-07"),
+      interimResult = CsraResult.HIGH_GENERAL,
+      interimResultDate = LocalDate.parse("2026-05-07"),
+      prisonId = "LEI",
+      status = CsraReviewStatus.CLOSED,
+      closureReason = CsraClosureReason.NOT_COMPLETED_PRISONER_TRANSFER,
+    )
+
+    get("T4444TT")
+      .jsonPath("$.status").isEqualTo("PROVISIONAL")
+      .jsonPath("$.rating").isEqualTo("HIGH_GENERAL")
+      .jsonPath("$.provisional").isEqualTo(true)
+      .jsonPath("$.inheritedProvisionalRating").isEqualTo(true)
+      .jsonPath("$.reviewId").isEqualTo(inherited.id.toString())
   }
 
   @Test
