@@ -7,8 +7,10 @@ MAPA-367 renames two values of `csra_review.type`:
 | `CSRA_INITIAL_REVIEW` | `CSRA_INITIAL_ASSESSMENT` |
 | `REVIEW` | `NOMIS_REVIEW` |
 
-This page exists because the rename is **not** backwards compatible, and the second UPDATE touches a
-large share of the migrated NOMIS population. Read it before deploying to preprod or prod.
+**Done: dev, preprod and prod, all on 2026-09-10.** This is now the record of what it cost rather than a
+plan, but the reasoning is kept intact — the rename is not backwards compatible, the second UPDATE touches
+a large share of the migrated NOMIS population, and the next migration of this shape will need the same
+thinking.
 
 ## Why there has to be a window
 
@@ -27,17 +29,68 @@ old enum — every read of a migrated review fails, which is a total outage of t
 either roll-forward with a `V21` reverting the values, or hand-running the reverse UPDATEs *before*
 rolling back. See the bottom of this page.
 
+## What it actually cost
+
+V20 ran with plain Flyway (Option A) in all three environments on 2026-09-10, commit `be644d9`. Every one:
+migration succeeded, single pod, no restarts, no `ERROR` lines, no `No enum constant`, DLQ empty.
+
+| | dev | preprod | prod |
+| --- | ---: | ---: | ---: |
+| `NOMIS_REVIEW` (rows V20 rewrote) | 193,264 | 549,953 | 556,117 |
+| `csra_review` total | 1,630,803 | 3,476,764 | 3,503,746 |
+| **V20 execution** | **19.5 s** | **56.3 s** | **30.3 s** |
+| rows left on an old name | 0 | 0 | 0 |
+| `type` column | `varchar(40)` | `varchar(40)` | `varchar(40)` |
+
+The worst case was 56 seconds against a liveness budget of roughly six minutes.
+
+### Two things the numbers contradict
+
+**Preprod is a genuine volume rehearsal.** An earlier draft of this page said it was not, reasoning from
+`values-prod.yaml` having `postgresDatabaseRestore: enabled: false` — no prod→preprod refresh, therefore
+no prod-like data. Wrong: preprod is within **1.1%** of prod on the rows that matter. It gets there by
+running the same NOMIS migration, not by being copied from prod. For anything of this shape, rehearse in
+preprod and believe the result.
+
+**Do not size these migrations by row count alone.** Prod rewrote 1.1% *more* rows than preprod in 54% of
+the time. Volume did not explain the spread — instance class, cache state and autovacuum timing did, and
+we did not pin down which. The useful direction is that preprod ran *slower* than prod, so it errs
+conservative, which is the right way round for a rehearsal.
+
+### What prod did not exercise
+
+Prod held **zero** `CSRA_INITIAL_ASSESSMENT` and `CSRA_REVIEW` rows — no prison had been switched on, so
+no new-model record had ever been written there (the MAPA-363 rollout gate working as intended).
+
+All three environments read the column back as `varchar(40)`, so the widening is applied everywhere. But
+no *data* in prod exercises it yet: the first real assessment write at a live prison is what will. That
+widening is the whole reason this migration is not a one-line `UPDATE` — `CSRA_INITIAL_ASSESSMENT` is 23
+characters, the column was `varchar(20)`, and with `ddl-auto: none` nothing validates the column against
+the entity. Without it the first symptom would have been SQLSTATE 22001 on the next assessment start,
+long after a clean deploy.
+
 ## Option A — let Flyway do it (dev, preprod)
 
-Deploy normally. V20 runs at startup. The old pod serves and 500s on migrated reviews for the 30–90
-seconds until the new pod is ready.
+**This is what was used, in all three environments including prod.** Deploy normally; V20 runs at startup.
+The old pod serves and 500s on migrated reviews for the 30-90 seconds until the new pod is ready.
 
-Fine where the data is small and nobody is watching. **Not** the prod path if the UPDATE runs long: a
-migration slower than the liveness budget gets its pod killed mid-flight.
+It was the right call because the measurements came back an order of magnitude inside the liveness budget.
+The condition under which it stops being the right call is unchanged: a migration slower than that budget
+gets its pod killed mid-flight, and this page's Option B exists for that case.
 
-## Option B — planned window with a manual UPDATE (prod)
+**Preprod was the one environment where this carried real risk**, which is worth remembering because it is
+the opposite of what people assume. `activeAgencies` there is `["PVI"]` — a prison switched on and a live
+NOMIS feed — while prod had none. So preprod, not prod, was where the read 500s and the poisoned-row
+hazard in Option B step 2 were live. Both came back clean, but the step 5 verification is what established
+that, and it is not optional anywhere.
 
-Chosen for production, because it takes the clock off the big UPDATE entirely.
+## Option B — planned window with a manual UPDATE
+
+**Not used in the end.** It was the plan for production until dev and preprod produced timings that made
+it unnecessary. Kept because the reasoning holds for the next migration of this shape, and because the
+`WHERE` filters it depends on are still in V20 and must not be "tidied" away.
+
+It takes the clock off the big UPDATE entirely.
 
 Both statements in V20 are `WHERE`-filtered, so once the data is renamed by hand the migration matches
 nothing and completes instantly. That is the whole point of the filters — don't "tidy" them into
@@ -45,8 +98,16 @@ unconditional updates.
 
 ### 1. Measure first
 
-Preprod is **not** a volume rehearsal — `values-prod.yaml` has `postgresDatabaseRestore: enabled: false`,
-so there is no prod→preprod refresh. Restore a prod snapshot into a scratch instance and time it:
+**Preprod is the rehearsal.** An earlier draft of this page said it was not, reasoning from
+`values-prod.yaml` having `postgresDatabaseRestore: enabled: false` — no prod→preprod refresh, therefore
+no prod-like volume. That inference was wrong, and measuring beats inferring: preprod holds 3,476,764
+`csra_review` rows in 774 MB, of which **549,953** are `REVIEW` — 2.8x dev's share, and the same order as
+prod. It got there by running the same NOMIS migration, not by being refreshed from prod.
+
+Preprod also has a precedent at this exact scale: **V18 took 25.7 seconds** there, and it is the heavier
+operation of the two.
+
+Restore a prod snapshot into a scratch instance only if you want a number for prod specifically:
 
 ```sql
 SELECT type, count(*) FROM csra_review GROUP BY type ORDER BY 2 DESC;
