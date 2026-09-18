@@ -74,17 +74,35 @@ class CsraHighRiskDueForReviewResourceTest : SqsIntegrationTestBase() {
       "PN_HG",
       LocalDate.parse("2026-06-29"),
     )
-    // Included: high-general interim (provisional) via an assessment -> "Last assessed"
+    // Included: high-general provisional via an assessment -> "Last assessed"
     nextReview(
       review("PN_HGI", LocalDate.parse("2026-01-10"), interimResult = CsraResult.HIGH_GENERAL),
       "PN_HGI",
       LocalDate.parse("2026-07-14"),
+    )
+    // Included: high-general interim via a review -> "Last reviewed"
+    nextReview(
+      review("PN_HGIR", LocalDate.parse("2026-01-12"), type = CsraType.CSRA_REVIEW, interimResult = CsraResult.HIGH_GENERAL),
+      "PN_HGIR",
+      LocalDate.parse("2026-07-18"),
     )
     // Included: high-specific via an assessment
     nextReview(
       review("PN_HS", LocalDate.parse("2025-02-15"), finalResult = CsraResult.HIGH_SPECIFIC, finalResultDate = LocalDate.parse("2025-02-20")),
       "PN_HS",
       LocalDate.parse("2026-07-25"),
+    )
+    // Included: high-specific provisional via an assessment
+    nextReview(
+      review("PN_HSP", LocalDate.parse("2026-01-14"), interimResult = CsraResult.HIGH_SPECIFIC),
+      "PN_HSP",
+      LocalDate.parse("2026-07-28"),
+    )
+    // Included: high-specific interim via a review
+    nextReview(
+      review("PN_HSI", LocalDate.parse("2026-01-16"), type = CsraType.CSRA_REVIEW, interimResult = CsraResult.HIGH_SPECIFIC),
+      "PN_HSI",
+      LocalDate.parse("2026-07-30"),
     )
     // Included: legacy High via a review
     nextReview(
@@ -107,7 +125,10 @@ class CsraHighRiskDueForReviewResourceTest : SqsIntegrationTestBase() {
       listOf(
         RollMemberStub("PN_HG", "Callum", "Reid"),
         RollMemberStub("PN_HGI", "Tomasz", "Ziela"),
+        RollMemberStub("PN_HGIR", "Neve", "Quinn"),
         RollMemberStub("PN_HS", "Gareth", "Wynn"),
+        RollMemberStub("PN_HSP", "Padraig", "Vale"),
+        RollMemberStub("PN_HSI", "Safia", "Underwood"),
         RollMemberStub("PN_H", "Iain", "Hardwick"),
         RollMemberStub("PN_STD", "Rhys", "Calder"),
         RollMemberStub("PN_NOREV", "Owen", "King"),
@@ -140,12 +161,15 @@ class CsraHighRiskDueForReviewResourceTest : SqsIntegrationTestBase() {
     get()
       .expectStatus().isOk
       .expectBody()
-      .jsonPath("$.totalResults").isEqualTo(4)
-      // due-by ascending: Reid 06-29, Ziela 07-14, Wynn 07-25, Hardwick 08-12
+      .jsonPath("$.totalResults").isEqualTo(7)
+      // due-by ascending: Reid 06-29, Ziela 07-14, Quinn 07-18, Wynn 07-25, Vale 07-28, Underwood 07-30, Hardwick 08-12
       .jsonPath("$.content[0].prisonerNumber").isEqualTo("PN_HG")
       .jsonPath("$.content[1].prisonerNumber").isEqualTo("PN_HGI")
-      .jsonPath("$.content[2].prisonerNumber").isEqualTo("PN_HS")
-      .jsonPath("$.content[3].prisonerNumber").isEqualTo("PN_H")
+      .jsonPath("$.content[2].prisonerNumber").isEqualTo("PN_HGIR")
+      .jsonPath("$.content[3].prisonerNumber").isEqualTo("PN_HS")
+      .jsonPath("$.content[4].prisonerNumber").isEqualTo("PN_HSP")
+      .jsonPath("$.content[5].prisonerNumber").isEqualTo("PN_HSI")
+      .jsonPath("$.content[6].prisonerNumber").isEqualTo("PN_H")
       // PN_HG — high general reached via a review
       .jsonPath("$.content[0].ratingType").isEqualTo("HIGH_GENERAL")
       .jsonPath("$.content[0].rating").isEqualTo("HIGH_GENERAL")
@@ -153,19 +177,28 @@ class CsraHighRiskDueForReviewResourceTest : SqsIntegrationTestBase() {
       .jsonPath("$.content[0].reviewDueBy").isEqualTo("2026-06-29")
       .jsonPath("$.content[0].lastRatingSource").isEqualTo("REVIEW")
       .jsonPath("$.content[0].lastRatingDate").isEqualTo("2025-06-24")
-      // PN_HGI — provisional high general (interim) via an assessment
-      .jsonPath("$.content[1].ratingType").isEqualTo("HIGH_GENERAL_INTERIM")
+      // PN_HGI — provisional high general via an assessment
+      .jsonPath("$.content[1].ratingType").isEqualTo("HIGH_GENERAL_PROVISIONAL")
       .jsonPath("$.content[1].provisional").isEqualTo(true)
+      .jsonPath("$.content[1].ratingStage").isEqualTo("PROVISIONAL")
       .jsonPath("$.content[1].lastRatingSource").isEqualTo("ASSESSMENT")
       .jsonPath("$.content[1].lastRatingDate").isEqualTo("2026-01-10")
+      // PN_HGIR — interim high general via a review
+      .jsonPath("$.content[2].ratingType").isEqualTo("HIGH_GENERAL_INTERIM")
+      .jsonPath("$.content[2].provisional").isEqualTo(true)
+      .jsonPath("$.content[2].ratingStage").isEqualTo("INTERIM")
+      .jsonPath("$.content[2].lastRatingSource").isEqualTo("REVIEW")
       // PN_H — legacy high
-      .jsonPath("$.content[3].ratingType").isEqualTo("HIGH")
+      .jsonPath("$.content[6].ratingType").isEqualTo("HIGH")
       // dynamic filter types present across the establishment
-      .jsonPath("$.availableRatingTypes.length()").isEqualTo(4)
+      .jsonPath("$.availableRatingTypes.length()").isEqualTo(7)
       .jsonPath("$.availableRatingTypes[0]").isEqualTo("HIGH")
       .jsonPath("$.availableRatingTypes[1]").isEqualTo("HIGH_GENERAL")
-      .jsonPath("$.availableRatingTypes[2]").isEqualTo("HIGH_GENERAL_INTERIM")
-      .jsonPath("$.availableRatingTypes[3]").isEqualTo("HIGH_SPECIFIC")
+      .jsonPath("$.availableRatingTypes[2]").isEqualTo("HIGH_GENERAL_PROVISIONAL")
+      .jsonPath("$.availableRatingTypes[3]").isEqualTo("HIGH_GENERAL_INTERIM")
+      .jsonPath("$.availableRatingTypes[4]").isEqualTo("HIGH_SPECIFIC")
+      .jsonPath("$.availableRatingTypes[5]").isEqualTo("HIGH_SPECIFIC_PROVISIONAL")
+      .jsonPath("$.availableRatingTypes[6]").isEqualTo("HIGH_SPECIFIC_INTERIM")
   }
 
   @Test
@@ -174,9 +207,9 @@ class CsraHighRiskDueForReviewResourceTest : SqsIntegrationTestBase() {
       .expectStatus().isOk
       .expectBody()
       .jsonPath("$.totalResults").isEqualTo(2)
-      .jsonPath("$.content[0].prisonerNumber").isEqualTo("PN_HGI")
+      .jsonPath("$.content[0].prisonerNumber").isEqualTo("PN_HGIR")
       .jsonPath("$.content[1].prisonerNumber").isEqualTo("PN_HS")
-      .jsonPath("$.availableRatingTypes.length()").isEqualTo(4)
+      .jsonPath("$.availableRatingTypes.length()").isEqualTo(7)
   }
 
   @Test
@@ -184,9 +217,12 @@ class CsraHighRiskDueForReviewResourceTest : SqsIntegrationTestBase() {
     get("?reviewDateFrom=2026-07-01&reviewDateTo=2026-07-31")
       .expectStatus().isOk
       .expectBody()
-      .jsonPath("$.totalResults").isEqualTo(2)
+      .jsonPath("$.totalResults").isEqualTo(5)
       .jsonPath("$.content[0].prisonerNumber").isEqualTo("PN_HGI")
-      .jsonPath("$.content[1].prisonerNumber").isEqualTo("PN_HS")
+      .jsonPath("$.content[1].prisonerNumber").isEqualTo("PN_HGIR")
+      .jsonPath("$.content[2].prisonerNumber").isEqualTo("PN_HS")
+      .jsonPath("$.content[3].prisonerNumber").isEqualTo("PN_HSP")
+      .jsonPath("$.content[4].prisonerNumber").isEqualTo("PN_HSI")
   }
 
   @Test
@@ -194,11 +230,14 @@ class CsraHighRiskDueForReviewResourceTest : SqsIntegrationTestBase() {
     get("?sort=NAME")
       .expectStatus().isOk
       .expectBody()
-      // last names: Hardwick, Reid, Wynn, Ziela
+      // last names: Hardwick, Quinn, Reid, Underwood, Vale, Wynn, Ziela
       .jsonPath("$.content[0].prisonerNumber").isEqualTo("PN_H")
-      .jsonPath("$.content[1].prisonerNumber").isEqualTo("PN_HG")
-      .jsonPath("$.content[2].prisonerNumber").isEqualTo("PN_HS")
-      .jsonPath("$.content[3].prisonerNumber").isEqualTo("PN_HGI")
+      .jsonPath("$.content[1].prisonerNumber").isEqualTo("PN_HGIR")
+      .jsonPath("$.content[2].prisonerNumber").isEqualTo("PN_HG")
+      .jsonPath("$.content[3].prisonerNumber").isEqualTo("PN_HSI")
+      .jsonPath("$.content[4].prisonerNumber").isEqualTo("PN_HSP")
+      .jsonPath("$.content[5].prisonerNumber").isEqualTo("PN_HS")
+      .jsonPath("$.content[6].prisonerNumber").isEqualTo("PN_HGI")
   }
 
   @Test
