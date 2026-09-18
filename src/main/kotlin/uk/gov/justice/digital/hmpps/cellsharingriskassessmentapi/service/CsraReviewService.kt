@@ -220,7 +220,7 @@ class CsraReviewService(
         firstName = member.firstName,
         lastName = member.lastName,
         reviewDueBy = reviewDueBy,
-        ratingType = CsraHighRiskType.from(rating, current.provisional)!!,
+        ratingType = CsraHighRiskType.from(rating, current.ratingStage)!!,
         rating = rating,
         provisional = current.provisional,
         ratingStage = current.ratingStage,
