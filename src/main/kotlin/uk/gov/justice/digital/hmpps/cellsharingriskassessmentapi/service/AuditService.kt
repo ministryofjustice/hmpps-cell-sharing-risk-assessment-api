@@ -80,4 +80,10 @@ enum class AuditType {
    * with it, whereas every merge is audited but only a merge that changes the current rating is published.
    */
   PRISONER_NUMBER_MERGE,
+
+  /**
+   * Some CSRAs were moved from one prisoner to another. Not a
+   * [CSRA_AMENDED], similar to PRISONER_NUMBER_MERGE.
+   */
+  CSRAS_MOVED,
 }
