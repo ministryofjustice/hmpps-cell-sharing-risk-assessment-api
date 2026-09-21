@@ -87,6 +87,96 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
     )
   }
 
+  private fun legacyPendingReview(prisonerNumber: String, assessmentDate: LocalDate, prisonId: String = "LEI") =
+    csraReviewRepository.saveAndFlush(
+      CsraReviewEntity(
+        prisonerNumber = prisonerNumber,
+        prisonId = prisonId,
+        assessmentDate = assessmentDate,
+        type = CsraType.NOMIS_REVIEW,
+        status = CsraReviewStatus.COMPLETE,
+        createdAt = LocalDateTime.parse("2025-12-06T12:34:56"),
+        createdBy = "NQP56Y",
+      ),
+    )
+
+  private fun ratedReview(
+    prisonerNumber: String,
+    assessmentDate: LocalDate,
+    type: CsraType,
+    interimResult: CsraResult,
+    prisonId: String,
+  ) = csraReviewRepository.saveAndFlush(
+    CsraReviewEntity(
+      prisonerNumber = prisonerNumber,
+      prisonId = prisonId,
+      assessmentDate = assessmentDate,
+      type = type,
+      interimResult = interimResult,
+      interimResultDate = assessmentDate,
+      status = CsraReviewStatus.IN_PROGRESS,
+      createdAt = LocalDateTime.parse("2025-12-06T12:34:56"),
+      createdBy = "NQP56Y",
+    ),
+  )
+
+  @Test
+  fun `includes every distinct rating variant in the summary in UI order`() {
+    prisonRegister.stubGetPrisons(mapOf("LEI" to "Leeds (HMP)", "MDI" to "Moorland (HMP)"))
+
+    review("V4444VV", LocalDate.parse("2023-01-01"), CsraResult.HIGH, "LEI")
+    review("V4444VV", LocalDate.parse("2023-02-01"), CsraResult.HIGH_GENERAL, "LEI")
+    ratedReview(
+      "V4444VV",
+      LocalDate.parse("2023-03-01"),
+      CsraType.CSRA_REVIEW,
+      CsraResult.HIGH_GENERAL,
+      "LEI",
+    )
+    ratedReview(
+      "V4444VV",
+      LocalDate.parse("2023-04-01"),
+      CsraType.CSRA_INITIAL_ASSESSMENT,
+      CsraResult.HIGH_GENERAL,
+      "LEI",
+    )
+    review("V4444VV", LocalDate.parse("2023-05-01"), CsraResult.HIGH_SPECIFIC, "LEI")
+    ratedReview(
+      "V4444VV",
+      LocalDate.parse("2023-06-01"),
+      CsraType.CSRA_INITIAL_ASSESSMENT,
+      CsraResult.HIGH_SPECIFIC,
+      "MDI",
+    )
+    review("V4444VV", LocalDate.parse("2023-07-01"), CsraResult.STANDARD, "LEI")
+    val standardLegacy = review("V4444VV", LocalDate.parse("2023-08-01"), CsraResult.STANDARD, "LEI")
+    withNomis(standardLegacy, calculatedLevel = CsraLevel.STANDARD)
+    val low = review("V4444VV", LocalDate.parse("2023-09-01"), CsraResult.STANDARD, "LEI")
+    withNomis(low, calculatedLevel = CsraLevel.LOW)
+    val med = review("V4444VV", LocalDate.parse("2023-10-01"), CsraResult.STANDARD, "LEI")
+    withNomis(med, calculatedLevel = CsraLevel.MED)
+    val pending = legacyPendingReview("V4444VV", LocalDate.parse("2023-11-01"), "LEI")
+    withNomis(pending, calculatedLevel = CsraLevel.PEND)
+
+    webTestClient.get().uri("/csra-review/prisoner/V4444VV/history")
+      .headers(setAuthorisation(roles = readRole))
+      .exchange()
+      .expectStatus().isOk
+      .expectBody()
+      .jsonPath("$.summary.ratings.length()").isEqualTo(11)
+      .jsonPath("$.summary.ratings[0]").isEqualTo("HIGH")
+      .jsonPath("$.summary.ratings[1]").isEqualTo("HIGH_GENERAL")
+      .jsonPath("$.summary.ratings[2]").isEqualTo("HIGH_GENERAL_INTERIM")
+      .jsonPath("$.summary.ratings[3]").isEqualTo("HIGH_GENERAL_PROVISIONAL")
+      .jsonPath("$.summary.ratings[4]").isEqualTo("HIGH_SPECIFIC")
+      .jsonPath("$.summary.ratings[5]").isEqualTo("HIGH_SPECIFIC_PROVISIONAL")
+      .jsonPath("$.summary.ratings[6]").isEqualTo("STANDARD")
+      .jsonPath("$.summary.ratings[7]").isEqualTo("STANDARD_LEGACY")
+      .jsonPath("$.summary.ratings[8]").isEqualTo("LOW")
+      .jsonPath("$.summary.ratings[9]").isEqualTo("MED")
+      .jsonPath("$.summary.ratings[10]").isEqualTo("PEND")
+  }
+
   @Test
   fun `returns 401 without a token`() {
     webTestClient.get().uri("/csra-review/prisoner/A1234BC/history")
@@ -140,6 +230,10 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
       .jsonPath("$.summary.firstAssessmentDate").isEqualTo("2023-07-14")
       .jsonPath("$.summary.lastAssessmentDate").isEqualTo("2025-10-11")
       .jsonPath("$.summary.lastHighDate").isEqualTo("2025-10-11")
+      .jsonPath("$.summary.ratings.length()").isEqualTo(3)
+      .jsonPath("$.summary.ratings[0]").isEqualTo("HIGH")
+      .jsonPath("$.summary.ratings[1]").isEqualTo("HIGH_SPECIFIC")
+      .jsonPath("$.summary.ratings[2]").isEqualTo("STANDARD")
       .jsonPath("$.summary.establishments.length()").isEqualTo(2)
       .jsonPath("$.summary.establishments[0].prisonId").isEqualTo("LEI")
       .jsonPath("$.summary.establishments[0].prisonName").isEqualTo("Leeds (HMP)")
