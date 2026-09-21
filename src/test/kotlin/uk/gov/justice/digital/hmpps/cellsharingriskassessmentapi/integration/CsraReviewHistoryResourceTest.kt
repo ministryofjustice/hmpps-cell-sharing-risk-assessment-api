@@ -87,18 +87,17 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
     )
   }
 
-  private fun legacyPendingReview(prisonerNumber: String, assessmentDate: LocalDate, prisonId: String = "LEI") =
-    csraReviewRepository.saveAndFlush(
-      CsraReviewEntity(
-        prisonerNumber = prisonerNumber,
-        prisonId = prisonId,
-        assessmentDate = assessmentDate,
-        type = CsraType.NOMIS_REVIEW,
-        status = CsraReviewStatus.COMPLETE,
-        createdAt = LocalDateTime.parse("2025-12-06T12:34:56"),
-        createdBy = "NQP56Y",
-      ),
-    )
+  private fun legacyPendingReview(prisonerNumber: String, assessmentDate: LocalDate, prisonId: String = "LEI") = csraReviewRepository.saveAndFlush(
+    CsraReviewEntity(
+      prisonerNumber = prisonerNumber,
+      prisonId = prisonId,
+      assessmentDate = assessmentDate,
+      type = CsraType.NOMIS_REVIEW,
+      status = CsraReviewStatus.COMPLETE,
+      createdAt = LocalDateTime.parse("2025-12-06T12:34:56"),
+      createdBy = "NQP56Y",
+    ),
+  )
 
   private fun ratedReview(
     prisonerNumber: String,
