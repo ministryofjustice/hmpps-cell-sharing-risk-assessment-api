@@ -1,5 +1,6 @@
 package uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.integration
 
+import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraEvaluationResultCode
@@ -31,6 +32,11 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
   private lateinit var csraAssessmentStageRepository: CsraAssessmentStageRepository
 
   private val readRole = listOf("ROLE_CSRA_REVIEW__R")
+
+  @BeforeEach
+  fun setUp() {
+    csraReviewRepository.deleteAll()
+  }
 
   private fun review(
     prisonerNumber: String,
@@ -157,7 +163,7 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
     val pending = legacyPendingReview("V4444VV", LocalDate.parse("2023-11-01"), "LEI")
     withNomis(pending, calculatedLevel = CsraLevel.PEND)
 
-    webTestClient.get().uri("/csra-review/prisoner/V4444VV/history")
+    webTestClient.get().uri("/csra-review/prisoner/V4444VV/history?ratings=HIGH")
       .headers(setAuthorisation(roles = readRole))
       .exchange()
       .expectStatus().isOk
@@ -174,6 +180,7 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
       .jsonPath("$.summary.ratings[8]").isEqualTo("LOW")
       .jsonPath("$.summary.ratings[9]").isEqualTo("MED")
       .jsonPath("$.summary.ratings[10]").isEqualTo("PEND")
+      .jsonPath("$.totalElements").isEqualTo(1)
   }
 
   @Test
@@ -370,7 +377,7 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
   }
 
   @Test
-  fun `legacy LOW and MED rows still filter as standard`() {
+  fun `legacy LOW and MED rows do not filter as standard`() {
     val low = review("B1111BB", LocalDate.parse("2010-03-13"), CsraResult.STANDARD, "LEI")
     withNomis(low, calculatedLevel = CsraLevel.LOW)
     val med = review("B1111BB", LocalDate.parse("2009-09-29"), CsraResult.STANDARD, "LEI")
@@ -381,7 +388,7 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
       .exchange()
       .expectStatus().isOk
       .expectBody()
-      .jsonPath("$.totalElements").isEqualTo(2)
+      .jsonPath("$.totalElements").isEqualTo(0)
 
     webTestClient.get().uri("/csra-review/prisoner/B1111BB/history?ratings=HIGH")
       .headers(setAuthorisation(roles = readRole))
@@ -402,10 +409,9 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
       .exchange()
       .expectStatus().isOk
       .expectBody()
-      .jsonPath("$.totalElements").isEqualTo(2)
-      .jsonPath("$.content.length()").isEqualTo(2)
-      .jsonPath("$.content[0].rating").isEqualTo("HIGH_GENERAL")
-      .jsonPath("$.content[1].rating").isEqualTo("HIGH")
+      .jsonPath("$.totalElements").isEqualTo(1)
+      .jsonPath("$.content.length()").isEqualTo(1)
+      .jsonPath("$.content[0].rating").isEqualTo("HIGH")
       .jsonPath("$.summary.totalCsras").isEqualTo(3)
       .jsonPath("$.summary.highCount").isEqualTo(2)
       .jsonPath("$.summary.standardCount").isEqualTo(1)
