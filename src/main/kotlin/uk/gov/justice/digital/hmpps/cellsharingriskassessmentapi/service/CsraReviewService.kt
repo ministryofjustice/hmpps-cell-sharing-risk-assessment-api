@@ -16,8 +16,6 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessm
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentTypeBucket
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentsInProgress
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraCurrentRating
-import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraLevel
-import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.resolvedLevel
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraEstablishment
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraHighRiskDueForReview
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraHighRiskReviewRow
@@ -49,6 +47,8 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toAssessmen
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toDetail
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toLegacyDetail
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toResults
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraLevel
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.resolvedLevel
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStage
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStageEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraClosureReason

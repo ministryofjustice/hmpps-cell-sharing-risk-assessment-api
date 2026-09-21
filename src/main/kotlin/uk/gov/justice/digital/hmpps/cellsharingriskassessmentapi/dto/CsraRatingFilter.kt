@@ -44,8 +44,9 @@ enum class CsraRatingFilter {
       PEND,
     )
 
-    fun ordered(values: Iterable<CsraRatingFilter>): List<CsraRatingFilter> =
-      values.distinct().sortedWith(compareBy<CsraRatingFilter> { uiOrder.indexOf(it).takeIf { it >= 0 } ?: Int.MAX_VALUE })
+    fun ordered(values: Iterable<CsraRatingFilter>): List<CsraRatingFilter> = values
+      .distinct()
+      .sortedWith(compareBy<CsraRatingFilter> { uiOrder.indexOf(it).takeIf { it >= 0 } ?: Int.MAX_VALUE })
   }
 
   /** The concrete [CsraResult] this filter matches, or null for [NO_RATING]. */
