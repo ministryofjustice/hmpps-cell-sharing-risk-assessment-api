@@ -47,6 +47,9 @@ data class CsraReviewHistorySummary(
   @param:Schema(description = "The date of the most recent high-risk CSRA", example = "2013-07-14")
   val lastHighDate: LocalDate?,
 
+  @param:Schema(description = "The distinct CSRA rating filter values the prisoner has CSRAs of, ordered to match the UI checkbox sequence: HIGH, HIGH_GENERAL, HIGH_GENERAL_INTERIM, HIGH_GENERAL_PROVISIONAL, HIGH_SPECIFIC, HIGH_SPECIFIC_PROVISIONAL, STANDARD, STANDARD_LEGACY, LOW, MED, PEND.")
+  val ratings: List<CsraRatingFilter>,
+
   @param:Schema(description = "The distinct establishments the prisoner has CSRAs at, for the establishment filter (name-sorted)")
   val establishments: List<CsraEstablishment>,
 )

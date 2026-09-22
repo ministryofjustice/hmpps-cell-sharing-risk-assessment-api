@@ -23,7 +23,6 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessm
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraHighRiskSortField
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraHighRiskType
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraPrisonerSortField
-import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraRatingBucket
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraRatingFilter
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraSortDirection
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.service.CsraReviewService
@@ -128,9 +127,9 @@ class CsraReviewResource(
     @Parameter(description = "Only include CSRAs recorded at these prisons", example = "LEI")
     @RequestParam(required = false)
     establishments: List<String>?,
-    @Parameter(description = "Only include CSRAs in these rating buckets")
+    @Parameter(description = "Only include CSRAs matching these exact rating variants")
     @RequestParam(required = false)
-    ratings: List<CsraRatingBucket>?,
+    ratings: List<String>?,
   ) = csraReviewService.getCsraHistory(
     prisonerNumber = prisonerNumber,
     page = page,
@@ -138,7 +137,14 @@ class CsraReviewResource(
     fromDate = fromDate,
     toDate = toDate,
     establishments = establishments,
-    ratings = ratings,
+    ratings = ratings?.map { rating ->
+      try {
+        CsraRatingFilter.valueOf(rating)
+      } catch (_: IllegalArgumentException) {
+        val validValues = CsraRatingFilter.ordered(CsraRatingFilter.entries).joinToString { it.name }
+        throw CsraInvalidRatingFilterException(rating, validValues)
+      }
+    },
   )
 
   @GetMapping("/prisoner/{prisonerNumber}/current-rating")
