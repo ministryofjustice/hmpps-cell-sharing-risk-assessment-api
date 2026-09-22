@@ -232,6 +232,7 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
       .exchange()
       .expectStatus().isBadRequest
       .expectBody()
+      .jsonPath("$.errorCode").isEqualTo("InvalidRatingFilter")
       .jsonPath("$.userMessage").value<String> { it.contains("Invalid CSRA rating filter 'BAD_VALUE'") }
       .jsonPath("$.userMessage").value<String> { it.contains("HIGH") }
       .jsonPath("$.userMessage").value<String> { it.contains("HIGH_GENERAL") }

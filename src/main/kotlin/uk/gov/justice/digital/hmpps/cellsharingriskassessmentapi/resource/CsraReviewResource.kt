@@ -142,7 +142,7 @@ class CsraReviewResource(
         CsraRatingFilter.valueOf(rating)
       } catch (_: IllegalArgumentException) {
         val validValues = CsraRatingFilter.ordered(CsraRatingFilter.entries).joinToString { it.name }
-        throw IllegalArgumentException("Invalid CSRA rating filter '$rating'. Valid values: $validValues")
+        throw CsraInvalidRatingFilterException(rating, validValues)
       }
     },
   )
