@@ -28,6 +28,9 @@ generic-service:
   # (rds-postgresql.tf in hmpps-cell-sharing-risk-assessment-preprod). MAPA-392.
   postgresDatabaseRestore:
     enabled: true
+    # The generated name, hmpps-cell-sharing-risk-assessment-api-postgres-restore, is 55 characters
+    # and Kubernetes allows a CronJob no more than 52, so it is set explicitly here.
+    jobName: csra-api-postgres-restore
     namespace_secrets:
       rds-postgresql-instance-output:
         DB_NAME: "database_name"
