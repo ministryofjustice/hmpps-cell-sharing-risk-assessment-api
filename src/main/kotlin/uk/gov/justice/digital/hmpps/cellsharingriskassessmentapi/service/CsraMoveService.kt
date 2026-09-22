@@ -1,10 +1,12 @@
 package uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.service
 
 import com.microsoft.applicationinsights.TelemetryClient
+import jakarta.validation.ValidationException
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.SYSTEM_USERNAME
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraNextReviewEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewStatus
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraCurrentRatingRepository
@@ -45,14 +47,26 @@ class CsraMoveService(
   private val clock: Clock,
 ) {
   fun handleBookingMoved(reviewIds: List<UUID>, fromPrisonerNumber: String, toPrisonerNumber: String) {
+    if (fromPrisonerNumber == toPrisonerNumber) {
+      throw ValidationException("Cannot move reviews from $fromPrisonerNumber to itself")
+    }
     val reviews = csraReviewRepository.findAllById(reviewIds)
 
     // The ids that actually need moving — either because they don't exist, or because a redelivery of an
     // already-handled move finds them already sitting under the correct number.
     val reviewsToMove = reviews.filter { it.prisonerNumber == fromPrisonerNumber }
     if (reviewsToMove.isEmpty()) {
-      log.info("Review move from {} to {} touched no reviews for ids {}", fromPrisonerNumber, toPrisonerNumber, reviewIds)
-      telemetryClient.trackEvent("csra-reviews-moved-no-op", moveProperties(fromPrisonerNumber, toPrisonerNumber, reviewIds), null)
+      log.info(
+        "Review move from {} to {} touched no reviews for ids {}",
+        fromPrisonerNumber,
+        toPrisonerNumber,
+        reviewIds,
+      )
+      telemetryClient.trackEvent(
+        "csra-reviews-moved-no-op",
+        moveProperties(fromPrisonerNumber, toPrisonerNumber, reviewIds),
+        null,
+      )
       return
     }
 
@@ -60,7 +74,7 @@ class CsraMoveService(
     val toBefore = csraCurrentRatingRepository.findByPrisonerNumber(toPrisonerNumber)?.snapshot()
 
     repointReviews(reviewsToMove, toPrisonerNumber)
-    reconcileNextReviews(reviewIds, fromPrisonerNumber, toPrisonerNumber)
+    reconcileNextReviews(reviewsToMove.map { it.id!! }, fromPrisonerNumber, toPrisonerNumber)
 
     // Recompute every prisoner number this move could have changed the current-rating and next-review projection
     // for: the reviews' original owner, who may have lost the review that set their rating, and the
@@ -70,8 +84,8 @@ class CsraMoveService(
 
     val fromAfter = csraCurrentRatingRepository.findByPrisonerNumber(fromPrisonerNumber)?.snapshot()
     val toAfter = csraCurrentRatingRepository.findByPrisonerNumber(toPrisonerNumber)?.snapshot()
-    val fromRatingChanged = fromBefore != fromAfter
-    val toRatingChanged = toBefore != toAfter
+    val fromRatingChanged = fromBefore?.takeIf { it.rating != null } != fromAfter?.takeIf { it.rating != null }
+    val toRatingChanged = toBefore?.takeIf { it.rating != null } != toAfter?.takeIf { it.rating != null }
 
     val movedReviewIds = reviewsToMove.map { it.id as UUID }
     eventPublishAndAuditService.publishReviewsMoved(
@@ -81,7 +95,7 @@ class CsraMoveService(
         toPrisonerNumber = toPrisonerNumber,
         fromPrisonerNumber = fromPrisonerNumber,
         reviewIds = movedReviewIds,
-        ratingChanged = toRatingChanged,
+        ratingChanged = fromRatingChanged,
       ),
     )
     eventPublishAndAuditService.publishReviewsMoved(
@@ -125,7 +139,7 @@ class CsraMoveService(
     toPrisonerNumber: String,
   ) {
     val fromNextReview = csraNextReviewRepository.findByPrisonerNumber(fromPrisonerNumber)
-    val toNextReview = csraNextReviewRepository.findByPrisonerNumber(toPrisonerNumber)
+    var toNextReview = csraNextReviewRepository.findByPrisonerNumber(toPrisonerNumber)
 
     val movingReviews = csraReviewRepository.findAllById(reviewIds)
     val latestOfFromReviews = csraReviewRepository.findFirstByPrisonerNumberAndStatusOrderByAssessmentDateDescIdDesc(
@@ -135,30 +149,74 @@ class CsraMoveService(
     val toReviews = csraReviewRepository.findAllByPrisonerNumberAndStatus(toPrisonerNumber, CsraReviewStatus.COMPLETE)
 
     val latestOfMovingReviews = movingReviews.filter { it.status == CsraReviewStatus.COMPLETE }
-      .maxWith(compareBy(CsraReviewEntity::assessmentDate).thenBy(CsraReviewEntity::id))
+      .maxWithOrNull(compareBy(CsraReviewEntity::assessmentDate).thenBy(CsraReviewEntity::id))
 
     val latestOfToReviews = toReviews.filter { it.status == CsraReviewStatus.COMPLETE && it.id !in reviewIds }
-      .maxWith(compareBy(CsraReviewEntity::assessmentDate).thenBy(CsraReviewEntity::id))
+      .maxWithOrNull(compareBy(CsraReviewEntity::assessmentDate).thenBy(CsraReviewEntity::id))
 
-    if (
-      toNextReview != null &&
-      compareValuesBy(latestOfMovingReviews, latestOfToReviews, { it.assessmentDate }, { it.id }) > 0
-      // ^^ true if first is later than second
+    if (latestOfMovingReviews != null && compareValuesBy(
+        latestOfMovingReviews,
+        latestOfToReviews,
+        { it.assessmentDate },
+        { it.id },
+      ) > 0
     ) {
-      if (fromNextReview != null && latestOfFromReviews != null && fromNextReview.setByReviewId in reviewIds) {
-        // latestOfMovingReviews is the latest of the 'from' reviews
-        toNextReview.nextReviewDate = fromNextReview.nextReviewDate
-        toNextReview.setByReviewId = fromNextReview.setByReviewId
-      } else {
-        toNextReview.nextReviewDate = latestOfMovingReviews.finalResultDate?.plusMonths(6) // TODO not sure about this!!
-        toNextReview.setByReviewId = latestOfMovingReviews.id!!
+      // ^^ true if first is later than second
+      if (toNextReview == null) {
+        toNextReview = csraNextReviewRepository.saveAndFlush(
+          CsraNextReviewEntity(
+            prisonerNumber = toPrisonerNumber,
+            nextReviewDate = latestOfMovingReviews.finalResultDate?.plusMonths(6), // TODO not sure about this!!
+            setByReviewId = latestOfMovingReviews.id!!,
+            updatedAt = LocalDateTime.now(clock),
+            updatedBy = SYSTEM_USERNAME,
+          ),
+        )
       }
-      toNextReview.updatedAt = LocalDateTime.now(clock)
-      toNextReview.updatedBy = SYSTEM_USERNAME
-      csraNextReviewRepository.saveAndFlush(toNextReview)
+    } else {
+
+      if (fromNextReview != null && latestOfFromReviews != null && fromNextReview.setByReviewId in reviewIds) {
+        if (toNextReview == null) {
+          toNextReview = csraNextReviewRepository.saveAndFlush(
+            CsraNextReviewEntity(
+              prisonerNumber = toPrisonerNumber,
+              nextReviewDate = latestOfMovingReviews.finalResultDate?.plusMonths(6), // TODO not sure about this!!
+              setByReviewId = latestOfMovingReviews.id!!,
+              updatedAt = LocalDateTime.now(clock),
+              updatedBy = SYSTEM_USERNAME,
+            ),
+          )
+        } else {
+          // latestOfMovingReviews is the latest of the 'from' reviews
+          toNextReview.nextReviewDate = fromNextReview.nextReviewDate
+          toNextReview.setByReviewId = fromNextReview.setByReviewId
+          toNextReview.updatedAt = LocalDateTime.now(clock)
+          toNextReview.updatedBy = SYSTEM_USERNAME
+          csraNextReviewRepository.saveAndFlush(toNextReview)
+        }
+      } else {
+        if (toNextReview == null) {
+          toNextReview = csraNextReviewRepository.saveAndFlush(
+            CsraNextReviewEntity(
+              prisonerNumber = toPrisonerNumber,
+              nextReviewDate = latestOfMovingReviews.finalResultDate?.plusMonths(6), // TODO not sure about this!!
+              setByReviewId = latestOfMovingReviews.id!!,
+              updatedAt = LocalDateTime.now(clock),
+              updatedBy = SYSTEM_USERNAME,
+            ),
+          )
+        } else {
+          toNextReview.nextReviewDate = latestOfMovingReviews.finalResultDate?.plusMonths(12) // TODO not sure about this!!
+          toNextReview.setByReviewId = latestOfMovingReviews.id!!
+          toNextReview.updatedAt = LocalDateTime.now(clock)
+          toNextReview.updatedBy = SYSTEM_USERNAME
+          csraNextReviewRepository.saveAndFlush(toNextReview)
+        }
+      }
     }
+
     if (fromNextReview != null && latestOfFromReviews != null && fromNextReview.setByReviewId in reviewIds) {
-      fromNextReview.nextReviewDate = latestOfFromReviews.finalResultDate?.plusMonths(6) // TODO not sure about this!!
+      fromNextReview.nextReviewDate = latestOfFromReviews.finalResultDate?.plusMonths(12) // TODO not sure about this!!
       fromNextReview.setByReviewId = latestOfFromReviews.id!!
       fromNextReview.updatedAt = LocalDateTime.now(clock)
       fromNextReview.updatedBy = SYSTEM_USERNAME
