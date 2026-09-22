@@ -1,5 +1,6 @@
 package uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.service
 
+import org.springframework.data.domain.PageImpl
 import org.springframework.data.domain.PageRequest
 import org.springframework.data.domain.Sort
 import org.springframework.data.repository.findByIdOrNull
@@ -27,7 +28,6 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraPrisonP
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraPrisonRatingSummary
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraPrisonerSortField
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraProvisionalRatingRow
-import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraRatingBucket
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraRatingFilter
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraRatingStage
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraRatingStatus
@@ -42,11 +42,11 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraRiskToD
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraSortDirection
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraVulnerabilityDetail
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.isHigh
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraLevel
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.ratingStageFor
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toAssessmentBucket
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toDetail
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toLegacyDetail
-import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toResults
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStage
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStageEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraClosureReason
@@ -220,7 +220,7 @@ class CsraReviewService(
         firstName = member.firstName,
         lastName = member.lastName,
         reviewDueBy = reviewDueBy,
-        ratingType = CsraHighRiskType.from(rating, current.provisional)!!,
+        ratingType = CsraHighRiskType.from(rating, current.ratingStage)!!,
         rating = rating,
         provisional = current.provisional,
         ratingStage = current.ratingStage,
@@ -524,12 +524,21 @@ class CsraReviewService(
     fromDate: LocalDate?,
     toDate: LocalDate?,
     establishments: List<String>?,
-    ratings: List<CsraRatingBucket>?,
+    ratings: List<CsraRatingFilter>?,
   ): CsraReviewHistory {
-    val results = ratings?.flatMap { it.toResults() }?.distinct()?.takeIf { it.isNotEmpty() }
+    val results = ratings?.mapNotNull { it.toResult() }?.distinct()?.takeIf { it.isNotEmpty() }
     val spec = CsraReviewSpecifications.history(prisonerNumber, fromDate, toDate, establishments, results)
     val pageable = PageRequest.of(page, size, Sort.by(Sort.Order.desc("assessmentDate"), Sort.Order.desc("id")))
-    val reviews = csraReviewRepository.findAll(spec, pageable)
+    val reviews = ratings?.takeIf { it.isNotEmpty() }?.let { selectedRatings ->
+      val matchingReviews = csraReviewRepository.findAll(spec)
+      val nomisByReviewId = nomisByReviewId(matchingReviews.mapNotNull { it.id })
+      val filtered = matchingReviews
+        .filter { review -> selectedRatings.any { it.matchesHistory(review, nomisByReviewId[review.id]) } }
+        .sortedWith(compareByDescending<CsraReviewEntity> { it.assessmentDate }.thenByDescending { it.id })
+      val fromIndex = pageable.offset.toInt().coerceAtMost(filtered.size)
+      val toIndex = (fromIndex + pageable.pageSize).coerceAtMost(filtered.size)
+      PageImpl(filtered.subList(fromIndex, toIndex), pageable, filtered.size.toLong())
+    } ?: csraReviewRepository.findAll(spec, pageable)
 
     val reviewIds = reviews.content.mapNotNull { it.id }
     val stageComments = stageCommentsByReviewId(reviewIds)
@@ -551,6 +560,11 @@ class CsraReviewService(
     val rows = csraReviewRepository.findSummaryRows(prisonerNumber)
     val highDates = rows.filter { it.result.isHigh() }.map { it.assessmentDate }
     val dates = rows.map { it.assessmentDate }
+    val reviews = csraReviewRepository.findAllByPrisonerNumberAndSupersededAtIsNull(prisonerNumber)
+      .filter { it.status != CsraReviewStatus.ARCHIVED }
+    val nomisByReviewId = csraReviewNomisRepository.findAllByCsraReviewIdIn(reviews.mapNotNull { it.id })
+      .associateBy { it.csraReview.id }
+
     return CsraReviewHistorySummary(
       totalCsras = rows.size,
       highCount = highDates.size,
@@ -558,8 +572,80 @@ class CsraReviewService(
       firstAssessmentDate = dates.minOrNull(),
       lastAssessmentDate = dates.maxOrNull(),
       lastHighDate = highDates.maxOrNull(),
+      ratings = buildRatings(reviews, nomisByReviewId),
       establishments = buildEstablishments(rows),
     )
+  }
+
+  /** Distinct fine-grained ratings across a prisoner's whole history, including legacy NOMIS levels. */
+  private fun buildRatings(
+    reviews: List<CsraReviewEntity>,
+    nomisByReviewId: Map<UUID?, CsraReviewNomisEntity>,
+  ): List<CsraRatingFilter> = CsraRatingFilter.ordered(
+    reviews.flatMap { review -> ratingFiltersFor(review, nomisByReviewId[review.id]) },
+  )
+
+  private fun ratingFiltersFor(review: CsraReviewEntity, nomis: CsraReviewNomisEntity?): List<CsraRatingFilter> {
+    val filters = mutableListOf<CsraRatingFilter>()
+
+    review.finalResult?.let { finalResult ->
+      filters += when (finalResult) {
+        CsraResult.HIGH -> CsraRatingFilter.HIGH
+        CsraResult.HIGH_GENERAL -> CsraRatingFilter.HIGH_GENERAL
+        CsraResult.HIGH_SPECIFIC -> CsraRatingFilter.HIGH_SPECIFIC
+        CsraResult.STANDARD -> if (nomis != null) CsraRatingFilter.STANDARD_LEGACY else CsraRatingFilter.STANDARD
+      }
+      legacyLevelFilter(nomis)?.let { filters += it }
+      return filters
+    }
+
+    review.interimResult?.let { interimResult ->
+      filters += when (interimResult) {
+        CsraResult.HIGH_GENERAL -> if (review.type == CsraType.CSRA_REVIEW) CsraRatingFilter.HIGH_GENERAL_INTERIM else CsraRatingFilter.HIGH_GENERAL_PROVISIONAL
+        CsraResult.HIGH_SPECIFIC -> CsraRatingFilter.HIGH_SPECIFIC_PROVISIONAL
+        CsraResult.HIGH -> CsraRatingFilter.HIGH
+        CsraResult.STANDARD -> if (nomis != null) CsraRatingFilter.STANDARD_LEGACY else CsraRatingFilter.STANDARD
+      }
+      legacyLevelFilter(nomis)?.let { filters += it }
+      return filters
+    }
+
+    return legacyLevelFilter(nomis)?.let(::listOf).orEmpty()
+  }
+
+  private fun legacyLevelFilter(nomis: CsraReviewNomisEntity?): CsraRatingFilter? = when (rawLegacyLevel(nomis)) {
+    CsraLevel.HI -> CsraRatingFilter.HIGH
+    CsraLevel.STANDARD -> CsraRatingFilter.STANDARD_LEGACY
+    CsraLevel.LOW -> CsraRatingFilter.LOW
+    CsraLevel.MED -> CsraRatingFilter.MED
+    CsraLevel.PEND -> CsraRatingFilter.PEND
+    else -> null
+  }
+
+  private fun rawLegacyLevel(nomis: CsraReviewNomisEntity?): CsraLevel? = when {
+    nomis == null -> null
+    nomis.approvedLevel != null -> nomis.approvedLevel
+    nomis.reviewLevel != null -> nomis.reviewLevel
+    else -> nomis.calculatedLevel
+  }
+
+  private fun CsraRatingFilter.matchesHistory(review: CsraReviewEntity, nomis: CsraReviewNomisEntity?): Boolean {
+    val stage = review.historyRatingStage(nomis)
+    val rating = review.finalResult ?: review.interimResult
+    return when (this) {
+      CsraRatingFilter.STANDARD_LEGACY -> rating == CsraResult.STANDARD && nomis != null && rawLegacyLevel(nomis) == CsraLevel.STANDARD
+      CsraRatingFilter.LOW -> rating == CsraResult.STANDARD && rawLegacyLevel(nomis) == CsraLevel.LOW
+      CsraRatingFilter.MED -> rating == CsraResult.STANDARD && rawLegacyLevel(nomis) == CsraLevel.MED
+      CsraRatingFilter.PEND -> rating == null && rawLegacyLevel(nomis) == CsraLevel.PEND
+      else -> matches(rating, stage)
+    }
+  }
+
+  private fun CsraReviewEntity.historyRatingStage(nomis: CsraReviewNomisEntity?): CsraRatingStage? = when {
+    finalResult != null -> if (nomis != null) null else CsraRatingStage.FINAL
+    interimResult == null -> null
+    type == CsraType.CSRA_REVIEW -> CsraRatingStage.INTERIM
+    else -> CsraRatingStage.PROVISIONAL
   }
 
   /** The distinct establishments across a prisoner's whole history, name-resolved and name-sorted. */
