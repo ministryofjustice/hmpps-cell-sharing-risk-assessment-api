@@ -147,6 +147,18 @@ class CellSharingRiskAssessmentApiExceptionHandler {
       ),
     ).also { log.info("Stale answers version: {}", e.message) }
 
+  @ExceptionHandler(CsraInvalidRatingFilterException::class)
+  fun handleCsraInvalidRatingFilterException(e: CsraInvalidRatingFilterException): ResponseEntity<ErrorResponse> = ResponseEntity
+    .status(BAD_REQUEST)
+    .body(
+      ErrorResponse(
+        status = BAD_REQUEST,
+        errorCode = ErrorCode.InvalidRatingFilter.name,
+        userMessage = "Bad request: ${e.message}",
+        developerMessage = e.message,
+      ),
+    ).also { log.info("Invalid rating filter: {}", e.message) }
+
   @ExceptionHandler(MethodArgumentTypeMismatchException::class)
   fun handleMethodArgumentTypeMismatchException(e: MethodArgumentTypeMismatchException): ResponseEntity<ErrorResponse> = ResponseEntity
     .status(BAD_REQUEST)
@@ -212,6 +224,8 @@ class CsraReviewNotWritableException(id: String, status: CsraReviewStatus) : Exc
  * a client tell "this prison is not switched on" from "the client is missing a role".
  */
 class CsraPrisonNotActiveException(prisonId: String) : Exception("CSRA is not switched on for prison $prisonId")
+
+class CsraInvalidRatingFilterException(rating: String, validValues: String) : Exception("Invalid CSRA rating filter '$rating'. Valid values: $validValues")
 
 /** A submitted answer set that is internally inconsistent. Always a 400, carrying [errorCode] to discriminate. */
 sealed class CsraAnswerValidationException(val errorCode: ErrorCode, message: String) : Exception(message)

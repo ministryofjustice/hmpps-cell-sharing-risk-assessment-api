@@ -62,4 +62,14 @@ class CsraRatingFilterTest {
     assertThat(CsraRatingFilter.PEND.matches(null, null)).isTrue
     assertThat(CsraRatingFilter.PEND.matches(CsraResult.STANDARD, CsraRatingStage.FINAL)).isFalse
   }
+
+  @Test
+  fun `treats legacy LOW and MED as distinct from a standard final result`() {
+    assertThat(CsraRatingFilter.STANDARD.matches(CsraResult.STANDARD, CsraRatingStage.FINAL)).isTrue
+    assertThat(CsraRatingFilter.STANDARD_LEGACY.matches(CsraResult.STANDARD, CsraRatingStage.FINAL)).isTrue
+    assertThat(CsraRatingFilter.LOW.matches(CsraResult.STANDARD, CsraRatingStage.FINAL)).isTrue
+    assertThat(CsraRatingFilter.MED.matches(CsraResult.STANDARD, CsraRatingStage.FINAL)).isTrue
+    assertThat(CsraRatingFilter.HIGH.matches(CsraResult.HIGH, CsraRatingStage.FINAL)).isTrue
+    assertThat(CsraRatingFilter.HIGH_GENERAL.matches(CsraResult.HIGH_GENERAL, CsraRatingStage.FINAL)).isTrue
+  }
 }
