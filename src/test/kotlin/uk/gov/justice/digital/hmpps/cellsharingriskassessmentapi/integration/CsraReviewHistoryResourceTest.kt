@@ -184,6 +184,62 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
   }
 
   @Test
+  fun `filters history by the exact legacy LOW variant, not by the broader standard bucket`() {
+    val standard = review("Q1111QQ", LocalDate.parse("2024-01-01"), CsraResult.STANDARD, "LEI")
+    withNomis(standard, calculatedLevel = CsraLevel.STANDARD)
+    val low = review("Q1111QQ", LocalDate.parse("2024-02-01"), CsraResult.STANDARD, "LEI")
+    withNomis(low, calculatedLevel = CsraLevel.LOW)
+    val med = review("Q1111QQ", LocalDate.parse("2024-03-01"), CsraResult.STANDARD, "LEI")
+    withNomis(med, calculatedLevel = CsraLevel.MED)
+
+    webTestClient.get().uri("/csra-review/prisoner/Q1111QQ/history?ratings=LOW")
+      .headers(setAuthorisation(roles = readRole))
+      .exchange()
+      .expectStatus().isOk
+      .expectBody()
+      .jsonPath("$.totalElements").isEqualTo(1)
+      .jsonPath("$.content[0].legacy.level").isEqualTo("LOW")
+      .jsonPath("$.content[0].rating").isEqualTo("STANDARD")
+  }
+
+  @Test
+  fun `filters history by the exact high-general variant, not by the broader HIGH family`() {
+    review("Q2222QQ", LocalDate.parse("2024-01-01"), CsraResult.HIGH, "LEI")
+    review("Q2222QQ", LocalDate.parse("2024-02-01"), CsraResult.HIGH_GENERAL, "LEI")
+    ratedReview(
+      "Q2222QQ",
+      LocalDate.parse("2024-03-01"),
+      CsraType.CSRA_INITIAL_ASSESSMENT,
+      CsraResult.HIGH_GENERAL,
+      "LEI",
+    )
+    review("Q2222QQ", LocalDate.parse("2024-04-01"), CsraResult.HIGH_SPECIFIC, "LEI")
+
+    webTestClient.get().uri("/csra-review/prisoner/Q2222QQ/history?ratings=HIGH_GENERAL")
+      .headers(setAuthorisation(roles = readRole))
+      .exchange()
+      .expectStatus().isOk
+      .expectBody()
+      .jsonPath("$.totalElements").isEqualTo(1)
+      .jsonPath("$.content[0].rating").isEqualTo("HIGH_GENERAL")
+      .jsonPath("$.content[0].recordedDate").isEqualTo("2024-02-01")
+  }
+
+  @Test
+  fun `returns 400 when a ratings value is not valid`() {
+    webTestClient.get().uri("/csra-review/prisoner/A1234BC/history?ratings=BAD_VALUE")
+      .headers(setAuthorisation(roles = readRole))
+      .exchange()
+      .expectStatus().isBadRequest
+      .expectBody()
+      .jsonPath("$.userMessage").value<String> { it.contains("Invalid CSRA rating filter 'BAD_VALUE'") }
+      .jsonPath("$.userMessage").value<String> { it.contains("HIGH") }
+      .jsonPath("$.userMessage").value<String> { it.contains("HIGH_GENERAL") }
+      .jsonPath("$.userMessage").value<String> { it.contains("STANDARD") }
+      .jsonPath("$.userMessage").value<String> { it.contains("PEND") }
+  }
+
+  @Test
   fun `returns 401 without a token`() {
     webTestClient.get().uri("/csra-review/prisoner/A1234BC/history")
       .exchange()

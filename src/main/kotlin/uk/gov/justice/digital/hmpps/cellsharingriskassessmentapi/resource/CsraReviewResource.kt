@@ -129,7 +129,7 @@ class CsraReviewResource(
     establishments: List<String>?,
     @Parameter(description = "Only include CSRAs matching these exact rating variants")
     @RequestParam(required = false)
-    ratings: List<CsraRatingFilter>?,
+    ratings: List<String>?,
   ) = csraReviewService.getCsraHistory(
     prisonerNumber = prisonerNumber,
     page = page,
@@ -137,7 +137,14 @@ class CsraReviewResource(
     fromDate = fromDate,
     toDate = toDate,
     establishments = establishments,
-    ratings = ratings,
+    ratings = ratings?.map { rating ->
+      try {
+        CsraRatingFilter.valueOf(rating)
+      } catch (_: IllegalArgumentException) {
+        val validValues = CsraRatingFilter.ordered(CsraRatingFilter.entries).joinToString { it.name }
+        throw IllegalArgumentException("Invalid CSRA rating filter '$rating'. Valid values: $validValues")
+      }
+    },
   )
 
   @GetMapping("/prisoner/{prisonerNumber}/current-rating")
