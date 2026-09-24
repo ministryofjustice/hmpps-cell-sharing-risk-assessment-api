@@ -93,7 +93,7 @@ data class CsraReviewSummary(
   @param:Schema(description = "The date the provisional rating was recorded", example = "2025-10-11")
   val provisionalRecordedDate: LocalDate?,
 
-  @param:Schema(description = "The reason the review was closed or archived, when applicable", required = false)
+  @param:Schema(description = "The reason the review was closed or archived. Only present if the review was closed or archived.", required = false)
   val closureReason: CsraClosureReason?,
 
   @param:Schema(description = "For a high-risk-specific row, who the prisoner is a risk to")
