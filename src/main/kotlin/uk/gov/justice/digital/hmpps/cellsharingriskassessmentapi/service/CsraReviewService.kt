@@ -690,17 +690,34 @@ class CsraReviewService(
     stageComment: String?,
     nomis: CsraReviewNomisEntity?,
     prisonNames: Map<String, String>,
-  ) = CsraReviewSummary(
-    id = id!!,
-    type = type,
-    assessmentType = type.toAssessmentBucket(),
-    rating = finalResult ?: interimResult!!,
-    reviewComment = stageComment ?: nomisComment(nomis),
-    prisonId = prisonId,
-    prisonName = prisonId?.let { prisonNames[it] ?: it },
-    recordedDate = finalResultDate ?: assessmentDate,
-    legacy = nomis?.toLegacyDetail(assessmentDate),
-  )
+  ): CsraReviewSummary {
+    val summaryComment = stageComment ?: nomisComment(nomis)
+    val finalRating = finalResult
+    val provisionalRating = interimResult
+    return CsraReviewSummary(
+      id = id!!,
+      type = type,
+      assessmentType = type.toAssessmentBucket(),
+      finalRating = finalRating,
+      finalReviewComment = if (finalRating != null) summaryComment else null,
+      finalRecordedDate = finalResultDate,
+      provisionalRating = provisionalRating,
+      provisionalReviewComment = if (provisionalRating != null) summaryComment else null,
+      provisionalRecordedDate = provisionalRating?.let { interimResultDate ?: assessmentDate },
+      closureReason = closureReason,
+      riskTo = currentRatingStage()?.riskTo?.map { CsraRiskToDetail(it.category, it.details) }.orEmpty(),
+      vulnerabilities = currentRatingStage()?.vulnerabilities?.map { CsraVulnerabilityDetail(it.category, it.details) }.orEmpty(),
+      prisonId = prisonId,
+      prisonName = prisonId?.let { prisonNames[it] ?: it },
+      legacy = nomis?.toLegacyDetail(assessmentDate),
+    )
+  }
+
+  private fun CsraReviewEntity.currentRatingStage(): CsraAssessmentStageEntity? {
+    val stages = csraAssessmentStageRepository.findAllByCsraReviewId(id!!)
+    return stages.firstOrNull { it.stage == CsraAssessmentStage.FINAL }
+      ?: stages.firstOrNull { it.stage == CsraAssessmentStage.PROVISIONAL || it.stage == CsraAssessmentStage.INTERIM }
+  }
 
   private companion object {
     /** Chunk the roll when querying so the `IN (...)` list stays a sane size for large prisons. */

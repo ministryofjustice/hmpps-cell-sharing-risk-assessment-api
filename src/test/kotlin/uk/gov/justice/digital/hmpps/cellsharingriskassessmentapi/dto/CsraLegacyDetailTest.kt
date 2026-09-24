@@ -52,14 +52,17 @@ class CsraLegacyDetailTest {
     val detail = nomis(calculatedLevel = CsraLevel.LOW).toLegacyDetail(assessmentDate)
 
     assertThat(detail.level).isEqualTo(CsraLevel.LOW)
+    assertThat(detail.calculatedLevel).isEqualTo(CsraLevel.LOW)
     // The distinction the whole ticket exists for: display keeps LOW, the service still reasons in STANDARD.
     assertThat(CsraLevel.LOW.toCsraResult()).isEqualTo(CsraResult.STANDARD)
   }
 
   @Test
   fun `a legacy MED review keeps its raw level`() {
-    assertThat(nomis(calculatedLevel = CsraLevel.MED).toLegacyDetail(assessmentDate).level)
-      .isEqualTo(CsraLevel.MED)
+    val detail = nomis(calculatedLevel = CsraLevel.MED).toLegacyDetail(assessmentDate)
+
+    assertThat(detail.level).isEqualTo(CsraLevel.MED)
+    assertThat(detail.calculatedLevel).isEqualTo(CsraLevel.MED)
   }
 
   @Test
@@ -106,6 +109,7 @@ class CsraLegacyDetailTest {
 
     assertThat(detail.approvalStatus).isEqualTo(CsraApprovalStatus.APPROVED)
     assertThat(detail.level).isEqualTo(CsraLevel.HI)
+    assertThat(detail.calculatedLevel).isEqualTo(CsraLevel.STANDARD)
   }
 
   @Test
