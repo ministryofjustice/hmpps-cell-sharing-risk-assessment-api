@@ -188,7 +188,7 @@ class CsraMoveResourceTest : SqsIntegrationTestBase() {
     assertThat(currentRating("A1111AA")!!.setByReviewId).isEqualTo(moved.id)
     // The source prisoner is left with no reviews at all, so their projection is recomputed to "No rating"
     // rather than deleted - unlike a merge, where the retired prisoner number ceases to exist entirely.
-    assertThat(currentRating("A2222BB")?.rating).isNull()
+    assertThat(currentRating("A2222BB")!!.rating).isNull()
   }
 
   @Test
@@ -205,7 +205,7 @@ class CsraMoveResourceTest : SqsIntegrationTestBase() {
 
   @Test
   fun `a move leaves next review rows untouched, unlike a merge`() {
-    // A move repoints only the named reviews. It is a correction of a filing mistake, not a resolution of
+    // A move repoints only the named reviews. It is a correction of a booking mistake, not a resolution of
     // two prisoner numbers into one, so - unlike CsraMergeService - it does not repoint or delete the
     // next-review projection for either prisoner number.
     val older = ratedReview("A1111AA", CsraResult.HIGH_GENERAL, LocalDate.parse("2023-01-01"))
