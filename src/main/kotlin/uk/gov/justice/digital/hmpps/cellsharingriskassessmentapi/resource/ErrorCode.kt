@@ -17,4 +17,5 @@ enum class ErrorCode(val errorCode: Int) {
   MethodArgumentTypeMismatch(108),
   CsraReviewNotWritable(109),
   PrisonNotActive(110),
+  InvalidRatingFilter(111),
 }
