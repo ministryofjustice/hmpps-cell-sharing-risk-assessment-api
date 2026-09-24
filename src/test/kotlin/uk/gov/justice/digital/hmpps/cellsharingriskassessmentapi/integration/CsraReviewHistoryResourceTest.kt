@@ -93,6 +93,31 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
     )
   }
 
+  private fun withFinalStageRiskDetails(
+    review: CsraReviewEntity,
+    riskTo: String,
+    vulnerability: String,
+  ) {
+    val stage = csraAssessmentStageRepository.saveAndFlush(
+      CsraAssessmentStageEntity(csraReview = review, stage = CsraAssessmentStage.FINAL),
+    )
+    stage.riskTo.add(
+      uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStageRiskToEntity(
+        stage = stage,
+        category = uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraRiskToCategory.PRISONERS,
+        details = riskTo,
+      ),
+    )
+    stage.vulnerabilities.add(
+      uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStageVulnerabilityEntity(
+        stage = stage,
+        category = uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraVulnerabilityCategory.LONG_TERM,
+        details = vulnerability,
+      ),
+    )
+    csraAssessmentStageRepository.saveAndFlush(stage)
+  }
+
   private fun legacyPendingReview(prisonerNumber: String, assessmentDate: LocalDate, prisonId: String = "LEI") = csraReviewRepository.saveAndFlush(
     CsraReviewEntity(
       prisonerNumber = prisonerNumber,
@@ -281,6 +306,7 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
     withFinalStageComment(standard, "PNC checked. No issues found.")
     val highSpecific = review("H1111HH", LocalDate.parse("2025-10-11"), CsraResult.HIGH_SPECIFIC, "MDI")
     withFinalStageComment(highSpecific, "History of racist incidents.")
+    withFinalStageRiskDetails(highSpecific, "Prisoners", "Long-term")
 
     webTestClient.get().uri("/csra-review/prisoner/H1111HH/history")
       .headers(setAuthorisation(roles = readRole))
@@ -311,6 +337,12 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
       .jsonPath("$.content[0].reviewComment").isEqualTo("History of racist incidents.")
       .jsonPath("$.content[0].prisonId").isEqualTo("MDI")
       .jsonPath("$.content[0].recordedDate").isEqualTo("2025-10-11")
+      .jsonPath("$.content[0].riskTo.length()").isEqualTo(1)
+      .jsonPath("$.content[0].riskTo[0].category").isEqualTo("PRISONERS")
+      .jsonPath("$.content[0].riskTo[0].details").isEqualTo("Prisoners")
+      .jsonPath("$.content[0].vulnerabilities.length()").isEqualTo(1)
+      .jsonPath("$.content[0].vulnerabilities[0].category").isEqualTo("LONG_TERM")
+      .jsonPath("$.content[0].vulnerabilities[0].details").isEqualTo("Long-term")
       .jsonPath("$.content[1].rating").isEqualTo("STANDARD")
       .jsonPath("$.content[1].reviewComment").isEqualTo("PNC checked. No issues found.")
       .jsonPath("$.content[2].rating").isEqualTo("HIGH")
@@ -544,5 +576,6 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
       .expectBody()
       .jsonPath("$.totalElements").isEqualTo(1)
       .jsonPath("$.summary.totalCsras").isEqualTo(1)
+      .jsonPath("$.content[0].closureReason").isEmpty
   }
 }
