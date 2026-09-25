@@ -178,13 +178,11 @@ class CsraMergeService(
   }
 
   /** Whether [candidate] was set by a later review than [incumbent], ordering by `(assessmentDate, id)`. */
-  private fun setByLaterReview(candidate: UUID, incumbent: UUID): Boolean {
+  internal fun setByLaterReview(candidate: UUID, incumbent: UUID): Boolean {
     val candidateReview = csraReviewRepository.findById(candidate).orElse(null) ?: return false
     val incumbentReview = csraReviewRepository.findById(incumbent).orElse(null) ?: return true
     return compareValuesBy(candidateReview, incumbentReview, { it.assessmentDate }, { it.id }) > 0
   }
-
-  private fun CsraCurrentRatingEntity.snapshot() = RatingSnapshot(rating, provisional, ratingDate, setByReviewId)
 
   private fun mergeProperties(removed: String, retained: String) = mapOf(
     "NOMS-MERGE-FROM" to removed,
@@ -198,12 +196,14 @@ class CsraMergeService(
   }
 }
 
+internal fun CsraCurrentRatingEntity.snapshot() = RatingSnapshot(rating, provisional, ratingDate, setByReviewId)
+
 /**
  * The parts of a prisoner's current rating a consumer can observe. Compared before and after a merge to
  * decide whether the merge is worth announcing. [setByReviewId] is included deliberately: the same rating
  * arriving from a different review is a real change to anyone who follows the id.
  */
-private data class RatingSnapshot(
+internal data class RatingSnapshot(
   val rating: CsraResult?,
   val provisional: Boolean,
   val ratingDate: LocalDate?,

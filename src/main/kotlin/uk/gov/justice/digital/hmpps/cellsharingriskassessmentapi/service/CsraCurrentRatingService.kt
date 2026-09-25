@@ -16,7 +16,7 @@ import java.time.LocalDateTime
 /**
  * Maintains the per-prisoner [CsraCurrentRatingEntity] projection — the single source of truth for a
  * prisoner's current CSRA rating (R-06/R-07). It is updated only when a rating is saved (assessment/review
- * journey, or NOMIS migration/sync) or when a readmission after release resets it to "No rating" (R-01);
+ * journey, or NOMIS migration/sync), when a readmission after release resets it to "No rating" (R-01) or after a merge or booking move;
  * merely starting a new assessment leaves it unchanged, so the prior rating persists.
  */
 @Service
