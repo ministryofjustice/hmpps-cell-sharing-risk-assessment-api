@@ -664,8 +664,8 @@ class CsraReviewService(
   }
 
   /**
-   * The FINAL and PROVISIONAL/INTERIM stage of each review on the page, loaded in one batched query to
-   * avoid N+1 lookups. Legacy rows have no stages and fall back to their NOMIS record.
+   * The FINAL and PROVISIONAL/INTERIM stage of each review on the page, with their risk selections, in a
+   * single query. Legacy rows have no stages and fall back to their NOMIS record.
    */
   private fun stagesByReviewId(reviewIds: List<UUID>): Map<UUID, ReviewStages> {
     if (reviewIds.isEmpty()) return emptyMap()

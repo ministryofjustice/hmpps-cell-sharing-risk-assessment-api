@@ -4,6 +4,7 @@ import jakarta.persistence.EntityManager
 import jakarta.persistence.PersistenceContext
 import org.assertj.core.api.Assertions.assertThat
 import org.assertj.core.api.Assertions.assertThatThrownBy
+import org.hibernate.SessionFactory
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -153,5 +154,50 @@ class CsraAssessmentStageRepositoryTest : TestBase() {
     assertThat(
       entityManager.createQuery("select count(v) from CsraAssessmentStageVulnerabilityEntity v").singleResult,
     ).isEqualTo(0L)
+  }
+
+  @Test
+  fun `fetches the risk selections alongside the stages rather than one query per stage`() {
+    val reviewIds = (1..3).map { index ->
+      val review = reviewRepository.saveAndFlush(coreReview().apply { prisonerNumber = "A123${index}BC" })
+      val stage = CsraAssessmentStageEntity(csraReview = review, stage = CsraAssessmentStage.FINAL)
+      stage.riskTo.add(
+        CsraAssessmentStageRiskToEntity(stage = stage, category = CsraRiskToCategory.GANG_MEMBERS),
+      )
+      if (index == 1) {
+        stage.riskTo.add(
+          CsraAssessmentStageRiskToEntity(stage = stage, category = CsraRiskToCategory.SPECIFIC_PERSONS),
+        )
+      }
+      stage.vulnerabilities.add(
+        CsraAssessmentStageVulnerabilityEntity(stage = stage, category = CsraVulnerabilityCategory.MENTAL_HEALTH),
+      )
+      if (index == 1) {
+        stage.vulnerabilities.add(
+          CsraAssessmentStageVulnerabilityEntity(stage = stage, category = CsraVulnerabilityCategory.OLD_PEOPLE),
+        )
+      }
+      repository.saveAndFlush(stage)
+      review.id!!
+    }
+    entityManager.flush()
+    entityManager.clear()
+
+    val statistics = entityManager.entityManagerFactory.unwrap(SessionFactory::class.java).statistics
+    val wasEnabled = statistics.isStatisticsEnabled
+    statistics.isStatisticsEnabled = true
+    try {
+      statistics.clear()
+
+      val stages = repository.findAllByCsraReviewIdIn(reviewIds)
+      val selections = stages.associate { it.csraReview.id to (it.riskTo.size + it.vulnerabilities.size) }
+
+      assertThat(stages).hasSize(3)
+      assertThat(selections[reviewIds.first()]).isEqualTo(4)
+      assertThat(selections.values).containsExactlyInAnyOrder(4, 2, 2)
+      assertThat(statistics.prepareStatementCount).isEqualTo(1)
+    } finally {
+      statistics.isStatisticsEnabled = wasEnabled
+    }
   }
 }
