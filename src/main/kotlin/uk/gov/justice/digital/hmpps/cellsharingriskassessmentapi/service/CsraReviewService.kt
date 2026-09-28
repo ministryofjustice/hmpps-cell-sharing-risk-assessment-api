@@ -265,10 +265,8 @@ class CsraReviewService(
       .findAllByPrisonIdAndTypeAndFinalResultIsNullAndStatus(prisonId, CsraType.CSRA_INITIAL_ASSESSMENT, CsraReviewStatus.IN_PROGRESS)
     val names = prisonerSearchClient.getPrisonerNames(ours.map { it.prisonerNumber })
     val reviews = ours.stillAt(prisonId, names)
-    val provisionalStageByReviewId = csraAssessmentStageRepository.findAllByCsraReviewIdIn(reviews.mapNotNull { it.id })
-      // PROVISIONAL only, deliberately: a review's INTERIM stage cannot reach here anyway, because these
-      // rows are already filtered to CSRA_INITIAL_ASSESSMENT. Reviews belong on the reviews-in-progress list.
-      .filter { it.stage == CsraAssessmentStage.PROVISIONAL }
+    val provisionalStageByReviewId = csraAssessmentStageRepository
+      .findAllByCsraReviewIdInAndStage(reviews.mapNotNull { it.id }, CsraAssessmentStage.PROVISIONAL)
       .associateBy { it.csraReview.id }
 
     val started = reviews.filter { it.interimResult == null }.map { r ->
@@ -669,7 +667,7 @@ class CsraReviewService(
    */
   private fun stagesByReviewId(reviewIds: List<UUID>): Map<UUID, ReviewStages> {
     if (reviewIds.isEmpty()) return emptyMap()
-    val allStages = csraAssessmentStageRepository.findAllByCsraReviewIdIn(reviewIds)
+    val allStages = csraAssessmentStageRepository.findAllByCsraReviewIdInWithRiskSelections(reviewIds)
       .groupBy { it.csraReview.id }
     return reviewIds.associateWith { id ->
       val stages = allStages[id].orEmpty()

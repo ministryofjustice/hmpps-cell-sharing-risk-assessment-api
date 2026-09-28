@@ -689,6 +689,7 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
 
   @Test
   fun `a completed review summary does not use provisional risk details when the final stage has none`() {
+    prisonRegister.stubGetPrisons(mapOf("LEI" to "Leeds (HMP)"))
     val review = csraReviewRepository.saveAndFlush(
       CsraReviewEntity(
         prisonerNumber = "T4444TT",

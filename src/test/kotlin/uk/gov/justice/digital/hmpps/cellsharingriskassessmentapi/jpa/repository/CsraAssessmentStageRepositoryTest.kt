@@ -189,7 +189,7 @@ class CsraAssessmentStageRepositoryTest : TestBase() {
     try {
       statistics.clear()
 
-      val stages = repository.findAllByCsraReviewIdIn(reviewIds)
+      val stages = repository.findAllByCsraReviewIdInWithRiskSelections(reviewIds)
       val selections = stages.associate { it.csraReview.id to (it.riskTo.size + it.vulnerabilities.size) }
 
       assertThat(stages).hasSize(3)
