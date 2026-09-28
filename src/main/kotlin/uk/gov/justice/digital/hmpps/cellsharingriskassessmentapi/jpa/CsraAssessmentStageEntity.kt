@@ -13,6 +13,7 @@ import jakarta.persistence.OneToMany
 import jakarta.persistence.Table
 import jakarta.persistence.Version
 import org.hibernate.Hibernate
+import org.hibernate.annotations.BatchSize
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.helper.GeneratedUuidV7
 import java.time.LocalDateTime
 import java.util.UUID
@@ -109,10 +110,14 @@ class CsraAssessmentStageEntity(
   @OneToMany(mappedBy = "stage", cascade = [CascadeType.ALL], orphanRemoval = true)
   val evidenceSources: MutableList<CsraAssessmentStageEvidenceSourceEntity> = mutableListOf(),
 
+  // Batched so reading these across a page of stages costs one query each, not one per stage. They
+  // cannot be fetch-joined together: two bag collections in one join raises MultipleBagFetchException.
   @OneToMany(mappedBy = "stage", cascade = [CascadeType.ALL], orphanRemoval = true)
+  @BatchSize(size = 100)
   val riskTo: MutableList<CsraAssessmentStageRiskToEntity> = mutableListOf(),
 
   @OneToMany(mappedBy = "stage", cascade = [CascadeType.ALL], orphanRemoval = true)
+  @BatchSize(size = 100)
   val vulnerabilities: MutableList<CsraAssessmentStageVulnerabilityEntity> = mutableListOf(),
 
   @Id

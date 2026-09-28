@@ -530,28 +530,26 @@ class CsraReviewService(
     val spec = CsraReviewSpecifications.history(prisonerNumber, fromDate, toDate, establishments, results)
     val pageable = PageRequest.of(page, size, Sort.by(Sort.Order.desc("assessmentDate"), Sort.Order.desc("id")))
 
-    val allReviews = csraReviewRepository.findAll(spec)
-    val nomisByReviewId = nomisByReviewId(allReviews.mapNotNull { it.id })
-
-    val filteredReviews = if (ratings?.isNotEmpty() == true) {
-      allReviews
+    // The fine-grained rating filters cannot be expressed as a Specification (they depend on the adjacent
+    // NOMIS row), so only that path pages in memory. Without them, the database does the paging and sorting.
+    val reviews = if (ratings?.isNotEmpty() == true) {
+      val matchingReviews = csraReviewRepository.findAll(spec)
+      val nomisByReviewId = nomisByReviewId(matchingReviews.mapNotNull { it.id })
+      val filteredReviews = matchingReviews
         .filter { review -> ratings.any { it.matchesHistory(review, nomisByReviewId[review.id]) } }
         .sortedWith(compareByDescending<CsraReviewEntity> { it.assessmentDate }.thenByDescending { it.id })
+      val fromIndex = pageable.offset.toInt().coerceAtMost(filteredReviews.size)
+      val toIndex = (fromIndex + pageable.pageSize).coerceAtMost(filteredReviews.size)
+      PageImpl(filteredReviews.subList(fromIndex, toIndex), pageable, filteredReviews.size.toLong())
     } else {
-      allReviews.sortedWith(compareByDescending<CsraReviewEntity> { it.assessmentDate }.thenByDescending { it.id })
+      csraReviewRepository.findAll(spec, pageable)
     }
 
-    val fromIndex = pageable.offset.toInt().coerceAtMost(filteredReviews.size)
-    val toIndex = (fromIndex + pageable.pageSize).coerceAtMost(filteredReviews.size)
-    val pagedReviews = filteredReviews.subList(fromIndex, toIndex)
-
-    val reviews = PageImpl(pagedReviews, pageable, filteredReviews.size.toLong())
-
     val reviewIds = reviews.content.mapNotNull { it.id }
-    val stageComments = stageCommentsByReviewId(reviewIds)
     val stagesByReviewId = stagesByReviewId(reviewIds)
+    val nomisByReviewId = nomisByReviewId(reviewIds)
     val prisonNames = prisonRegisterClient.getPrisonNames()
-    val content = reviews.content.map { it.toSummary(stageComments[it.id], nomisByReviewId[it.id], stagesByReviewId[it.id], prisonNames) }
+    val content = reviews.content.map { it.toSummary(stagesByReviewId[it.id], nomisByReviewId[it.id], prisonNames) }
 
     return CsraReviewHistory(
       summary = buildSummary(prisonerNumber),
@@ -666,14 +664,24 @@ class CsraReviewService(
   }
 
   /**
-   * The comment a new-model review carries on its FINAL (or, failing that, first) stage. Loaded in
-   * batch to avoid N+1 queries; legacy rows have no stages and fall back to their NOMIS record.
+   * The FINAL and PROVISIONAL/INTERIM stage of each review on the page, loaded in one batched query to
+   * avoid N+1 lookups. Legacy rows have no stages and fall back to their NOMIS record.
    */
-  private fun stageCommentsByReviewId(reviewIds: List<UUID>): Map<UUID, String?> {
+  private fun stagesByReviewId(reviewIds: List<UUID>): Map<UUID, ReviewStages> {
     if (reviewIds.isEmpty()) return emptyMap()
-    val stagesByReviewId = csraAssessmentStageRepository.findAllByCsraReviewIdIn(reviewIds)
+    val allStages = csraAssessmentStageRepository.findAllByCsraReviewIdIn(reviewIds)
       .groupBy { it.csraReview.id }
-    return reviewIds.associateWith { id -> stageComment(stagesByReviewId[id]) }
+    return reviewIds.associateWith { id ->
+      val stages = allStages[id].orEmpty()
+      ReviewStages(
+        final = stages.firstOrNull { it.stage == CsraAssessmentStage.FINAL },
+        // PROVISIONAL (assessment) and INTERIM (review) are the same slot for this purpose; a review
+        // carries one or the other, never both, so the order they are coalesced in does not matter.
+        provisional = stages.firstOrNull {
+          it.stage == CsraAssessmentStage.PROVISIONAL || it.stage == CsraAssessmentStage.INTERIM
+        },
+      )
+    }
   }
 
   /** The adjacent NOMIS record for each migrated review on the page, in batch. Absent for new-model rows. */
@@ -682,55 +690,56 @@ class CsraReviewService(
     return csraReviewNomisRepository.findAllByCsraReviewIdIn(reviewIds).associateBy { it.csraReview.id }
   }
 
-  private fun stageComment(stages: List<CsraAssessmentStageEntity>?): String? {
-    if (stages.isNullOrEmpty()) return null
-    return stages.firstOrNull { it.stage == CsraAssessmentStage.FINAL }?.assessmentComment
-      // PROVISIONAL (assessment) and INTERIM (review) are the same slot for this purpose.
-      ?: stages.firstOrNull {
-        it.stage == CsraAssessmentStage.PROVISIONAL || it.stage == CsraAssessmentStage.INTERIM
-      }?.assessmentComment
-  }
-
   private fun nomisComment(nomis: CsraReviewNomisEntity?): String? = nomis?.reviewComment ?: nomis?.comment
 
-  private fun stagesByReviewId(reviewIds: List<UUID>): Map<UUID, CsraAssessmentStageEntity?> {
-    if (reviewIds.isEmpty()) return emptyMap()
-    val allStages = csraAssessmentStageRepository.findAllByCsraReviewIdIn(reviewIds)
-      .groupBy { it.csraReview.id }
-    return reviewIds.associateWith { id ->
-      val stages = allStages[id]
-      stages?.firstOrNull { it.stage == CsraAssessmentStage.FINAL }
-        ?: stages?.firstOrNull { it.stage == CsraAssessmentStage.PROVISIONAL || it.stage == CsraAssessmentStage.INTERIM }
-    }
-  }
-
   private fun CsraReviewEntity.toSummary(
-    stageComment: String?,
+    stages: ReviewStages?,
     nomis: CsraReviewNomisEntity?,
-    stage: CsraAssessmentStageEntity?,
     prisonNames: Map<String, String>,
   ): CsraReviewSummary {
-    val summaryComment = stageComment ?: nomisComment(nomis)
+    val finalStage = stages?.final
+    val provisionalStage = stages?.provisional
+    // The stage that produced the rating shown on the row: the final stage once complete, otherwise the first.
+    val ratingStage = finalStage ?: provisionalStage
     val finalRating = finalResult
     val provisionalRating = interimResult
+    // Legacy rows have no stages, so their single NOMIS comment belongs to whichever rating the row carries.
+    val legacyComment = nomisComment(nomis)
+    val finalComment = finalStage?.assessmentComment ?: legacyComment?.takeIf { finalRating != null }
+    val provisionalComment = provisionalStage?.assessmentComment
+      ?: legacyComment?.takeIf { finalRating == null && provisionalRating != null }
+    // Same rule as getCurrentRating so a review shows the same dates on both screens.
+    val finalDate = finalStage?.completedAt?.toLocalDate() ?: finalResultDate
+    val provisionalDate = provisionalStage?.completedAt?.toLocalDate() ?: interimResultDate
+
+    @Suppress("DEPRECATION")
     return CsraReviewSummary(
       id = id!!,
       type = type,
       assessmentType = type.toAssessmentBucket(),
+      rating = finalRating ?: provisionalRating,
+      reviewComment = finalComment ?: provisionalComment,
+      recordedDate = finalResultDate ?: assessmentDate,
       finalRating = finalRating,
-      finalReviewComment = if (finalRating != null) summaryComment else null,
-      finalRecordedDate = finalResultDate,
+      finalReviewComment = finalComment,
+      finalRecordedDate = finalDate,
       provisionalRating = provisionalRating,
-      provisionalReviewComment = if (provisionalRating != null) summaryComment else null,
-      provisionalRecordedDate = provisionalRating?.let { interimResultDate ?: assessmentDate },
+      provisionalReviewComment = provisionalComment,
+      provisionalRecordedDate = provisionalRating?.let { provisionalDate ?: assessmentDate },
       closureReason = closureReason,
-      riskTo = stage?.riskTo?.map { CsraRiskToDetail(it.category, it.details) }.orEmpty(),
-      vulnerabilities = stage?.vulnerabilities?.map { CsraVulnerabilityDetail(it.category, it.details) }.orEmpty(),
+      riskTo = ratingStage?.riskTo?.map { CsraRiskToDetail(it.category, it.details) }.orEmpty(),
+      vulnerabilities = ratingStage?.vulnerabilities?.map { CsraVulnerabilityDetail(it.category, it.details) }.orEmpty(),
       prisonId = prisonId,
       prisonName = prisonId?.let { prisonNames[it] ?: it },
       legacy = nomis?.toLegacyDetail(assessmentDate),
     )
   }
+
+  /** The two stages a review can carry, fetched together so neither is looked up twice. */
+  private data class ReviewStages(
+    val final: CsraAssessmentStageEntity?,
+    val provisional: CsraAssessmentStageEntity?,
+  )
 
   private companion object {
     /** Chunk the roll when querying so the `IN (...)` list stays a sane size for large prisons. */

@@ -75,6 +75,30 @@ data class CsraReviewSummary(
   @param:Schema(description = "Whether this is an assessment or a review", example = "REVIEW")
   val assessmentType: CsraAssessmentTypeBucket,
 
+  @Deprecated("Use finalRating/provisionalRating. Retained for one release while the UI migrates.")
+  @param:Schema(
+    description = "Deprecated: the final rating, or the provisional one where there is no final rating yet. Use `finalRating` and `provisionalRating` instead; this field will be removed once the UI has migrated.",
+    example = "STANDARD",
+    deprecated = true,
+  )
+  val rating: CsraResult?,
+
+  @Deprecated("Use finalReviewComment/provisionalReviewComment. Retained for one release while the UI migrates.")
+  @param:Schema(
+    description = "Deprecated: the comment belonging to the rating in `rating`. Use `finalReviewComment` and `provisionalReviewComment` instead; this field will be removed once the UI has migrated.",
+    example = "PNC checked. No issues found.",
+    deprecated = true,
+  )
+  val reviewComment: String?,
+
+  @Deprecated("Use finalRecordedDate/provisionalRecordedDate. Retained for one release while the UI migrates.")
+  @param:Schema(
+    description = "Deprecated: the date the rating in `rating` was recorded, falling back to the assessment date. Use `finalRecordedDate` and `provisionalRecordedDate` instead; this field will be removed once the UI has migrated.",
+    example = "2025-10-11",
+    deprecated = true,
+  )
+  val recordedDate: LocalDate?,
+
   @param:Schema(description = "The final rating when the review has reached a final outcome", example = "STANDARD")
   val finalRating: CsraResult?,
 
@@ -96,10 +120,10 @@ data class CsraReviewSummary(
   @param:Schema(description = "The reason the review was closed or archived. Only present if the review was closed or archived.", required = false)
   val closureReason: CsraClosureReason?,
 
-  @param:Schema(description = "For a high-risk-specific row, who the prisoner is a risk to")
+  @param:Schema(description = "The risk details of the rating shown on this row: the final stage's where there is a final rating, otherwise the provisional stage's. Matches the rule used by the current-rating endpoint.")
   val riskTo: List<CsraRiskToDetail>,
 
-  @param:Schema(description = "For a high-risk-specific row, the groups the prisoner is vulnerable due to")
+  @param:Schema(description = "The vulnerability details of the rating shown on this row: the final stage's where there is a final rating, otherwise the provisional stage's. Matches the rule used by the current-rating endpoint.")
   val vulnerabilities: List<CsraVulnerabilityDetail>,
 
   @param:Schema(description = "The prison the CSRA was recorded at", example = "LEI")

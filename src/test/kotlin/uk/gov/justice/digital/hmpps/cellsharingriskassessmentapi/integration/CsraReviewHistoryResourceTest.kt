@@ -11,6 +11,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessm
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStageEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStageRiskToEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStageVulnerabilityEntity
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraClosureReason
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraResult
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewNomisEntity
@@ -19,6 +20,8 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraRiskToC
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraType
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraVulnerabilityCategory
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraAssessmentStageRepository
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraCurrentRatingRepository
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraNextReviewRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraReviewNomisRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraReviewRepository
 import java.time.LocalDate
@@ -35,11 +38,21 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
   @Autowired
   private lateinit var csraAssessmentStageRepository: CsraAssessmentStageRepository
 
+  @Autowired
+  private lateinit var csraCurrentRatingRepository: CsraCurrentRatingRepository
+
+  @Autowired
+  private lateinit var csraNextReviewRepository: CsraNextReviewRepository
+
   private val readRole = listOf("ROLE_CSRA_REVIEW__R")
 
   @BeforeEach
   fun setUp() {
-    csraReviewRepository.deleteAll()
+    csraAssessmentStageRepository.deleteAllInBatch()
+    csraCurrentRatingRepository.deleteAllInBatch()
+    csraNextReviewRepository.deleteAllInBatch()
+    csraReviewNomisRepository.deleteAllInBatch()
+    csraReviewRepository.deleteAllInBatch()
   }
 
   private fun review(
@@ -97,13 +110,32 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
     )
   }
 
+  private fun withStage(
+    review: CsraReviewEntity,
+    stage: CsraAssessmentStage,
+    comment: String,
+    completedAt: LocalDateTime,
+  ) = csraAssessmentStageRepository.saveAndFlush(
+    CsraAssessmentStageEntity(
+      csraReview = review,
+      stage = stage,
+      assessmentComment = comment,
+      completedAt = completedAt,
+    ),
+  )
+
   private fun withFinalStageRiskDetails(
     review: CsraReviewEntity,
+    comment: String,
     riskTo: String,
     vulnerability: String,
   ) {
-    val stage = csraAssessmentStageRepository.saveAndFlush(
-      CsraAssessmentStageEntity(csraReview = review, stage = CsraAssessmentStage.FINAL),
+    // Built in full before saving: a review may only carry one FINAL stage, and the collections on a
+    // freshly loaded stage cannot be added to outside a session.
+    val stage = CsraAssessmentStageEntity(
+      csraReview = review,
+      stage = CsraAssessmentStage.FINAL,
+      assessmentComment = comment,
     )
     stage.riskTo.add(
       CsraAssessmentStageRiskToEntity(
@@ -309,8 +341,7 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
     val standard = review("H1111HH", LocalDate.parse("2025-06-30"), CsraResult.STANDARD, "LEI")
     withFinalStageComment(standard, "PNC checked. No issues found.")
     val highSpecific = review("H1111HH", LocalDate.parse("2025-10-11"), CsraResult.HIGH_SPECIFIC, "MDI")
-    withFinalStageComment(highSpecific, "History of racist incidents.")
-    withFinalStageRiskDetails(highSpecific, "Gang members", "Mental health")
+    withFinalStageRiskDetails(highSpecific, "History of racist incidents.", "Gang members", "Mental health")
 
     webTestClient.get().uri("/csra-review/prisoner/H1111HH/history")
       .headers(setAuthorisation(roles = readRole))
@@ -339,6 +370,10 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
       // that a consumer never has to know which of the eight type values it was (MAPA-366).
       .jsonPath("$.content[0].assessmentType").isEqualTo("REVIEW")
       .jsonPath("$.content[0].reviewComment").isEqualTo("History of racist incidents.")
+      .jsonPath("$.content[0].finalRating").isEqualTo("HIGH_SPECIFIC")
+      .jsonPath("$.content[0].finalReviewComment").isEqualTo("History of racist incidents.")
+      .jsonPath("$.content[0].finalRecordedDate").isEqualTo("2025-10-11")
+      .jsonPath("$.content[0].provisionalRating").doesNotExist()
       .jsonPath("$.content[0].prisonId").isEqualTo("MDI")
       .jsonPath("$.content[0].recordedDate").isEqualTo("2025-10-11")
       .jsonPath("$.content[0].riskTo.length()").isEqualTo(1)
@@ -581,5 +616,120 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
       .jsonPath("$.totalElements").isEqualTo(1)
       .jsonPath("$.summary.totalCsras").isEqualTo(1)
       .jsonPath("$.content[0].closureReason").isEmpty
+  }
+
+  @Test
+  fun `a review closed before it reached a final rating reports why it was closed`() {
+    prisonRegister.stubGetPrisons(mapOf("LEI" to "Leeds (HMP)"))
+    csraReviewRepository.saveAndFlush(
+      CsraReviewEntity(
+        prisonerNumber = "A9997AA",
+        prisonId = "LEI",
+        assessmentDate = LocalDate.parse("2024-03-01"),
+        type = CsraType.CSRA_REVIEW,
+        interimResult = CsraResult.HIGH_GENERAL,
+        interimResultDate = LocalDate.parse("2024-03-02"),
+        status = CsraReviewStatus.CLOSED,
+        closureReason = CsraClosureReason.NOT_COMPLETED_PRISONER_TRANSFER,
+        createdAt = LocalDateTime.parse("2025-12-06T12:34:56"),
+        createdBy = "NQP56Y",
+      ),
+    )
+
+    webTestClient.get().uri("/csra-review/prisoner/A9997AA/history")
+      .headers(setAuthorisation(roles = readRole))
+      .exchange()
+      .expectStatus().isOk
+      .expectBody()
+      .jsonPath("$.totalElements").isEqualTo(1)
+      .jsonPath("$.content[0].closureReason").isEqualTo("NOT_COMPLETED_PRISONER_TRANSFER")
+      .jsonPath("$.content[0].provisionalRating").isEqualTo("HIGH_GENERAL")
+      .jsonPath("$.content[0].finalRating").doesNotExist()
+  }
+
+  @Test
+  fun `a review that reached both stages reports each stage's own comment and date`() {
+    prisonRegister.stubGetPrisons(mapOf("LEI" to "Leeds (HMP)"))
+    val review = csraReviewRepository.saveAndFlush(
+      CsraReviewEntity(
+        prisonerNumber = "T1111TT",
+        prisonId = "LEI",
+        assessmentDate = LocalDate.parse("2025-01-01"),
+        type = CsraType.CSRA_REVIEW,
+        interimResult = CsraResult.HIGH_GENERAL,
+        interimResultDate = LocalDate.parse("2025-01-02"),
+        finalResult = CsraResult.STANDARD,
+        finalResultDate = LocalDate.parse("2025-01-10"),
+        status = CsraReviewStatus.COMPLETE,
+        createdAt = LocalDateTime.parse("2025-12-06T12:34:56"),
+        createdBy = "NQP56Y",
+      ),
+    )
+    withStage(review, CsraAssessmentStage.INTERIM, "Day 2 assessment complete.", LocalDateTime.parse("2025-01-03T09:00:00"))
+    withStage(review, CsraAssessmentStage.FINAL, "PNC checked. No issues found.", LocalDateTime.parse("2025-01-12T09:00:00"))
+
+    webTestClient.get().uri("/csra-review/prisoner/T1111TT/history")
+      .headers(setAuthorisation(roles = readRole))
+      .exchange()
+      .expectStatus().isOk
+      .expectBody()
+      // Each rating carries the comment of the stage that produced it, never the other stage's.
+      .jsonPath("$.content[0].provisionalRating").isEqualTo("HIGH_GENERAL")
+      .jsonPath("$.content[0].provisionalReviewComment").isEqualTo("Day 2 assessment complete.")
+      .jsonPath("$.content[0].finalRating").isEqualTo("STANDARD")
+      .jsonPath("$.content[0].finalReviewComment").isEqualTo("PNC checked. No issues found.")
+      // The stage's completion date wins over the review's result date, as on the current-rating endpoint.
+      .jsonPath("$.content[0].provisionalRecordedDate").isEqualTo("2025-01-03")
+      .jsonPath("$.content[0].finalRecordedDate").isEqualTo("2025-01-12")
+      // The deprecated fields still describe the rating that stands, for consumers yet to migrate.
+      .jsonPath("$.content[0].rating").isEqualTo("STANDARD")
+      .jsonPath("$.content[0].reviewComment").isEqualTo("PNC checked. No issues found.")
+      .jsonPath("$.content[0].recordedDate").isEqualTo("2025-01-10")
+  }
+
+  @Test
+  fun `a review with only a provisional rating reports no final values and the provisional stage's risk details`() {
+    prisonRegister.stubGetPrisons(mapOf("LEI" to "Leeds (HMP)"))
+    val review = ratedReview("T2222TT", LocalDate.parse("2025-02-01"), CsraType.CSRA_REVIEW, CsraResult.HIGH_SPECIFIC, "LEI")
+    val stage = withStage(review, CsraAssessmentStage.INTERIM, "Interim high risk.", LocalDateTime.parse("2025-02-04T09:00:00"))
+    stage.riskTo.add(CsraAssessmentStageRiskToEntity(stage = stage, category = CsraRiskToCategory.GANG_MEMBERS, details = "Gang members"))
+    stage.vulnerabilities.add(
+      CsraAssessmentStageVulnerabilityEntity(stage = stage, category = CsraVulnerabilityCategory.MENTAL_HEALTH, details = "Mental health"),
+    )
+    csraAssessmentStageRepository.saveAndFlush(stage)
+
+    webTestClient.get().uri("/csra-review/prisoner/T2222TT/history")
+      .headers(setAuthorisation(roles = readRole))
+      .exchange()
+      .expectStatus().isOk
+      .expectBody()
+      .jsonPath("$.content[0].provisionalRating").isEqualTo("HIGH_SPECIFIC")
+      .jsonPath("$.content[0].provisionalReviewComment").isEqualTo("Interim high risk.")
+      .jsonPath("$.content[0].provisionalRecordedDate").isEqualTo("2025-02-04")
+      .jsonPath("$.content[0].finalRating").doesNotExist()
+      .jsonPath("$.content[0].finalReviewComment").doesNotExist()
+      .jsonPath("$.content[0].finalRecordedDate").doesNotExist()
+      // With no final stage the risk details come from the provisional one, matching the rating shown.
+      .jsonPath("$.content[0].riskTo[0].details").isEqualTo("Gang members")
+      .jsonPath("$.content[0].vulnerabilities[0].details").isEqualTo("Mental health")
+  }
+
+  @Test
+  fun `a legacy review's single NOMIS comment describes whichever rating the row carries`() {
+    prisonRegister.stubGetPrisons(mapOf("LEI" to "Leeds (HMP)"))
+    val legacyFinal = review("T3333TT", LocalDate.parse("2024-05-01"), CsraResult.STANDARD, "LEI")
+    withNomisComment(legacyFinal, "Legacy final comment")
+    val legacyProvisional = ratedReview("T3333TT", LocalDate.parse("2024-06-01"), CsraType.NOMIS_REVIEW, CsraResult.HIGH, "LEI")
+    withNomisComment(legacyProvisional, "Legacy provisional comment")
+
+    webTestClient.get().uri("/csra-review/prisoner/T3333TT/history")
+      .headers(setAuthorisation(roles = readRole))
+      .exchange()
+      .expectStatus().isOk
+      .expectBody()
+      .jsonPath("$.content[0].provisionalReviewComment").isEqualTo("Legacy provisional comment")
+      .jsonPath("$.content[0].finalReviewComment").doesNotExist()
+      .jsonPath("$.content[1].finalReviewComment").isEqualTo("Legacy final comment")
+      .jsonPath("$.content[1].provisionalReviewComment").doesNotExist()
   }
 }
