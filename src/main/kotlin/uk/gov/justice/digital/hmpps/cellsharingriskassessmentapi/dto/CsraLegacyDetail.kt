@@ -28,6 +28,9 @@ data class CsraLegacyDetail(
   @param:Schema(description = "The raw NOMIS level this review resolved to. Renders legacy 'Low risk'/'Medium risk' rows, which both collapse to STANDARD in the row's rating.", example = "LOW")
   val level: CsraLevel?,
 
+  @param:Schema(description = "The calculated NOMIS level before any review or approval level overrode it.", example = "LOW", required = false)
+  val calculatedLevel: CsraLevel?,
+
   @param:Schema(description = "The assessment comment recorded in NOMIS", required = false)
   val assessmentComment: String?,
 
@@ -50,6 +53,7 @@ data class CsraLegacyDetail(
 /** Builds the legacy block for a migrated review, given the core record's assessment date. */
 fun CsraReviewNomisEntity.toLegacyDetail(assessmentDate: LocalDate) = CsraLegacyDetail(
   level = resolvedLevel(),
+  calculatedLevel = calculatedLevel,
   assessmentComment = comment,
   assessmentDate = assessmentDate,
   approvalStatus = approvalStatus(),
