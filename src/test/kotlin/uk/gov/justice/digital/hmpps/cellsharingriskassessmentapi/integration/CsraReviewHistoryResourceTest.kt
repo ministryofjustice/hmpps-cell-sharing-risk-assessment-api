@@ -688,6 +688,56 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
   }
 
   @Test
+  fun `a completed review summary does not use provisional risk details when the final stage has none`() {
+    val review = csraReviewRepository.saveAndFlush(
+      CsraReviewEntity(
+        prisonerNumber = "T4444TT",
+        prisonId = "LEI",
+        assessmentDate = LocalDate.parse("2025-03-01"),
+        type = CsraType.CSRA_REVIEW,
+        interimResult = CsraResult.HIGH_SPECIFIC,
+        interimResultDate = LocalDate.parse("2025-03-01"),
+        finalResult = CsraResult.HIGH_SPECIFIC,
+        finalResultDate = LocalDate.parse("2025-03-10"),
+        status = CsraReviewStatus.COMPLETE,
+        createdAt = LocalDateTime.parse("2025-12-06T12:34:56"),
+        createdBy = "NQP56Y",
+      ),
+    )
+    val provisional = CsraAssessmentStageEntity(
+      csraReview = review,
+      stage = CsraAssessmentStage.INTERIM,
+      assessmentComment = "Provisional high risk.",
+      completedAt = LocalDateTime.parse("2025-03-01T09:00:00"),
+    )
+    provisional.riskTo.add(
+      CsraAssessmentStageRiskToEntity(
+        stage = provisional,
+        category = CsraRiskToCategory.GANG_MEMBERS,
+        details = "Gang members",
+      ),
+    )
+    csraAssessmentStageRepository.saveAndFlush(provisional)
+    csraAssessmentStageRepository.saveAndFlush(
+      CsraAssessmentStageEntity(
+        csraReview = review,
+        stage = CsraAssessmentStage.FINAL,
+        assessmentComment = "Final high risk.",
+        completedAt = LocalDateTime.parse("2025-03-10T09:00:00"),
+      ),
+    )
+
+    webTestClient.get().uri("/csra-review/prisoner/T4444TT/history")
+      .headers(setAuthorisation(roles = readRole))
+      .exchange()
+      .expectStatus().isOk
+      .expectBody()
+      .jsonPath("$.content[0].provisionalRating").isEqualTo("HIGH_SPECIFIC")
+      .jsonPath("$.content[0].finalRating").isEqualTo("HIGH_SPECIFIC")
+      .jsonPath("$.content[0].riskTo").isEmpty
+  }
+
+  @Test
   fun `a review with only a provisional rating reports no final values and the provisional stage's risk details`() {
     prisonRegister.stubGetPrisons(mapOf("LEI" to "Leeds (HMP)"))
     val review = ratedReview("T2222TT", LocalDate.parse("2025-02-01"), CsraType.CSRA_REVIEW, CsraResult.HIGH_SPECIFIC, "LEI")
