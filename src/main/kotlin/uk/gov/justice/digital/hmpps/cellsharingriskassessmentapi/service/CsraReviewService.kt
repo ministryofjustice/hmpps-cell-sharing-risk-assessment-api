@@ -721,9 +721,16 @@ class CsraReviewService(
       finalRating = finalRating,
       finalReviewComment = finalComment,
       finalRecordedDate = finalDate,
+      finalPrisonId = finalStage?.prisonId,
+      finalPrisonName = finalStage?.prisonId?.let { prisonNames[it] ?: it },
       provisionalRating = provisionalRating,
       provisionalReviewComment = provisionalComment,
       provisionalRecordedDate = provisionalRating?.let { provisionalDate ?: assessmentDate },
+      provisionalPrisonId = provisionalStage?.prisonId,
+      provisionalPrisonName = provisionalStage?.prisonId?.let { prisonNames[it] ?: it },
+      interimReviewer = provisionalStage
+        ?.takeIf { it.stage == CsraAssessmentStage.INTERIM }
+        ?.completedBy,
       closureReason = closureReason,
       riskTo = ratingStage?.riskTo?.map { CsraRiskToDetail(it.category, it.details) }.orEmpty(),
       vulnerabilities = ratingStage?.vulnerabilities?.map { CsraVulnerabilityDetail(it.category, it.details) }.orEmpty(),

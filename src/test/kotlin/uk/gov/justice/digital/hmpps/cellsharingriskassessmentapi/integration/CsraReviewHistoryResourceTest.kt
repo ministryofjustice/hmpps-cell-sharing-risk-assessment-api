@@ -115,12 +115,16 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
     stage: CsraAssessmentStage,
     comment: String,
     completedAt: LocalDateTime,
+    prisonId: String? = null,
+    completedBy: String? = null,
   ) = csraAssessmentStageRepository.saveAndFlush(
     CsraAssessmentStageEntity(
       csraReview = review,
       stage = stage,
       assessmentComment = comment,
       completedAt = completedAt,
+      prisonId = prisonId,
+      completedBy = completedBy,
     ),
   )
 
@@ -649,7 +653,13 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
 
   @Test
   fun `a review that reached both stages reports each stage's own comment and date`() {
-    prisonRegister.stubGetPrisons(mapOf("LEI" to "Leeds (HMP)"))
+    prisonRegister.stubGetPrisons(
+      mapOf(
+        "LEI" to "Leeds (HMP)",
+        "BXI" to "Brixton (HMP)",
+        "MDI" to "Moorland (HMP)",
+      ),
+    )
     val review = csraReviewRepository.saveAndFlush(
       CsraReviewEntity(
         prisonerNumber = "T1111TT",
@@ -665,8 +675,21 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
         createdBy = "NQP56Y",
       ),
     )
-    withStage(review, CsraAssessmentStage.INTERIM, "Day 2 assessment complete.", LocalDateTime.parse("2025-01-03T09:00:00"))
-    withStage(review, CsraAssessmentStage.FINAL, "PNC checked. No issues found.", LocalDateTime.parse("2025-01-12T09:00:00"))
+    withStage(
+      review,
+      CsraAssessmentStage.INTERIM,
+      "Day 2 assessment complete.",
+      LocalDateTime.parse("2025-01-03T09:00:00"),
+      prisonId = "BXI",
+      completedBy = "INTERIM_REVIEWER",
+    )
+    withStage(
+      review,
+      CsraAssessmentStage.FINAL,
+      "PNC checked. No issues found.",
+      LocalDateTime.parse("2025-01-12T09:00:00"),
+      prisonId = "MDI",
+    )
 
     webTestClient.get().uri("/csra-review/prisoner/T1111TT/history")
       .headers(setAuthorisation(roles = readRole))
@@ -681,10 +704,46 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
       // The stage's completion date wins over the review's result date, as on the current-rating endpoint.
       .jsonPath("$.content[0].provisionalRecordedDate").isEqualTo("2025-01-03")
       .jsonPath("$.content[0].finalRecordedDate").isEqualTo("2025-01-12")
+      // Stage-specific prisons must not come from the review-level compatibility field.
+      .jsonPath("$.content[0].provisionalPrisonId").isEqualTo("BXI")
+      .jsonPath("$.content[0].provisionalPrisonName").isEqualTo("Brixton (HMP)")
+      .jsonPath("$.content[0].interimReviewer").isEqualTo("INTERIM_REVIEWER")
+      .jsonPath("$.content[0].finalPrisonId").isEqualTo("MDI")
+      .jsonPath("$.content[0].finalPrisonName").isEqualTo("Moorland (HMP)")
       // The deprecated fields still describe the rating that stands, for consumers yet to migrate.
       .jsonPath("$.content[0].rating").isEqualTo("STANDARD")
       .jsonPath("$.content[0].reviewComment").isEqualTo("PNC checked. No issues found.")
       .jsonPath("$.content[0].recordedDate").isEqualTo("2025-01-10")
+      .jsonPath("$.content[0].prisonId").isEqualTo("LEI")
+      .jsonPath("$.content[0].prisonName").isEqualTo("Leeds (HMP)")
+  }
+
+  @Test
+  fun `a provisional initial assessment does not report an interim reviewer`() {
+    prisonRegister.stubGetPrisons(mapOf("LEI" to "Leeds (HMP)"))
+    val assessment = ratedReview(
+      "T5555TT",
+      LocalDate.parse("2025-04-01"),
+      CsraType.CSRA_INITIAL_ASSESSMENT,
+      CsraResult.HIGH_GENERAL,
+      "LEI",
+    )
+    withStage(
+      assessment,
+      CsraAssessmentStage.PROVISIONAL,
+      "Day 1 assessment.",
+      LocalDateTime.parse("2025-04-01T09:00:00"),
+      prisonId = "LEI",
+      completedBy = "PROVISIONAL_ASSESSOR",
+    )
+
+    webTestClient.get().uri("/csra-review/prisoner/T5555TT/history")
+      .headers(setAuthorisation(roles = readRole))
+      .exchange()
+      .expectStatus().isOk
+      .expectBody()
+      .jsonPath("$.content[0].provisionalRating").isEqualTo("HIGH_GENERAL")
+      .jsonPath("$.content[0].interimReviewer").doesNotExist()
   }
 
   @Test
