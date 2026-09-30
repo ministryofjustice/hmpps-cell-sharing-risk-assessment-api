@@ -613,7 +613,8 @@ class CsraReviewService(
       return filters
     }
 
-    return legacyLevelFilter(nomis)?.let(::listOf).orEmpty()
+    // An unrated review (e.g. a legacy NOMIS PEND) never appears in the history list, so offers no filter.
+    return emptyList()
   }
 
   private fun legacyLevelFilter(nomis: CsraReviewNomisEntity?): CsraRatingFilter? = when (rawLegacyLevel(nomis)) {
@@ -621,7 +622,6 @@ class CsraReviewService(
     CsraLevel.STANDARD -> CsraRatingFilter.STANDARD_LEGACY
     CsraLevel.LOW -> CsraRatingFilter.LOW
     CsraLevel.MED -> CsraRatingFilter.MED
-    CsraLevel.PEND -> CsraRatingFilter.PEND
     else -> null
   }
 
@@ -639,7 +639,6 @@ class CsraReviewService(
       CsraRatingFilter.STANDARD_LEGACY -> rating == CsraResult.STANDARD && nomis != null && rawLegacyLevel(nomis) == CsraLevel.STANDARD
       CsraRatingFilter.LOW -> rating == CsraResult.STANDARD && rawLegacyLevel(nomis) == CsraLevel.LOW
       CsraRatingFilter.MED -> rating == CsraResult.STANDARD && rawLegacyLevel(nomis) == CsraLevel.MED
-      CsraRatingFilter.PEND -> rating == null && rawLegacyLevel(nomis) == CsraLevel.PEND
       else -> matches(rating, stage)
     }
   }

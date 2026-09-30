@@ -1,5 +1,6 @@
 package uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.integration
 
+import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -191,7 +192,7 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
   )
 
   @Test
-  fun `includes every distinct rating variant in the summary in UI order`() {
+  fun `includes every distinct rating variant in the summary in UI order, excluding unrated legacy PEND reviews`() {
     prisonRegister.stubGetPrisons(mapOf("LEI" to "Leeds (HMP)", "MDI" to "Moorland (HMP)"))
 
     review("V4444VV", LocalDate.parse("2023-01-01"), CsraResult.HIGH, "LEI")
@@ -233,7 +234,7 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
       .exchange()
       .expectStatus().isOk
       .expectBody()
-      .jsonPath("$.summary.ratings.length()").isEqualTo(11)
+      .jsonPath("$.summary.ratings.length()").isEqualTo(10)
       .jsonPath("$.summary.ratings[0]").isEqualTo("HIGH")
       .jsonPath("$.summary.ratings[1]").isEqualTo("HIGH_GENERAL")
       .jsonPath("$.summary.ratings[2]").isEqualTo("HIGH_GENERAL_INTERIM")
@@ -244,7 +245,7 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
       .jsonPath("$.summary.ratings[7]").isEqualTo("STANDARD_LEGACY")
       .jsonPath("$.summary.ratings[8]").isEqualTo("LOW")
       .jsonPath("$.summary.ratings[9]").isEqualTo("MED")
-      .jsonPath("$.summary.ratings[10]").isEqualTo("PEND")
+      .jsonPath("$.summary.ratings").value<List<String>> { assertThat(it).doesNotContain("PEND") }
       .jsonPath("$.totalElements").isEqualTo(1)
   }
 
@@ -302,7 +303,18 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
       .jsonPath("$.userMessage").value<String> { it.contains("HIGH") }
       .jsonPath("$.userMessage").value<String> { it.contains("HIGH_GENERAL") }
       .jsonPath("$.userMessage").value<String> { it.contains("STANDARD") }
-      .jsonPath("$.userMessage").value<String> { it.contains("PEND") }
+      .jsonPath("$.userMessage").value<String> { assertThat(it).doesNotContain("PEND") }
+  }
+
+  @Test
+  fun `returns 400 when filtering by PEND, which is no longer a rating filter`() {
+    webTestClient.get().uri("/csra-review/prisoner/A1234BC/history?ratings=PEND")
+      .headers(setAuthorisation(roles = readRole))
+      .exchange()
+      .expectStatus().isBadRequest
+      .expectBody()
+      .jsonPath("$.errorCode").isEqualTo("InvalidRatingFilter")
+      .jsonPath("$.userMessage").value<String> { assertThat(it).contains("Invalid CSRA rating filter 'PEND'") }
   }
 
   @Test
