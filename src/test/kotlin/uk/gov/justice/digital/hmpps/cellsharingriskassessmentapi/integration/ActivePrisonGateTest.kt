@@ -201,6 +201,7 @@ class ActivePrisonGateTest : SqsIntegrationTestBase() {
       // prisoner's history whatever state their prison is in.
       "POST /nomis-sync/migrate/{prisonerNumber}",
       "POST /nomis-sync/sync/{prisonerNumber}",
+      "PUT /nomis-sync/move/from/{fromPrisonerNumber}/to/{toPrisonerNumber}",
       // The rollout switch itself. Gating it on rollout state would be circular — no prison could ever
       // be switched on.
       "PUT /active-agencies/{agencyId}",

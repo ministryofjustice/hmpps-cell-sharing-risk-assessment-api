@@ -13,6 +13,7 @@ import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.validation.annotation.Validated
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.ResponseStatus
@@ -22,7 +23,9 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.C
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.NomisCsraReview
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.SyncResult
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.service.CsraMigrationSyncService
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.service.CsraMoveService
 import uk.gov.justice.hmpps.kotlin.common.ErrorResponse
+import java.util.UUID
 
 @RestController
 @Validated
@@ -31,6 +34,7 @@ import uk.gov.justice.hmpps.kotlin.common.ErrorResponse
 @PreAuthorize("hasRole('ROLE_PRISONER_CSRA__SYNC__RW')")
 class CsraNomisSyncResource(
   private val csraMigrationSyncService: CsraMigrationSyncService,
+  private val csraMoveService: CsraMoveService,
 ) {
 
   @PostMapping("/migrate/{prisonerNumber}")
@@ -98,5 +102,35 @@ class CsraNomisSyncResource(
     @RequestBody @Valid request: CsraSyncRequest,
   ): ResponseEntity<SyncResult> = csraMigrationSyncService.sync(prisonerNumber, request).let { result ->
     ResponseEntity(result, if (result.created) HttpStatus.CREATED else HttpStatus.OK)
+  }
+
+  @PutMapping("/move/from/{fromPrisonerNumber}/to/{toPrisonerNumber}")
+  @Operation(
+    summary = "Move CSRA reviews from one prisoner to another",
+    description = "Moves CSRA reviews from one prisoner to another. Ignores any reviews already moved. Used to implement the booking.moved event. Requires role PRISONER_CSRA__SYNC__RW.",
+    responses = [
+      ApiResponse(responseCode = "200", description = "CSRA reviews moved"),
+      ApiResponse(
+        responseCode = "401",
+        description = "Unauthorized to access this endpoint",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
+      ),
+      ApiResponse(
+        responseCode = "403",
+        description = "Missing required role. Requires the PRISONER_CSRA__SYNC__RW role",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
+      ),
+    ],
+  )
+  fun move(
+    @Schema(description = "The prisoner number (NOMIS offender number) to move from", example = "A1234BC", required = true)
+    @PathVariable fromPrisonerNumber: String,
+    @Schema(description = "The prisoner number (NOMIS offender number) to move to", example = "A1234BC", required = true)
+    @PathVariable toPrisonerNumber: String,
+    @Schema(description = "List of CSRA review UUIDs to move", example = "[\"550e8400-e29b-41d4-a716-446655440000\"]", required = true)
+    @RequestBody
+    reviewIds: List<UUID>,
+  ) {
+    csraMoveService.handleBookingMoved(reviewIds, fromPrisonerNumber, toPrisonerNumber)
   }
 }
