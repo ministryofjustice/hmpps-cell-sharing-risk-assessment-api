@@ -43,6 +43,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraSortDir
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraVulnerabilityDetail
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.isHigh
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraLevel
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.resolvedLevel
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.ratingStageFor
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toAssessmentBucket
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toDetail
@@ -617,7 +618,7 @@ class CsraReviewService(
     return emptyList()
   }
 
-  private fun legacyLevelFilter(nomis: CsraReviewNomisEntity?): CsraRatingFilter? = when (rawLegacyLevel(nomis)) {
+  private fun legacyLevelFilter(nomis: CsraReviewNomisEntity?): CsraRatingFilter? = when (nomis?.resolvedLevel()) {
     CsraLevel.HI -> CsraRatingFilter.HIGH
     CsraLevel.STANDARD -> CsraRatingFilter.STANDARD_LEGACY
     CsraLevel.LOW -> CsraRatingFilter.LOW
@@ -625,20 +626,14 @@ class CsraReviewService(
     else -> null
   }
 
-  private fun rawLegacyLevel(nomis: CsraReviewNomisEntity?): CsraLevel? = when {
-    nomis == null -> null
-    nomis.approvedLevel != null -> nomis.approvedLevel
-    nomis.reviewLevel != null -> nomis.reviewLevel
-    else -> nomis.calculatedLevel
-  }
-
   private fun CsraRatingFilter.matchesHistory(review: CsraReviewEntity, nomis: CsraReviewNomisEntity?): Boolean {
     val stage = review.historyRatingStage(nomis)
     val rating = review.finalResult ?: review.interimResult
+    val legacyLevel = nomis?.resolvedLevel()
     return when (this) {
-      CsraRatingFilter.STANDARD_LEGACY -> rating == CsraResult.STANDARD && nomis != null && rawLegacyLevel(nomis) == CsraLevel.STANDARD
-      CsraRatingFilter.LOW -> rating == CsraResult.STANDARD && rawLegacyLevel(nomis) == CsraLevel.LOW
-      CsraRatingFilter.MED -> rating == CsraResult.STANDARD && rawLegacyLevel(nomis) == CsraLevel.MED
+      CsraRatingFilter.STANDARD_LEGACY -> rating == CsraResult.STANDARD && legacyLevel == CsraLevel.STANDARD
+      CsraRatingFilter.LOW -> rating == CsraResult.STANDARD && legacyLevel == CsraLevel.LOW
+      CsraRatingFilter.MED -> rating == CsraResult.STANDARD && legacyLevel == CsraLevel.MED
       else -> matches(rating, stage)
     }
   }

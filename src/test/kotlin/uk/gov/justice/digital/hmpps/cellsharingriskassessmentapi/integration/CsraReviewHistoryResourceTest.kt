@@ -269,6 +269,61 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
   }
 
   @Test
+  fun `a legacy review with reviewer PEND over calculated STANDARD is offered and found under Standard (legacy)`() {
+    val review = review("R1111RR", LocalDate.parse("2024-01-01"), CsraResult.STANDARD, "LEI")
+    withNomis(review, calculatedLevel = CsraLevel.STANDARD, reviewLevel = CsraLevel.PEND)
+
+    webTestClient.get().uri("/csra-review/prisoner/R1111RR/history?ratings=STANDARD_LEGACY")
+      .headers(setAuthorisation(roles = readRole))
+      .exchange()
+      .expectStatus().isOk
+      .expectBody()
+      .jsonPath("$.summary.ratings.length()").isEqualTo(1)
+      .jsonPath("$.summary.ratings[0]").isEqualTo("STANDARD_LEGACY")
+      .jsonPath("$.totalElements").isEqualTo(1)
+      .jsonPath("$.content[0].legacy.level").isEqualTo("STANDARD")
+  }
+
+  @Test
+  fun `a legacy review with reviewer LOW under calculated STANDARD is found under Standard (legacy), not Low`() {
+    val review = review("R2222RR", LocalDate.parse("2024-01-01"), CsraResult.STANDARD, "LEI")
+    withNomis(review, calculatedLevel = CsraLevel.STANDARD, reviewLevel = CsraLevel.LOW)
+
+    webTestClient.get().uri("/csra-review/prisoner/R2222RR/history?ratings=STANDARD_LEGACY")
+      .headers(setAuthorisation(roles = readRole))
+      .exchange()
+      .expectStatus().isOk
+      .expectBody()
+      .jsonPath("$.summary.ratings.length()").isEqualTo(1)
+      .jsonPath("$.summary.ratings[0]").isEqualTo("STANDARD_LEGACY")
+      .jsonPath("$.totalElements").isEqualTo(1)
+      .jsonPath("$.content[0].legacy.level").isEqualTo("STANDARD")
+
+    webTestClient.get().uri("/csra-review/prisoner/R2222RR/history?ratings=LOW")
+      .headers(setAuthorisation(roles = readRole))
+      .exchange()
+      .expectStatus().isOk
+      .expectBody()
+      .jsonPath("$.totalElements").isEqualTo(0)
+  }
+
+  @Test
+  fun `a legacy review with reviewer STANDARD under calculated HI is offered only High, and is found under it`() {
+    val review = review("R3333RR", LocalDate.parse("2024-01-01"), CsraResult.HIGH, "LEI")
+    withNomis(review, calculatedLevel = CsraLevel.HI, reviewLevel = CsraLevel.STANDARD)
+
+    webTestClient.get().uri("/csra-review/prisoner/R3333RR/history?ratings=HIGH")
+      .headers(setAuthorisation(roles = readRole))
+      .exchange()
+      .expectStatus().isOk
+      .expectBody()
+      .jsonPath("$.summary.ratings.length()").isEqualTo(1)
+      .jsonPath("$.summary.ratings[0]").isEqualTo("HIGH")
+      .jsonPath("$.totalElements").isEqualTo(1)
+      .jsonPath("$.content[0].legacy.level").isEqualTo("HI")
+  }
+
+  @Test
   fun `filters history by the exact high-general variant, not by the broader HIGH family`() {
     review("Q2222QQ", LocalDate.parse("2024-01-01"), CsraResult.HIGH, "LEI")
     review("Q2222QQ", LocalDate.parse("2024-02-01"), CsraResult.HIGH_GENERAL, "LEI")
