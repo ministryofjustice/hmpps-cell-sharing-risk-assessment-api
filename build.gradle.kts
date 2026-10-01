@@ -2,7 +2,7 @@ import org.gradle.kotlin.dsl.register
 import uk.gov.justice.digital.hmpps.gradle.PortForwardRDSTask
 
 plugins {
-  id("uk.gov.justice.hmpps.gradle-spring-boot") version "11.0.10"
+  id("uk.gov.justice.hmpps.gradle-spring-boot") version "11.0.11"
   kotlin("plugin.spring") version "2.4.20"
   kotlin("plugin.jpa") version "2.4.20"
   id("org.jetbrains.kotlinx.kover") version "0.9.11"
