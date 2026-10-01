@@ -129,7 +129,7 @@ data class CsraReviewSummary(
   @param:Schema(description = "The name of the prison where the provisional or interim stage was recorded, falling back to the id if it cannot be resolved", example = "Leeds (HMP)")
   val provisionalPrisonName: String?,
 
-  @param:Schema(description = "The username of the reviewer who completed the interim stage. Only present for CSRA reviews with an interim stage.", example = "NQP56Y")
+  @param:Schema(description = "The username of the reviewer who completed the interim stage. Only present for CSRA reviews with an interim stage: interim reviews are the only CSRA history item the UI shows the reviewer for.", example = "NQP56Y")
   val interimReviewer: String?,
 
   @param:Schema(description = "The reason the review was closed or archived. Only present if the review was closed or archived.", required = false)
