@@ -23,6 +23,8 @@ object CsraReviewSpecifications {
       add(cb.equal(root.get<String>("prisonerNumber"), prisonerNumber))
       // Only reviews that carry a rating belong in the history; in-progress reviews with no result
       // are surfaced by the current-rating endpoint instead.
+      // legacy reviews with no rating are excluded by product decision (30 Sep): "As 'Pending' is a level that means a
+      // proper rating has not yet been chosen I think they should be excluded from DPS CSRA history altogether"
       add(cb.isNotNull(currentResult))
       // An archived review is hidden from the service (R-04). Stated explicitly rather than left to
       // the rating check above: archived rows are unrated only because the movement listener archives

@@ -43,6 +43,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraSortDir
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraVulnerabilityDetail
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.isHigh
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraLevel
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.resolvedLevel
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.ratingStageFor
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toAssessmentBucket
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toDetail
@@ -613,33 +614,26 @@ class CsraReviewService(
       return filters
     }
 
-    return legacyLevelFilter(nomis)?.let(::listOf).orEmpty()
+    // An unrated review (e.g. a legacy NOMIS PEND) never appears in the history list, so offers no filter.
+    return emptyList()
   }
 
-  private fun legacyLevelFilter(nomis: CsraReviewNomisEntity?): CsraRatingFilter? = when (rawLegacyLevel(nomis)) {
+  private fun legacyLevelFilter(nomis: CsraReviewNomisEntity?): CsraRatingFilter? = when (nomis?.resolvedLevel()) {
     CsraLevel.HI -> CsraRatingFilter.HIGH
     CsraLevel.STANDARD -> CsraRatingFilter.STANDARD_LEGACY
     CsraLevel.LOW -> CsraRatingFilter.LOW
     CsraLevel.MED -> CsraRatingFilter.MED
-    CsraLevel.PEND -> CsraRatingFilter.PEND
     else -> null
-  }
-
-  private fun rawLegacyLevel(nomis: CsraReviewNomisEntity?): CsraLevel? = when {
-    nomis == null -> null
-    nomis.approvedLevel != null -> nomis.approvedLevel
-    nomis.reviewLevel != null -> nomis.reviewLevel
-    else -> nomis.calculatedLevel
   }
 
   private fun CsraRatingFilter.matchesHistory(review: CsraReviewEntity, nomis: CsraReviewNomisEntity?): Boolean {
     val stage = review.historyRatingStage(nomis)
     val rating = review.finalResult ?: review.interimResult
+    val legacyLevel = nomis?.resolvedLevel()
     return when (this) {
-      CsraRatingFilter.STANDARD_LEGACY -> rating == CsraResult.STANDARD && nomis != null && rawLegacyLevel(nomis) == CsraLevel.STANDARD
-      CsraRatingFilter.LOW -> rating == CsraResult.STANDARD && rawLegacyLevel(nomis) == CsraLevel.LOW
-      CsraRatingFilter.MED -> rating == CsraResult.STANDARD && rawLegacyLevel(nomis) == CsraLevel.MED
-      CsraRatingFilter.PEND -> rating == null && rawLegacyLevel(nomis) == CsraLevel.PEND
+      CsraRatingFilter.STANDARD_LEGACY -> rating == CsraResult.STANDARD && legacyLevel == CsraLevel.STANDARD
+      CsraRatingFilter.LOW -> rating == CsraResult.STANDARD && legacyLevel == CsraLevel.LOW
+      CsraRatingFilter.MED -> rating == CsraResult.STANDARD && legacyLevel == CsraLevel.MED
       else -> matches(rating, stage)
     }
   }
@@ -721,9 +715,16 @@ class CsraReviewService(
       finalRating = finalRating,
       finalReviewComment = finalComment,
       finalRecordedDate = finalDate,
+      finalPrisonId = finalStage?.prisonId,
+      finalPrisonName = finalStage?.prisonId?.let { prisonNames[it] ?: it },
       provisionalRating = provisionalRating,
       provisionalReviewComment = provisionalComment,
       provisionalRecordedDate = provisionalRating?.let { provisionalDate ?: assessmentDate },
+      provisionalPrisonId = provisionalStage?.prisonId,
+      provisionalPrisonName = provisionalStage?.prisonId?.let { prisonNames[it] ?: it },
+      interimReviewer = provisionalStage
+        ?.takeIf { it.stage == CsraAssessmentStage.INTERIM }
+        ?.completedBy,
       closureReason = closureReason,
       riskTo = ratingStage?.riskTo?.map { CsraRiskToDetail(it.category, it.details) }.orEmpty(),
       vulnerabilities = ratingStage?.vulnerabilities?.map { CsraVulnerabilityDetail(it.category, it.details) }.orEmpty(),
