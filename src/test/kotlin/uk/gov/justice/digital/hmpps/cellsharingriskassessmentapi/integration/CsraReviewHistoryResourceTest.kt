@@ -480,6 +480,11 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
       // The rating the service reasons about is unchanged; the raw level is what the screen renders.
       .jsonPath("$.content[0].rating").isEqualTo("STANDARD")
       .jsonPath("$.content[0].prisonName").isEqualTo("Leeds (HMP)")
+      // A legacy row has no stages, so the UI falls back to prisonName.
+      .jsonPath("$.content[0].finalPrisonId").doesNotExist()
+      .jsonPath("$.content[0].finalPrisonName").doesNotExist()
+      .jsonPath("$.content[0].provisionalPrisonId").doesNotExist()
+      .jsonPath("$.content[0].provisionalPrisonName").doesNotExist()
       .jsonPath("$.content[0].legacy.level").isEqualTo("LOW")
       .jsonPath("$.content[0].legacy.assessmentComment").isEqualTo("Assessment comment")
       .jsonPath("$.content[0].legacy.assessmentDate").isEqualTo("2010-03-13")
