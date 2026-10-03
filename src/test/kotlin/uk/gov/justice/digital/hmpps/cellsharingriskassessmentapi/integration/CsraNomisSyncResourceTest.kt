@@ -14,11 +14,15 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.C
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.SyncResult
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraNextReviewRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraReviewNomisRepository
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraReviewRepository
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.util.UUID
 
 class CsraNomisSyncResourceTest : SqsIntegrationTestBase() {
+
+  @Autowired
+  private lateinit var csraReviewRepository: CsraReviewRepository
 
   @Autowired
   private lateinit var csraReviewNomisRepository: CsraReviewNomisRepository
@@ -115,6 +119,8 @@ class CsraNomisSyncResourceTest : SqsIntegrationTestBase() {
       val nextReview = csraNextReviewRepository.findByPrisonerNumber("A1234BC")!!
       assertThat(nextReview.nextReviewDate).isEqualTo(LocalDate.parse("2026-05-03"))
       assertThat(nextReview.setByReviewId).isEqualTo(migrated[2].id)
+      // and each review keeps the date it set
+      assertThat(csraReviewRepository.findById(migrated[2].id).orElseThrow().nextReviewDate).isEqualTo(LocalDate.parse("2026-05-03"))
 
       // the additional NOMIS data, including the Q&A blob, is persisted alongside each core review
       val nomis = csraReviewNomisRepository.findByCsraReviewId(migrated[0].id)!!

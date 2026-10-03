@@ -56,15 +56,17 @@ class CsraHighRiskDueForReviewResourceTest : SqsIntegrationTestBase() {
     ),
   ).also { refreshCurrentRating(it.prisonerNumber) }
 
+  /**
+   * Sets the prisoner's next-review projection directly. This class tests the worklist read, not how the date
+   * is derived, so it overrides whatever the refresh produced — including for the interim-rated prisoners,
+   * whose date would in practice have been set by an earlier completed review.
+   */
   private fun nextReview(review: CsraReviewEntity, prisonerNumber: String, date: LocalDate) {
-    csraNextReviewRepository.saveAndFlush(
-      CsraNextReviewEntity(
-        prisonerNumber = prisonerNumber,
-        nextReviewDate = date,
-        setByReviewId = review.id!!,
-        updatedAt = LocalDateTime.parse("2026-01-02T09:00:00"),
-      ),
-    )
+    val row = csraNextReviewRepository.findByPrisonerNumber(prisonerNumber)
+      ?: CsraNextReviewEntity(prisonerNumber = prisonerNumber, setByReviewId = review.id!!, updatedAt = LocalDateTime.parse("2026-01-02T09:00:00"))
+    row.nextReviewDate = date
+    row.setByReviewId = review.id!!
+    csraNextReviewRepository.saveAndFlush(row)
   }
 
   private fun seed() {

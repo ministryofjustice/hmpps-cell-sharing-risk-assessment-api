@@ -9,6 +9,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraResult
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewNomisEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraType
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.nextReviewDateOrNomis
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.util.UUID
@@ -57,6 +58,13 @@ data class CsraReviewDetail(
 
   @param:Schema(description = "The date the final result was given", example = "2025-11-24")
   val finalResultDate: LocalDate?,
+
+  @param:Schema(
+    description = "The next review date this review set. A DPS review sets one only for a high-risk rating; a review from NOMIS carries whatever NOMIS recorded, which may be set whatever the rating. Null where none was set, or for a NOMIS review migrated before the date was stored.",
+    example = "2026-11-24",
+    required = false,
+  )
+  val nextReviewDate: LocalDate?,
 
   @param:Schema(description = "When the review was created. For a migrated review this is NOMIS's own creation timestamp.", example = "2025-11-22T12:34:56")
   val createdAt: LocalDateTime,
@@ -156,6 +164,7 @@ fun CsraReviewEntity.toDetail(nomis: CsraReviewNomisEntity?, prisonName: String?
   interimResultDate = interimResultDate,
   finalResult = finalResult,
   finalResultDate = finalResultDate,
+  nextReviewDate = nextReviewDateOrNomis { nomis },
   createdAt = createdAt,
   createdBy = createdBy,
   lastModifiedAt = lastModifiedAt,
