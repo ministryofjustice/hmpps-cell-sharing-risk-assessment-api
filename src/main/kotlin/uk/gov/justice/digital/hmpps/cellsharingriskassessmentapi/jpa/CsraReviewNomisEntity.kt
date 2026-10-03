@@ -61,11 +61,12 @@ class CsraReviewNomisEntity(
   var evaluationDate: LocalDate? = null,
 
   /**
-   * The next review date NOMIS recorded on *this* review.
+   * The next review date NOMIS recorded on *this* review, kept verbatim.
    *
-   * Distinct from [uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraNextReviewEntity],
-   * which holds the single date currently in force per prisoner. Null for rows migrated before the column
-   * existed — never substitute the per-prisoner date, which would date-stamp a historic review with today's.
+   * Also copied to [CsraReviewEntity.nextReviewDate] for reviews loaded since that column was added; for
+   * earlier rows this is the only copy, which is why [nextReviewDateOrNomis] falls back to it. Null for rows
+   * migrated before this column existed — never substitute the per-prisoner date in
+   * [CsraNextReviewEntity], which would date-stamp a historic review with today's.
    */
   var nextReviewDate: LocalDate? = null,
 

@@ -15,14 +15,11 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessm
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStageEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStageRiskToEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStageVulnerabilityEntity
-import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraNextReviewEntity
-import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraResult
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewEvidenceSource
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewStatus
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraType
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraAssessmentStageRepository
-import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraNextReviewRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraReviewRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.resource.CsraMissingAnswerDetailException
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.resource.CsraNextReviewDateInvalidException
@@ -47,7 +44,8 @@ import java.util.UUID
  *    high risk — so the trigger informs the reviewer rather than dictating the outcome.
  * 2. **The next review date is chosen by the reviewer, not computed.** An assessment sets it to the final
  *    rating date plus twelve months. A review takes the date from the request, because the reviewer knows
- *    what interval this prisoner needs. Both write the same single row per prisoner, so last write wins.
+ *    what interval this prisoner needs. Both stamp it on the review itself, and the prisoner's current date
+ *    is derived from their latest completed review.
  *
  * What is shared lives in [CsraWriteSupport] and [CsraRiskCategoryValidator] rather than being duplicated.
  */
@@ -56,7 +54,6 @@ import java.util.UUID
 class CsraReviewWriteService(
   private val csraReviewRepository: CsraReviewRepository,
   private val csraAssessmentStageRepository: CsraAssessmentStageRepository,
-  private val csraNextReviewRepository: CsraNextReviewRepository,
   private val csraReviewService: CsraReviewService,
   private val csraCurrentRatingService: CsraCurrentRatingService,
   private val eventPublishAndAuditService: EventPublishAndAuditService,
@@ -132,7 +129,10 @@ class CsraReviewWriteService(
         review.finalResult = request.rating
         review.finalResultDate = today
         review.status = CsraReviewStatus.COMPLETE
-        upsertNextReview(prisonerNumber, review, request.rating, request.nextReviewDate)
+        // The reviewer's chosen date, kept only for a high-risk rating (R-09). A high-risk rating with no
+        // date supplied sets none, rather than leaving the previous review's date to stand as this one's.
+        // The prisoner's current date is derived from this by the refresh below.
+        review.nextReviewDate = if (request.rating.isHigh()) request.nextReviewDate else null
       }
       // Unreachable: only this class calls submitStage, and only with INTERIM or FINAL.
       CsraAssessmentStage.PROVISIONAL -> throw IllegalStateException("A review has no provisional stage")
@@ -260,32 +260,6 @@ class CsraReviewWriteService(
       vulnerabilities.addAll(request.vulnerabilities.map { CsraAssessmentStageVulnerabilityEntity(stage = this, category = it.category, details = it.details) })
     }
     csraAssessmentStageRepository.saveAndFlush(entity)
-  }
-
-  /**
-   * Sets the prisoner's single next review date from the reviewer's choice — cleared when the rating is not
-   * high risk, because only high-risk ratings carry a review date (R-09).
-   *
-   * A high-risk rating with no date supplied also clears it. That is deliberate: the alternative, leaving
-   * the previous review's date in place, would silently attribute an old date to this review through
-   * [CsraNextReviewEntity.setByReviewId].
-   */
-  private fun upsertNextReview(prisonerNumber: String, review: CsraReviewEntity, rating: CsraResult, chosenDate: LocalDate?) {
-    val nextReviewDate = if (rating.isHigh()) chosenDate else null
-    val existing = csraNextReviewRepository.findByPrisonerNumber(prisonerNumber)
-    val entity = existing?.apply {
-      this.nextReviewDate = nextReviewDate
-      this.setByReviewId = review.id!!
-      this.updatedAt = LocalDateTime.now(clock)
-      this.updatedBy = username
-    } ?: CsraNextReviewEntity(
-      prisonerNumber = prisonerNumber,
-      nextReviewDate = nextReviewDate,
-      setByReviewId = review.id!!,
-      updatedAt = LocalDateTime.now(clock),
-      updatedBy = username,
-    )
-    csraNextReviewRepository.saveAndFlush(entity)
   }
 
   private companion object {

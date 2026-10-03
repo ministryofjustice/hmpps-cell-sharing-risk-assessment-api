@@ -314,6 +314,7 @@ class CsraReviewWriteResourceTest : SqsIntegrationTestBase() {
       .expectBody()
       .jsonPath("$.nextReviewDate").isEqualTo("2024-03-01")
 
+    assertThat(review(reviewId).nextReviewDate).isEqualTo(LocalDate.parse("2024-03-01"))
     assertThat(csraNextReviewRepository.findByPrisonerNumber(prisoner)!!.nextReviewDate)
       .isEqualTo(LocalDate.parse("2024-03-01"))
   }
@@ -326,6 +327,7 @@ class CsraReviewWriteResourceTest : SqsIntegrationTestBase() {
     submit(prisoner, reviewId, "final", stageBody(nextReviewDate = "2024-03-01"))
       .expectStatus().isOk
 
+    assertThat(review(reviewId).nextReviewDate).isNull()
     assertThat(csraNextReviewRepository.findByPrisonerNumber(prisoner)!!.nextReviewDate).isNull()
   }
 

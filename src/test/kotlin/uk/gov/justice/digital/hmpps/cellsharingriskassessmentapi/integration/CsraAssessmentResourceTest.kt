@@ -280,6 +280,7 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
       // clock is fixed at 2023-12-05, so the review date is 12 months on
       .jsonPath("$.nextReviewDate").isEqualTo("2024-12-05")
 
+    assertThat(csraReviewRepository.findById(assessmentId).orElseThrow().nextReviewDate).isEqualTo(LocalDate.parse("2024-12-05"))
     assertThat(csraNextReviewRepository.findByPrisonerNumber(prisoner)!!.nextReviewDate)
       .isEqualTo(LocalDate.parse("2024-12-05"))
     assertThat(csraAssessmentStageRepository.findAllByCsraReviewId(assessmentId)).hasSize(1)

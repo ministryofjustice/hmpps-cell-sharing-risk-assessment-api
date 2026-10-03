@@ -46,6 +46,7 @@ class CsraReviewResourceTest : SqsIntegrationTestBase() {
     prisonId: String? = "LEI",
     type: CsraType = CsraType.NOMIS_REVIEW,
     finalResult: CsraResult? = CsraResult.STANDARD,
+    nextReviewDate: LocalDate? = null,
   ) = csraReviewRepository.saveAndFlush(
     CsraReviewEntity(
       prisonerNumber = prisonerNumber,
@@ -54,6 +55,7 @@ class CsraReviewResourceTest : SqsIntegrationTestBase() {
       type = type,
       finalResult = finalResult,
       finalResultDate = finalResult?.let { LocalDate.parse("2016-10-31") },
+      nextReviewDate = nextReviewDate,
       status = CsraReviewStatus.COMPLETE,
       createdAt = LocalDateTime.parse("2016-10-31T09:15:00"),
       createdBy = "NQP56Y",
@@ -143,7 +145,33 @@ class CsraReviewResourceTest : SqsIntegrationTestBase() {
       .jsonPath("$.type").isEqualTo("CSRA_INITIAL_ASSESSMENT")
       .jsonPath("$.assessmentType").isEqualTo("ASSESSMENT")
       .jsonPath("$.finalResult").isEqualTo("STANDARD")
+      .jsonPath("$.nextReviewDate").doesNotExist()
       .jsonPath("$.legacy").doesNotExist()
+  }
+
+  @Test
+  fun `returns the next review date a DPS review set`() {
+    prisonRegister.stubGetPrisons(mapOf("LEI" to "Leeds (HMP)"))
+    val review = review("D2222DD", type = CsraType.CSRA_REVIEW, finalResult = CsraResult.HIGH_GENERAL, nextReviewDate = LocalDate.parse("2017-04-30"))
+
+    get(review.id!!)
+      .expectStatus().isOk
+      .expectBody()
+      .jsonPath("$.nextReviewDate").isEqualTo("2017-04-30")
+      .jsonPath("$.legacy").doesNotExist()
+  }
+
+  @Test
+  fun `returns a migrated review's next review date from the NOMIS record when the review has none of its own`() {
+    prisonRegister.stubGetPrisons(mapOf("LEI" to "Leeds (HMP)"))
+    val review = review("N3333NN")
+    withNomis(review, nextReviewDate = LocalDate.parse("2017-11-01"))
+
+    get(review.id!!)
+      .expectStatus().isOk
+      .expectBody()
+      .jsonPath("$.nextReviewDate").isEqualTo("2017-11-01")
+      .jsonPath("$.legacy.nextReviewDate").isEqualTo("2017-11-01")
   }
 
   @Test
@@ -343,6 +371,7 @@ class CsraReviewResourceTest : SqsIntegrationTestBase() {
     get(review.id!!)
       .expectStatus().isOk
       .expectBody()
+      .jsonPath("$.nextReviewDate").doesNotExist()
       .jsonPath("$.legacy.nextReviewDate").doesNotExist()
 
     assertThat(csraNextReviewRepository.findByPrisonerNumber("X1111XX")!!.nextReviewDate)

@@ -56,6 +56,7 @@ class CsraCurrentRatingResourceTest : SqsIntegrationTestBase() {
     prisonId: String? = null,
     status: CsraReviewStatus = CsraReviewStatus.IN_PROGRESS,
     closureReason: CsraClosureReason? = null,
+    nextReviewDate: LocalDate? = null,
   ) = csraReviewRepository.saveAndFlush(
     CsraReviewEntity(
       prisonerNumber = prisonerNumber,
@@ -67,6 +68,7 @@ class CsraCurrentRatingResourceTest : SqsIntegrationTestBase() {
       interimResultDate = interimResultDate,
       finalResult = finalResult,
       finalResultDate = finalResultDate,
+      nextReviewDate = nextReviewDate,
       closureReason = closureReason,
       createdAt = LocalDateTime.parse("2026-01-02T09:00:00"),
       createdBy = "NQP56Y",
@@ -92,6 +94,10 @@ class CsraCurrentRatingResourceTest : SqsIntegrationTestBase() {
     csraAssessmentStageRepository.saveAndFlush(entity)
   }
 
+  /**
+   * Writes the next-review projection directly, for a state the refresh would never derive itself (a date
+   * standing against a prisoner with no rating). Where a review sets the date, pass it to [review] instead.
+   */
   private fun nextReview(review: CsraReviewEntity, prisonerNumber: String, date: LocalDate) {
     csraNextReviewRepository.saveAndFlush(
       CsraNextReviewEntity(
@@ -289,8 +295,12 @@ class CsraCurrentRatingResourceTest : SqsIntegrationTestBase() {
       finalResultDate = LocalDate.parse("2023-07-20"),
       prisonId = "LEI",
     )
-    csraReviewNomisRepository.saveAndFlush(CsraReviewNomisEntity(csraReview = legacy, reviewComment = "Legacy high comment"))
-    nextReview(legacy, "L1111LL", LocalDate.parse("2024-01-14"))
+    // Loaded before the date was stored on the review itself, so it is only on the NOMIS record, which the
+    // refresh falls back to.
+    csraReviewNomisRepository.saveAndFlush(
+      CsraReviewNomisEntity(csraReview = legacy, reviewComment = "Legacy high comment", nextReviewDate = LocalDate.parse("2024-01-14")),
+    )
+    refreshCurrentRating("L1111LL")
 
     webTestClient.get().uri("/csra-review/prisoner/L1111LL/current-rating")
       .headers(setAuthorisation(roles = readRole))
@@ -370,12 +380,12 @@ class CsraCurrentRatingResourceTest : SqsIntegrationTestBase() {
       assessmentDate = LocalDate.parse("2026-07-01"),
       finalResult = CsraResult.HIGH_SPECIFIC,
       finalResultDate = LocalDate.parse("2026-07-01"),
+      nextReviewDate = LocalDate.parse("2027-05-06"),
     )
     stage(highSpecific, CsraAssessmentStage.FINAL, LocalDateTime.parse("2026-07-01T11:00:00"), comment = "History of racist incidents.") {
       riskTo.add(CsraAssessmentStageRiskToEntity(stage = this, category = CsraRiskToCategory.DIFFERENT_ETHNICITY, details = "Racist towards other ethnicities."))
       vulnerabilities.add(CsraAssessmentStageVulnerabilityEntity(stage = this, category = CsraVulnerabilityCategory.NEURODIVERSITY, details = "Autistic."))
     }
-    nextReview(highSpecific, "H3333HH", LocalDate.parse("2027-05-06"))
 
     webTestClient.get().uri("/csra-review/prisoner/H3333HH/current-rating")
       .headers(setAuthorisation(roles = readRole))

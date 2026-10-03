@@ -14,9 +14,12 @@ import java.util.UUID
  * The single current "next review due" date for a prisoner.
  *
  * There is one row per prisoner: a prisoner accumulates many CSRA reviews over time, but only ever has
- * one outstanding next review date, recalculated/overwritten on each review. It is set by the latest
- * review (the DPS review journey and, for now, the NOMIS migration/sync path) and drives the
- * "high risk prisoners due for review" worklist.
+ * one outstanding next review date. It drives the "high risk prisoners due for review" worklist.
+ *
+ * It is a projection, not a record in its own right. Each review carries the date it set
+ * ([CsraReviewEntity.nextReviewDate]), and [uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.service.CsraCurrentRatingService.refreshFromReviews]
+ * re-derives this row from the prisoner's latest final-rated review. Nothing else writes it, which is what
+ * lets a merge or booking move put the right date on both prisoners without code of its own (SDIT-4297).
  */
 @Entity
 @Table(name = "csra_next_review")
@@ -26,7 +29,7 @@ class CsraNextReviewEntity(
 
   var nextReviewDate: LocalDate? = null,
 
-  // The review that last set this date.
+  // The review the date was taken from.
   var setByReviewId: UUID,
 
   var updatedAt: LocalDateTime,

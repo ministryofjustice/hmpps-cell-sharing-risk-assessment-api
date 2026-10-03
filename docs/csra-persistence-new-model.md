@@ -52,7 +52,10 @@ separate tables. So loading a prisoner's records with paging, sorting, date rang
 filtering is single-table SQL (`WHERE … ORDER BY … LIMIT/OFFSET`, or keyset on the time-ordered v7
 `id`), with **no union and no join**. Every list filter/sort dimension already lives on `csra_review`
 (`prisoner_number`, `assessment_date`/`next_review_date`/`final_result_date`, `prison_id`, `type`,
-`final_result`).
+`final_result`). *(`next_review_date` was moved off `csra_review` into the per-prisoner
+`csra_next_review` in V4 and put back in V21 under SDIT-4297: a NOMIS booking move needs the date each
+review set. `csra_next_review` remains, derived from the reviews by
+`CsraCurrentRatingService.refreshFromReviews`.)*
 
 The 1:0..1 side tables (`csra_review_nomis`, and the future new-model table) are `LEFT JOIN`ed **only
 when drilling into a single review's detail**, never for list queries.

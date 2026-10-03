@@ -106,6 +106,7 @@ fun NomisCsraReview.toNewCsraReview(prisonerNumber: String): CsraReviewEntity {
     interimResultDate = outcome.interimResult()?.let { assessmentDate },
     finalResult = outcome.finalResult(),
     finalResultDate = outcome.finalResult()?.let { evaluationDate ?: assessmentDate },
+    nextReviewDate = nextReviewDate,
     // Migrated legacy reviews are historical, never in-progress (even result-less PEND rows).
     status = CsraReviewStatus.COMPLETE,
     createdAt = createdDateTime,
@@ -124,6 +125,7 @@ fun CsraReviewEntity.updateFromNomis(prisonerNumber: String, review: NomisCsraRe
   this.interimResultDate = outcome.interimResult()?.let { review.assessmentDate }
   this.finalResult = outcome.finalResult()
   this.finalResultDate = outcome.finalResult()?.let { review.evaluationDate ?: review.assessmentDate }
+  this.nextReviewDate = review.nextReviewDate
   this.status = CsraReviewStatus.COMPLETE
   this.lastModifiedAt = LocalDateTime.now(clock)
   this.lastModifiedBy = review.createdBy
@@ -150,7 +152,8 @@ fun NomisCsraReview.toNomisEntity(core: CsraReviewEntity, clock: Clock): CsraRev
   reviewCommitteeCode = reviewCommitteeCode,
   evaluationDate = evaluationDate,
   evaluationResultCode = evaluationResultCode,
-  // Kept per review as well as in csra_next_review, which only holds the prisoner's current date.
+  // Kept verbatim here as well as on the core review. For reviews loaded before the core column existed
+  // this is the only copy, which is why CsraReviewEntity.nextReviewDateOrNomis falls back to it.
   nextReviewDate = nextReviewDate,
   comment = comment,
   reviewComment = reviewComment,
