@@ -1,14 +1,14 @@
 hmpps-auth:
-  url: "http://localhost:8090/auth"
+  url: ${HMPPS_AUTH_URL:http://localhost:8090/auth}
 
 prison-register:
-  url: "http://localhost:8091"
+  url: ${PRISON_REGISTER_URL:http://localhost:8091}
 
 prisoner-search:
-  url: "http://localhost:8092"
+  url: ${PRISONER_SEARCH_API_URL:http://localhost:8092}
 
 prison-api:
-  url: "http://localhost:8093"
+  url: ${PRISON_API_URL:http://localhost:8093}
 
 system:
   client:

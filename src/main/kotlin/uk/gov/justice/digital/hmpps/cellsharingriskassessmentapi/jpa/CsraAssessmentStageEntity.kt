@@ -10,6 +10,7 @@ import jakarta.persistence.Id
 import jakarta.persistence.JoinColumn
 import jakarta.persistence.ManyToOne
 import jakarta.persistence.OneToMany
+import jakarta.persistence.OrderBy
 import jakarta.persistence.Table
 import jakarta.persistence.Version
 import org.hibernate.Hibernate
@@ -109,11 +110,15 @@ class CsraAssessmentStageEntity(
   @OneToMany(mappedBy = "stage", cascade = [CascadeType.ALL], orphanRemoval = true)
   val evidenceSources: MutableList<CsraAssessmentStageEvidenceSourceEntity> = mutableListOf(),
 
+  // Sets, not lists, so both can be fetch-joined in one query: two bag collections in a single join
+  // raise MultipleBagFetchException. Ordered by category so the API returns them consistently.
   @OneToMany(mappedBy = "stage", cascade = [CascadeType.ALL], orphanRemoval = true)
-  val riskTo: MutableList<CsraAssessmentStageRiskToEntity> = mutableListOf(),
+  @OrderBy("category")
+  val riskTo: MutableSet<CsraAssessmentStageRiskToEntity> = mutableSetOf(),
 
   @OneToMany(mappedBy = "stage", cascade = [CascadeType.ALL], orphanRemoval = true)
-  val vulnerabilities: MutableList<CsraAssessmentStageVulnerabilityEntity> = mutableListOf(),
+  @OrderBy("category")
+  val vulnerabilities: MutableSet<CsraAssessmentStageVulnerabilityEntity> = mutableSetOf(),
 
   @Id
   @GeneratedUuidV7
