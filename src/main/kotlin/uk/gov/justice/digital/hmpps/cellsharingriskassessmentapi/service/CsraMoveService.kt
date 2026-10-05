@@ -8,9 +8,7 @@ import org.springframework.transaction.annotation.Transactional
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.SYSTEM_USERNAME
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraCurrentRatingRepository
-import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraNextReviewRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraReviewRepository
-import java.time.Clock
 import java.util.UUID
 
 /**
@@ -25,23 +23,23 @@ import java.util.UUID
  * are not two prisoner numbers for the same custodial history being reconciled — they are rows that were
  * simply filed under the wrong person and are now being corrected onto the right one.
  *
- * The `csra_current_rating` projections is only touched where it is actually
- * changed by the move of the corrected reviews. A prisoner number that loses one of the named
- * reviews may still legitimately hold other, unrelated reviews, so — unlike a merge, where the retired
- * number ceases to exist and its projections are simply deleted — the prisoner numbers touched by the
- * correction (the reviews' original owner as well as the correct one) have their current-rating projections
- * recomputed from whatever reviews they are left with, rather than being assumed empty.
+ * Neither prisoner number's projections — the current rating (`csra_current_rating`) and next review date
+ * (`csra_next_review`) — are edited here. A prisoner number that loses one of the named reviews may still
+ * legitimately hold other, unrelated reviews, so — unlike a merge, where the retired number ceases to exist
+ * and its projections are simply deleted — both numbers touched by the correction (the reviews' original
+ * owner as well as the correct one) have their projections recomputed by
+ * [CsraCurrentRatingService.refreshFromReviews] from whatever reviews they are left with, rather than being
+ * assumed empty. Each review carries the next review date it set (SDIT-4297), so the date follows the moved
+ * reviews without any move-specific code.
  */
 @Service
 @Transactional
 class CsraMoveService(
   private val csraReviewRepository: CsraReviewRepository,
   private val csraCurrentRatingRepository: CsraCurrentRatingRepository,
-  private val csraNextReviewRepository: CsraNextReviewRepository,
   private val csraCurrentRatingService: CsraCurrentRatingService,
   private val eventPublishAndAuditService: EventPublishAndAuditService,
   private val telemetryClient: TelemetryClient,
-  private val clock: Clock,
 ) {
   fun handleBookingMoved(reviewIds: List<UUID>, fromPrisonerNumber: String, toPrisonerNumber: String) {
     if (fromPrisonerNumber == toPrisonerNumber) {
@@ -72,7 +70,7 @@ class CsraMoveService(
 
     repointReviews(reviewsToMove, toPrisonerNumber)
 
-    // Recompute every prisoner number this move could have changed the current-rating and next-review projection
+    // Recompute every prisoner number this move could have changed the current-rating and next-review projections
     // for: the reviews' original owner, who may have lost the review that set their rating, and the
     // correct prisoner, who gained it.
     csraCurrentRatingService.refreshFromReviews(fromPrisonerNumber, SYSTEM_USERNAME)
