@@ -1,5 +1,6 @@
 package uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.integration
 
+import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
@@ -115,12 +116,16 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
     stage: CsraAssessmentStage,
     comment: String,
     completedAt: LocalDateTime,
+    prisonId: String? = null,
+    completedBy: String? = null,
   ) = csraAssessmentStageRepository.saveAndFlush(
     CsraAssessmentStageEntity(
       csraReview = review,
       stage = stage,
       assessmentComment = comment,
       completedAt = completedAt,
+      prisonId = prisonId,
+      completedBy = completedBy,
     ),
   )
 
@@ -187,7 +192,7 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
   )
 
   @Test
-  fun `includes every distinct rating variant in the summary in UI order`() {
+  fun `includes every distinct rating variant in the summary in UI order, excluding unrated legacy PEND reviews`() {
     prisonRegister.stubGetPrisons(mapOf("LEI" to "Leeds (HMP)", "MDI" to "Moorland (HMP)"))
 
     review("V4444VV", LocalDate.parse("2023-01-01"), CsraResult.HIGH, "LEI")
@@ -229,7 +234,7 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
       .exchange()
       .expectStatus().isOk
       .expectBody()
-      .jsonPath("$.summary.ratings.length()").isEqualTo(11)
+      .jsonPath("$.summary.ratings.length()").isEqualTo(10)
       .jsonPath("$.summary.ratings[0]").isEqualTo("HIGH")
       .jsonPath("$.summary.ratings[1]").isEqualTo("HIGH_GENERAL")
       .jsonPath("$.summary.ratings[2]").isEqualTo("HIGH_GENERAL_INTERIM")
@@ -240,7 +245,7 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
       .jsonPath("$.summary.ratings[7]").isEqualTo("STANDARD_LEGACY")
       .jsonPath("$.summary.ratings[8]").isEqualTo("LOW")
       .jsonPath("$.summary.ratings[9]").isEqualTo("MED")
-      .jsonPath("$.summary.ratings[10]").isEqualTo("PEND")
+      .jsonPath("$.summary.ratings").value<List<String>> { assertThat(it).doesNotContain("PEND") }
       .jsonPath("$.totalElements").isEqualTo(1)
   }
 
@@ -261,6 +266,61 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
       .jsonPath("$.totalElements").isEqualTo(1)
       .jsonPath("$.content[0].legacy.level").isEqualTo("LOW")
       .jsonPath("$.content[0].rating").isEqualTo("STANDARD")
+  }
+
+  @Test
+  fun `a legacy review with reviewer PEND over calculated STANDARD is offered and found under Standard (legacy)`() {
+    val review = review("R1111RR", LocalDate.parse("2024-01-01"), CsraResult.STANDARD, "LEI")
+    withNomis(review, calculatedLevel = CsraLevel.STANDARD, reviewLevel = CsraLevel.PEND)
+
+    webTestClient.get().uri("/csra-review/prisoner/R1111RR/history?ratings=STANDARD_LEGACY")
+      .headers(setAuthorisation(roles = readRole))
+      .exchange()
+      .expectStatus().isOk
+      .expectBody()
+      .jsonPath("$.summary.ratings.length()").isEqualTo(1)
+      .jsonPath("$.summary.ratings[0]").isEqualTo("STANDARD_LEGACY")
+      .jsonPath("$.totalElements").isEqualTo(1)
+      .jsonPath("$.content[0].legacy.level").isEqualTo("STANDARD")
+  }
+
+  @Test
+  fun `a legacy review with reviewer LOW under calculated STANDARD is found under Standard (legacy), not Low`() {
+    val review = review("R2222RR", LocalDate.parse("2024-01-01"), CsraResult.STANDARD, "LEI")
+    withNomis(review, calculatedLevel = CsraLevel.STANDARD, reviewLevel = CsraLevel.LOW)
+
+    webTestClient.get().uri("/csra-review/prisoner/R2222RR/history?ratings=STANDARD_LEGACY")
+      .headers(setAuthorisation(roles = readRole))
+      .exchange()
+      .expectStatus().isOk
+      .expectBody()
+      .jsonPath("$.summary.ratings.length()").isEqualTo(1)
+      .jsonPath("$.summary.ratings[0]").isEqualTo("STANDARD_LEGACY")
+      .jsonPath("$.totalElements").isEqualTo(1)
+      .jsonPath("$.content[0].legacy.level").isEqualTo("STANDARD")
+
+    webTestClient.get().uri("/csra-review/prisoner/R2222RR/history?ratings=LOW")
+      .headers(setAuthorisation(roles = readRole))
+      .exchange()
+      .expectStatus().isOk
+      .expectBody()
+      .jsonPath("$.totalElements").isEqualTo(0)
+  }
+
+  @Test
+  fun `a legacy review with reviewer STANDARD under calculated HI is offered only High, and is found under it`() {
+    val review = review("R3333RR", LocalDate.parse("2024-01-01"), CsraResult.HIGH, "LEI")
+    withNomis(review, calculatedLevel = CsraLevel.HI, reviewLevel = CsraLevel.STANDARD)
+
+    webTestClient.get().uri("/csra-review/prisoner/R3333RR/history?ratings=HIGH")
+      .headers(setAuthorisation(roles = readRole))
+      .exchange()
+      .expectStatus().isOk
+      .expectBody()
+      .jsonPath("$.summary.ratings.length()").isEqualTo(1)
+      .jsonPath("$.summary.ratings[0]").isEqualTo("HIGH")
+      .jsonPath("$.totalElements").isEqualTo(1)
+      .jsonPath("$.content[0].legacy.level").isEqualTo("HI")
   }
 
   @Test
@@ -298,7 +358,18 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
       .jsonPath("$.userMessage").value<String> { it.contains("HIGH") }
       .jsonPath("$.userMessage").value<String> { it.contains("HIGH_GENERAL") }
       .jsonPath("$.userMessage").value<String> { it.contains("STANDARD") }
-      .jsonPath("$.userMessage").value<String> { it.contains("PEND") }
+      .jsonPath("$.userMessage").value<String> { assertThat(it).doesNotContain("PEND") }
+  }
+
+  @Test
+  fun `returns 400 when filtering by PEND, which is no longer a rating filter`() {
+    webTestClient.get().uri("/csra-review/prisoner/A1234BC/history?ratings=PEND")
+      .headers(setAuthorisation(roles = readRole))
+      .exchange()
+      .expectStatus().isBadRequest
+      .expectBody()
+      .jsonPath("$.errorCode").isEqualTo("InvalidRatingFilter")
+      .jsonPath("$.userMessage").value<String> { assertThat(it).contains("Invalid CSRA rating filter 'PEND'") }
   }
 
   @Test
@@ -409,6 +480,11 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
       // The rating the service reasons about is unchanged; the raw level is what the screen renders.
       .jsonPath("$.content[0].rating").isEqualTo("STANDARD")
       .jsonPath("$.content[0].prisonName").isEqualTo("Leeds (HMP)")
+      // A legacy row has no stages, so the UI falls back to prisonName.
+      .jsonPath("$.content[0].finalPrisonId").doesNotExist()
+      .jsonPath("$.content[0].finalPrisonName").doesNotExist()
+      .jsonPath("$.content[0].provisionalPrisonId").doesNotExist()
+      .jsonPath("$.content[0].provisionalPrisonName").doesNotExist()
       .jsonPath("$.content[0].legacy.level").isEqualTo("LOW")
       .jsonPath("$.content[0].legacy.assessmentComment").isEqualTo("Assessment comment")
       .jsonPath("$.content[0].legacy.assessmentDate").isEqualTo("2010-03-13")
@@ -649,7 +725,13 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
 
   @Test
   fun `a review that reached both stages reports each stage's own comment and date`() {
-    prisonRegister.stubGetPrisons(mapOf("LEI" to "Leeds (HMP)"))
+    prisonRegister.stubGetPrisons(
+      mapOf(
+        "LEI" to "Leeds (HMP)",
+        "BXI" to "Brixton (HMP)",
+        "MDI" to "Moorland (HMP)",
+      ),
+    )
     val review = csraReviewRepository.saveAndFlush(
       CsraReviewEntity(
         prisonerNumber = "T1111TT",
@@ -665,8 +747,21 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
         createdBy = "NQP56Y",
       ),
     )
-    withStage(review, CsraAssessmentStage.INTERIM, "Day 2 assessment complete.", LocalDateTime.parse("2025-01-03T09:00:00"))
-    withStage(review, CsraAssessmentStage.FINAL, "PNC checked. No issues found.", LocalDateTime.parse("2025-01-12T09:00:00"))
+    withStage(
+      review,
+      CsraAssessmentStage.INTERIM,
+      "Day 2 assessment complete.",
+      LocalDateTime.parse("2025-01-03T09:00:00"),
+      prisonId = "BXI",
+      completedBy = "INTERIM_REVIEWER",
+    )
+    withStage(
+      review,
+      CsraAssessmentStage.FINAL,
+      "PNC checked. No issues found.",
+      LocalDateTime.parse("2025-01-12T09:00:00"),
+      prisonId = "MDI",
+    )
 
     webTestClient.get().uri("/csra-review/prisoner/T1111TT/history")
       .headers(setAuthorisation(roles = readRole))
@@ -681,10 +776,46 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
       // The stage's completion date wins over the review's result date, as on the current-rating endpoint.
       .jsonPath("$.content[0].provisionalRecordedDate").isEqualTo("2025-01-03")
       .jsonPath("$.content[0].finalRecordedDate").isEqualTo("2025-01-12")
+      // Stage-specific prisons must not come from the review-level compatibility field.
+      .jsonPath("$.content[0].provisionalPrisonId").isEqualTo("BXI")
+      .jsonPath("$.content[0].provisionalPrisonName").isEqualTo("Brixton (HMP)")
+      .jsonPath("$.content[0].interimReviewer").isEqualTo("INTERIM_REVIEWER")
+      .jsonPath("$.content[0].finalPrisonId").isEqualTo("MDI")
+      .jsonPath("$.content[0].finalPrisonName").isEqualTo("Moorland (HMP)")
       // The deprecated fields still describe the rating that stands, for consumers yet to migrate.
       .jsonPath("$.content[0].rating").isEqualTo("STANDARD")
       .jsonPath("$.content[0].reviewComment").isEqualTo("PNC checked. No issues found.")
       .jsonPath("$.content[0].recordedDate").isEqualTo("2025-01-10")
+      .jsonPath("$.content[0].prisonId").isEqualTo("LEI")
+      .jsonPath("$.content[0].prisonName").isEqualTo("Leeds (HMP)")
+  }
+
+  @Test
+  fun `a provisional initial assessment does not report an interim reviewer`() {
+    prisonRegister.stubGetPrisons(mapOf("LEI" to "Leeds (HMP)"))
+    val assessment = ratedReview(
+      "T5555TT",
+      LocalDate.parse("2025-04-01"),
+      CsraType.CSRA_INITIAL_ASSESSMENT,
+      CsraResult.HIGH_GENERAL,
+      "LEI",
+    )
+    withStage(
+      assessment,
+      CsraAssessmentStage.PROVISIONAL,
+      "Day 1 assessment.",
+      LocalDateTime.parse("2025-04-01T09:00:00"),
+      prisonId = "LEI",
+      completedBy = "PROVISIONAL_ASSESSOR",
+    )
+
+    webTestClient.get().uri("/csra-review/prisoner/T5555TT/history")
+      .headers(setAuthorisation(roles = readRole))
+      .exchange()
+      .expectStatus().isOk
+      .expectBody()
+      .jsonPath("$.content[0].provisionalRating").isEqualTo("HIGH_GENERAL")
+      .jsonPath("$.content[0].interimReviewer").doesNotExist()
   }
 
   @Test
