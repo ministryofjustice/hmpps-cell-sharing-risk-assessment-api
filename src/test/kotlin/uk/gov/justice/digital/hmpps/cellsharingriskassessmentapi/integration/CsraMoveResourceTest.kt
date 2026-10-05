@@ -17,7 +17,6 @@ import org.springframework.data.repository.findByIdOrNull
 import org.springframework.http.MediaType
 import org.springframework.test.context.bean.override.mockito.MockitoBean
 import org.springframework.web.reactive.function.BodyInserters
-import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraNextReviewEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraResult
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewStatus
@@ -67,6 +66,7 @@ class CsraMoveResourceTest : SqsIntegrationTestBase() {
     rating: CsraResult,
     assessmentDate: LocalDate,
     supersededAt: LocalDateTime? = null,
+    nextReviewDate: LocalDate? = null,
   ): CsraReviewEntity = csraReviewRepository.saveAndFlush(
     CsraReviewEntity(
       prisonerNumber = prisonerNumber,
@@ -75,24 +75,13 @@ class CsraMoveResourceTest : SqsIntegrationTestBase() {
       type = CsraType.CSRA_INITIAL_ASSESSMENT,
       finalResult = rating,
       finalResultDate = assessmentDate,
+      nextReviewDate = nextReviewDate,
       status = CsraReviewStatus.COMPLETE,
       createdAt = assessmentDate.atTime(9, 0),
       createdBy = "NQP56Y",
       supersededAt = supersededAt,
     ),
   )
-
-  private fun saveNextReview(prisonerNumber: String, setByReviewId: UUID, date: LocalDate) {
-    csraNextReviewRepository.saveAndFlush(
-      CsraNextReviewEntity(
-        prisonerNumber = prisonerNumber,
-        nextReviewDate = date,
-        setByReviewId = setByReviewId,
-        updatedAt = LocalDateTime.parse("2023-06-01T09:00:00"),
-        updatedBy = "NQP56Y",
-      ),
-    )
-  }
 
   private fun currentRating(prisonerNumber: String) = csraCurrentRatingRepository.findByPrisonerNumber(prisonerNumber)
 
@@ -204,22 +193,21 @@ class CsraMoveResourceTest : SqsIntegrationTestBase() {
   }
 
   @Test
-  fun `a move leaves next review rows untouched, unlike a merge`() {
-    // A move repoints only the named reviews. It is a correction of a booking mistake, not a resolution of
-    // two prisoner numbers into one, so - unlike CsraMergeService - it does not repoint or delete the
-    // next-review projection for either prisoner number.
-    val older = ratedReview("A1111AA", CsraResult.HIGH_GENERAL, LocalDate.parse("2023-01-01"))
+  fun `the next review date follows the moved reviews`() {
+    // Each review carries the date it set (SDIT-4297), so the refresh after the move re-derives both
+    // prisoners' dates: the destination takes the moved review's, the source falls back to its own latest.
+    ratedReview("A1111AA", CsraResult.HIGH_GENERAL, LocalDate.parse("2023-01-01"), nextReviewDate = LocalDate.parse("2024-01-01"))
     refreshCurrentRating("A1111AA")
-    val newer = ratedReview("A2222BB", CsraResult.HIGH_GENERAL, LocalDate.parse("2023-06-01"))
+    val remaining = ratedReview("A2222BB", CsraResult.HIGH_GENERAL, LocalDate.parse("2022-01-01"), nextReviewDate = LocalDate.parse("2022-07-01"))
+    val moved = ratedReview("A2222BB", CsraResult.HIGH_GENERAL, LocalDate.parse("2023-06-01"), nextReviewDate = LocalDate.parse("2024-06-01"))
     refreshCurrentRating("A2222BB")
-    saveNextReview("A1111AA", older.id!!, LocalDate.parse("2024-01-01"))
-    saveNextReview("A2222BB", newer.id!!, LocalDate.parse("2024-06-01"))
 
-    expectCallMove("A2222BB", "A1111AA", listOf(newer.id!!)).isOk
+    expectCallMove("A2222BB", "A1111AA", listOf(moved.id!!)).isOk
 
-    await untilCallTo { csraReviewRepository.findByIdOrNull(newer.id!!)?.prisonerNumber } matches { it == "A1111AA" }
-    assertThat(csraNextReviewRepository.findByPrisonerNumber("A1111AA")!!.nextReviewDate).isEqualTo(LocalDate.parse("2024-01-01"))
-    assertThat(csraNextReviewRepository.findByPrisonerNumber("A2222BB")!!.nextReviewDate).isEqualTo(LocalDate.parse("2024-06-01"))
+    await untilCallTo { csraNextReviewRepository.findByPrisonerNumber("A1111AA")?.setByReviewId } matches { it == moved.id }
+    assertThat(csraNextReviewRepository.findByPrisonerNumber("A1111AA")!!.nextReviewDate).isEqualTo(LocalDate.parse("2024-06-01"))
+    assertThat(csraNextReviewRepository.findByPrisonerNumber("A2222BB")!!.setByReviewId).isEqualTo(remaining.id)
+    assertThat(csraNextReviewRepository.findByPrisonerNumber("A2222BB")!!.nextReviewDate).isEqualTo(LocalDate.parse("2022-07-01"))
   }
 
   @Test
