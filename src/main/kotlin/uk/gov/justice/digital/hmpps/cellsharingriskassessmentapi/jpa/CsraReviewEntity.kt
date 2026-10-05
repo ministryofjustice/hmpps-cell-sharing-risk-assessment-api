@@ -51,6 +51,11 @@ class CsraReviewEntity(
   var finalResult: CsraResult? = null,
   var finalResultDate: LocalDate? = null,
 
+  // The next review date this review set. The prisoner's current date (csra_next_review) is derived from
+  // these, so a merge or booking move that changes which reviews a prisoner holds can re-derive it. Null on
+  // NOMIS reviews loaded before the column existed — see [nextReviewDateOrNomis].
+  var nextReviewDate: LocalDate? = null,
+
   // Lifecycle state. New-model reviews start IN_PROGRESS; migrated legacy reviews are COMPLETE. A move
   // may close (CLOSED, rating retained) or archive (ARCHIVED, no rating) an in-progress review.
   @Enumerated(EnumType.STRING)
@@ -80,3 +85,11 @@ class CsraReviewEntity(
 
   override fun hashCode(): Int = javaClass.hashCode()
 }
+
+/**
+ * The next review date this review set, falling back to the NOMIS copy for a NOMIS review loaded before the
+ * date was stored on the review itself (SDIT-4297). The fallback spares rewriting millions of migrated rows;
+ * a review synchronised since carries the same value in both places. [nomis] is only called when the review
+ * has no date of its own, so a caller can pass a lookup without paying for it on every review.
+ */
+fun CsraReviewEntity.nextReviewDateOrNomis(nomis: () -> CsraReviewNomisEntity?): LocalDate? = nextReviewDate ?: nomis()?.nextReviewDate
