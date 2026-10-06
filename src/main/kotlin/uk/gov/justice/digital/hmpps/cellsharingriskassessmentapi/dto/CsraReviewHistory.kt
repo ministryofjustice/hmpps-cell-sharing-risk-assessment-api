@@ -48,7 +48,7 @@ data class CsraReviewHistorySummary(
   @param:Schema(description = "The date of the most recent high-risk CSRA", example = "2013-07-14")
   val lastHighDate: LocalDate?,
 
-  @param:Schema(description = "The distinct CSRA rating filter values the prisoner has CSRAs of, ordered to match the UI checkbox sequence: HIGH, HIGH_GENERAL, HIGH_GENERAL_INTERIM, HIGH_GENERAL_PROVISIONAL, HIGH_SPECIFIC, HIGH_SPECIFIC_PROVISIONAL, STANDARD, STANDARD_LEGACY, LOW, MED, PEND.")
+  @param:Schema(description = "The distinct CSRA rating filter values the prisoner has CSRAs of, ordered to match the UI checkbox sequence: HIGH, HIGH_GENERAL, HIGH_GENERAL_INTERIM, HIGH_GENERAL_PROVISIONAL, HIGH_SPECIFIC, HIGH_SPECIFIC_PROVISIONAL, STANDARD, STANDARD_LEGACY, LOW, MED.")
   val ratings: List<CsraRatingFilter>,
 
   @param:Schema(description = "The distinct establishments the prisoner has CSRAs at, for the establishment filter (name-sorted)")
@@ -108,6 +108,12 @@ data class CsraReviewSummary(
   @param:Schema(description = "The date the final rating was recorded", example = "2025-10-11")
   val finalRecordedDate: LocalDate?,
 
+  @param:Schema(description = "The prison where the final stage was recorded", example = "LEI")
+  val finalPrisonId: String?,
+
+  @param:Schema(description = "The name of the prison where the final stage was recorded, falling back to the id if it cannot be resolved", example = "Leeds (HMP)")
+  val finalPrisonName: String?,
+
   @param:Schema(description = "The provisional rating when the review has not reached a final outcome yet", example = "HIGH_GENERAL")
   val provisionalRating: CsraResult?,
 
@@ -116,6 +122,15 @@ data class CsraReviewSummary(
 
   @param:Schema(description = "The date the provisional rating was recorded", example = "2025-10-11")
   val provisionalRecordedDate: LocalDate?,
+
+  @param:Schema(description = "The prison where the provisional or interim stage was recorded", example = "LEI")
+  val provisionalPrisonId: String?,
+
+  @param:Schema(description = "The name of the prison where the provisional or interim stage was recorded, falling back to the id if it cannot be resolved", example = "Leeds (HMP)")
+  val provisionalPrisonName: String?,
+
+  @param:Schema(description = "The username of the reviewer who completed the interim stage. Only present for CSRA reviews with an interim stage: interim reviews are the only CSRA history item the UI shows the reviewer for.", example = "NQP56Y")
+  val interimReviewer: String?,
 
   @param:Schema(description = "The reason the review was closed or archived. Only present if the review was closed or archived.", required = false)
   val closureReason: CsraClosureReason?,

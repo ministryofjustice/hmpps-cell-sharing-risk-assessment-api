@@ -21,7 +21,6 @@ enum class CsraRatingFilter {
   HIGH_SPECIFIC_PROVISIONAL,
   MED,
   LOW,
-  PEND,
   ;
 
   companion object {
@@ -41,7 +40,6 @@ enum class CsraRatingFilter {
       STANDARD_LEGACY,
       LOW,
       MED,
-      PEND,
     )
 
     fun ordered(values: Iterable<CsraRatingFilter>): List<CsraRatingFilter> = values
@@ -56,7 +54,6 @@ enum class CsraRatingFilter {
     HIGH -> CsraResult.HIGH
     HIGH_GENERAL, HIGH_GENERAL_INTERIM, HIGH_GENERAL_PROVISIONAL -> CsraResult.HIGH_GENERAL
     HIGH_SPECIFIC, HIGH_SPECIFIC_PROVISIONAL -> CsraResult.HIGH_SPECIFIC
-    PEND -> null
   }
 
   /** Whether this filter matches a prisoner's current rating and stage. */
@@ -71,6 +68,5 @@ enum class CsraRatingFilter {
     HIGH_SPECIFIC -> rating == CsraResult.HIGH_SPECIFIC && stage == CsraRatingStage.FINAL
     HIGH_SPECIFIC_PROVISIONAL -> rating == CsraResult.HIGH_SPECIFIC && stage == CsraRatingStage.PROVISIONAL
     MED, LOW -> rating == CsraResult.STANDARD
-    PEND -> rating == null
   }
 }

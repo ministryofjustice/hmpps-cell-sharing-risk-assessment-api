@@ -34,7 +34,6 @@ class CsraRatingFilterTest {
       CsraRatingFilter.HIGH,
       CsraRatingFilter.HIGH_SPECIFIC_PROVISIONAL,
       CsraRatingFilter.HIGH_GENERAL,
-      CsraRatingFilter.PEND,
       CsraRatingFilter.HIGH_GENERAL_INTERIM,
       CsraRatingFilter.STANDARD_LEGACY,
       CsraRatingFilter.MED,
@@ -51,16 +50,13 @@ class CsraRatingFilterTest {
       CsraRatingFilter.STANDARD_LEGACY,
       CsraRatingFilter.LOW,
       CsraRatingFilter.MED,
-      CsraRatingFilter.PEND,
     )
   }
 
   @Test
-  fun `matches no rating and pending as expected`() {
+  fun `matches no rating as expected`() {
     assertThat(CsraRatingFilter.NO_RATING.matches(null, null)).isTrue
     assertThat(CsraRatingFilter.NO_RATING.matches(CsraResult.STANDARD, CsraRatingStage.FINAL)).isFalse
-    assertThat(CsraRatingFilter.PEND.matches(null, null)).isTrue
-    assertThat(CsraRatingFilter.PEND.matches(CsraResult.STANDARD, CsraRatingStage.FINAL)).isFalse
   }
 
   @Test
