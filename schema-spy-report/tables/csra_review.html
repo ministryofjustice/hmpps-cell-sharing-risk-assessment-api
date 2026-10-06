@@ -442,6 +442,23 @@
                                     </td>
                                     <td><p>When this review was superseded by the prisoner being readmitted after a period of release, ending the custody period it belongs to. Null for a review in the current period. A superseded review is still shown in the prisoner&rsquo;s history but can never set the current rating. <a href="./../null">Sensitivity: NONE</a></p></td>
                                 </tr>
+                                <tr>
+                                    <td><span id="next_review_date">next_review_date</span></td>
+                                    <td>date</td>
+                                    <td>13</td>
+                                    <td title='nullable'>√</td>
+                                    <td title=''></td>
+                                    <td>null</td>
+                                    <td>
+                                        <table border='0' cellspacing='0' cellpadding='0'>
+                                        </table>
+                                    </td>
+                                    <td>
+                                        <table border='0' cellspacing='0' cellpadding='0'>
+                                        </table>
+                                    </td>
+                                    <td><p>The next review date this review set. A DPS assessment sets twelve months on from a high-risk final rating and a DPS review takes the date the reviewer chose; both leave it null for a standard rating. A NOMIS review carries whatever NOMIS recorded, which may be set whatever the rating. Null on NOMIS reviews loaded before this column existed - their date is on csra_review_nomis.next_review_date. <a href="./../null">Sensitivity: PERSONAL</a></p></td>
+                                </tr>
                                 </tbody>
                             </table>
                         </div>

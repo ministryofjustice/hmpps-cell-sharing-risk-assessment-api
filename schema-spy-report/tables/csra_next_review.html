@@ -84,7 +84,7 @@
                             </div>
                         </div><!-- /.box-header -->
                         <div class="box-body clearfix">
-                            <p>The single next-review-due date currently in force for a prisoner. One row per prisoner however many reviews they accumulate, overwritten each time a review sets a new date, and what drives the &ldquo;high risk prisoners due for review&rdquo; worklist. The date NOMIS recorded on an individual historic review is on csra_review_nomis instead.</p>
+                            <p>The single next-review-due date currently in force for a prisoner, and what drives the &ldquo;high risk prisoners due for review&rdquo; worklist. One row per prisoner. Derived, not written directly: every change to a prisoner&rsquo;s reviews recomputes it from their latest review with a final rating that is neither archived nor superseded. The date each review set is on csra_review.next_review_date.</p>
                         </div><!-- /.box-body -->
                     </div>
                 </section>
@@ -170,7 +170,7 @@
                                         <table border='0' cellspacing='0' cellpadding='0'>
                                         </table>
                                     </td>
-                                    <td><p>When the prisoner&rsquo;s CSRA is next due for review - twelve months on from a high-risk final rating, chosen by the reviewer on the review journey, and cleared when a rating no longer requires one. Its presence therefore indicates a high-risk rating. <a href="./../null">Sensitivity: PERSONAL</a></p></td>
+                                    <td><p>When the prisoner&rsquo;s CSRA is next due for review - the date their latest final-rated review set. Null when that review set none. DPS only sets one for a high-risk rating, but a NOMIS review can carry one whatever the rating, so this does not on its own indicate a high-risk rating. <a href="./../null">Sensitivity: PERSONAL</a></p></td>
                                 </tr>
                                 <tr>
                                     <td class='foreignKey' title='Foreign Key'><i class='icon ion-key iconkey' style='padding-left: 5px;'></i><span id="set_by_review_id">set_by_review_id</span></td>
@@ -192,7 +192,7 @@
                                             </tr>
                                         </table>
                                     </td>
-                                    <td><p>The csra_review that last set this date. <a href="./../null">Sensitivity: NONE</a></p></td>
+                                    <td><p>The csra_review the date was taken from - the prisoner&rsquo;s latest final-rated, non-archived, non-superseded review. <a href="./../null">Sensitivity: NONE</a></p></td>
                                 </tr>
                                 <tr>
                                     <td><span id="updated_at">updated_at</span></td>
