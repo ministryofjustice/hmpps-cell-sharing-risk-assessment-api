@@ -28,8 +28,8 @@ import java.util.UUID
  *
  * Three tables carry a prisoner number. `csra_review` has many rows per prisoner and no uniqueness
  * constraint, so those simply move. `csra_current_rating` and `csra_next_review` have one row per prisoner
- * behind a **unique index on `prisoner_number`**, so the two prisoners' rows have to be reconciled to one
- * rather than repointed.
+ * behind a **unique index on `prisoner_number`**, so the retired number's rows are deleted and the
+ * survivor's re-derived from the combined reviews rather than repointed.
  */
 @Service
 @Transactional
@@ -61,8 +61,7 @@ class CsraMergeService(
     val before = csraCurrentRatingRepository.findByPrisonerNumber(retained)?.snapshot()
 
     repointReviews(reviews, retained)
-    reconcileCurrentRating(removedRating, retained)
-    reconcileNextReview(removedNextReview, retained)
+    reconcileProjections(removedRating, removedNextReview, retained)
 
     val after = csraCurrentRatingRepository.findByPrisonerNumber(retained)?.snapshot()
     val ratingChanged = before != after
@@ -126,65 +125,27 @@ class CsraMergeService(
     .maxOfOrNull { it.assessmentDate }
 
   /**
-   * Leaves the survivor's own projection row alone and lets [CsraCurrentRatingService.refreshFromReviews]
-   * upsert it from the combined review set, so the latest rated, non-superseded, non-archived review wins
-   * whichever number it came in under.
+   * Leaves the survivor's own projection rows alone and lets [CsraCurrentRatingService.refreshFromReviews]
+   * upsert them from the combined review set: the latest rated, non-superseded, non-archived review sets
+   * the rating and the latest final-rated one the next review date, whichever number either came in under.
+   * Each review carries the date it set (SDIT-4297), so the retired number's next-review row holds nothing
+   * that cannot be re-derived.
    *
-   * Only the retired number's row is deleted, and it is flushed before the refresh: both rows exist behind
-   * a unique index on `prisoner_number`, and deleting the survivor's too would leave the delete and the
-   * re-insert racing within one transaction.
+   * Only the retired number's rows are deleted, and they are flushed before the refresh: both prisoners'
+   * rows exist behind a unique index on `prisoner_number`, and deleting the survivor's too would leave the
+   * delete and the re-insert racing within one transaction.
    */
-  private fun reconcileCurrentRating(removedRating: CsraCurrentRatingEntity?, retained: String) {
+  private fun reconcileProjections(removedRating: CsraCurrentRatingEntity?, removedNextReview: CsraNextReviewEntity?, retained: String) {
     removedRating?.let {
       csraCurrentRatingRepository.delete(it)
       csraCurrentRatingRepository.flush()
     }
+    removedNextReview?.let {
+      csraNextReviewRepository.delete(it)
+      csraNextReviewRepository.flush()
+    }
     csraCurrentRatingService.refreshFromReviews(retained, SYSTEM_USERNAME)
   }
-
-  /**
-   * Reconciles the two prisoners' single next-review rows down to one: the row set by the later review
-   * wins, by `(assessmentDate, id)` — the same ordering every other "latest review" rule in the service
-   * uses.
-   *
-   * Keyed off the *review that set the row* rather than off the review that now sets the rating, because
-   * the two need not be the same: `upsertNextReview` runs on a final submission and on migrate/sync, so
-   * the rating-setting review may be a NOMIS row that never set a date. Picking by the setting review is
-   * always defined — `set_by_review_id` is NOT NULL with an FK — and cannot silently drop a date, which
-   * matters because `csra_review.next_review_date` was removed in V4 and the row is the only copy.
-   */
-  private fun reconcileNextReview(removedNextReview: CsraNextReviewEntity?, retained: String) {
-    if (removedNextReview == null) return
-    val retainedNextReview = csraNextReviewRepository.findByPrisonerNumber(retained)
-    if (retainedNextReview == null) {
-      removedNextReview.prisonerNumber = retained
-      removedNextReview.updatedAt = LocalDateTime.now(clock)
-      removedNextReview.updatedBy = SYSTEM_USERNAME
-      csraNextReviewRepository.saveAndFlush(removedNextReview)
-      return
-    }
-    if (setByLaterReview(removedNextReview.setByReviewId, retainedNextReview.setByReviewId)) {
-      // The retired number's row wins: drop the survivor's first so the unique index is free.
-      csraNextReviewRepository.delete(retainedNextReview)
-      csraNextReviewRepository.flush()
-      removedNextReview.prisonerNumber = retained
-      removedNextReview.updatedAt = LocalDateTime.now(clock)
-      removedNextReview.updatedBy = SYSTEM_USERNAME
-      csraNextReviewRepository.saveAndFlush(removedNextReview)
-    } else {
-      csraNextReviewRepository.delete(removedNextReview)
-      csraNextReviewRepository.flush()
-    }
-  }
-
-  /** Whether [candidate] was set by a later review than [incumbent], ordering by `(assessmentDate, id)`. */
-  private fun setByLaterReview(candidate: UUID, incumbent: UUID): Boolean {
-    val candidateReview = csraReviewRepository.findById(candidate).orElse(null) ?: return false
-    val incumbentReview = csraReviewRepository.findById(incumbent).orElse(null) ?: return true
-    return compareValuesBy(candidateReview, incumbentReview, { it.assessmentDate }, { it.id }) > 0
-  }
-
-  private fun CsraCurrentRatingEntity.snapshot() = RatingSnapshot(rating, provisional, ratingDate, setByReviewId)
 
   private fun mergeProperties(removed: String, retained: String) = mapOf(
     "NOMS-MERGE-FROM" to removed,
@@ -198,12 +159,14 @@ class CsraMergeService(
   }
 }
 
+internal fun CsraCurrentRatingEntity.snapshot() = RatingSnapshot(rating, provisional, ratingDate, setByReviewId)
+
 /**
  * The parts of a prisoner's current rating a consumer can observe. Compared before and after a merge to
  * decide whether the merge is worth announcing. [setByReviewId] is included deliberately: the same rating
  * arriving from a different review is a real change to anyone who follows the id.
  */
-private data class RatingSnapshot(
+internal data class RatingSnapshot(
   val rating: CsraResult?,
   val provisional: Boolean,
   val ratingDate: LocalDate?,

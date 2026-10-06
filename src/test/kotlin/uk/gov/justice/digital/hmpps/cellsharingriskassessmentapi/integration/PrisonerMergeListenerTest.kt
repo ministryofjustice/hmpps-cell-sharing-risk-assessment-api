@@ -14,7 +14,6 @@ import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.test.context.bean.override.mockito.MockitoBean
-import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraNextReviewEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraResult
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewStatus
@@ -25,7 +24,6 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.service.InformationSource
 import java.time.LocalDate
 import java.time.LocalDateTime
-import java.util.UUID
 
 /**
  * The prisoner-merge half of the `csra` queue. RETAINED is the surviving prisoner number, REMOVED the one
@@ -59,6 +57,7 @@ class PrisonerMergeListenerTest : SqsIntegrationTestBase() {
     rating: CsraResult,
     assessmentDate: LocalDate,
     supersededAt: LocalDateTime? = null,
+    nextReviewDate: LocalDate? = null,
   ): CsraReviewEntity = csraReviewRepository.saveAndFlush(
     CsraReviewEntity(
       prisonerNumber = prisonerNumber,
@@ -67,6 +66,7 @@ class PrisonerMergeListenerTest : SqsIntegrationTestBase() {
       type = CsraType.CSRA_INITIAL_ASSESSMENT,
       finalResult = rating,
       finalResultDate = assessmentDate,
+      nextReviewDate = nextReviewDate,
       status = CsraReviewStatus.COMPLETE,
       createdAt = assessmentDate.atTime(9, 0),
       createdBy = "NQP56Y",
@@ -181,7 +181,7 @@ class PrisonerMergeListenerTest : SqsIntegrationTestBase() {
     // "No rating" (R-01). The removed number's review predates that release, so it must not reinstate one.
     ratedReview("A1111AA", CsraResult.HIGH_GENERAL, LocalDate.parse("2023-03-01"), supersededAt = LocalDateTime.parse("2023-05-01T09:00:00"))
     refreshCurrentRating("A1111AA")
-    val old = ratedReview("A2222BB", CsraResult.STANDARD, LocalDate.parse("2023-02-01"))
+    val old = ratedReview("A2222BB", CsraResult.HIGH_GENERAL, LocalDate.parse("2023-02-01"), nextReviewDate = LocalDate.parse("2024-02-01"))
     refreshCurrentRating("A2222BB")
 
     sendMerge(retained = "A1111AA", removed = "A2222BB")
@@ -189,6 +189,8 @@ class PrisonerMergeListenerTest : SqsIntegrationTestBase() {
     awaitReviewsUnder("A1111AA", 2)
     assertThat(csraReviewRepository.findById(old.id!!).get().supersededAt).isNotNull()
     assertThat(currentRating("A1111AA")!!.rating).isNull()
+    // Nor its next review date: the review that set it is superseded on the way in.
+    assertThat(csraNextReviewRepository.findAll()).isEmpty()
   }
 
   @Test
@@ -240,16 +242,29 @@ class PrisonerMergeListenerTest : SqsIntegrationTestBase() {
   }
 
   @Test
-  fun `exactly one next review row survives, the one set by the later review`() {
-    val older = ratedReview("A1111AA", CsraResult.HIGH_GENERAL, LocalDate.parse("2023-01-01"))
+  fun `the retained prisoner's next review date is the one the later review set, whichever number it came in under`() {
+    ratedReview("A1111AA", CsraResult.HIGH_GENERAL, LocalDate.parse("2023-01-01"), nextReviewDate = LocalDate.parse("2024-01-01"))
     refreshCurrentRating("A1111AA")
-    val newer = ratedReview("A2222BB", CsraResult.HIGH_GENERAL, LocalDate.parse("2023-06-01"))
+    val newer = ratedReview("A2222BB", CsraResult.HIGH_GENERAL, LocalDate.parse("2023-06-01"), nextReviewDate = LocalDate.parse("2024-06-01"))
     refreshCurrentRating("A2222BB")
-    saveNextReview("A1111AA", older.id!!, LocalDate.parse("2024-01-01"))
-    saveNextReview("A2222BB", newer.id!!, LocalDate.parse("2024-06-01"))
 
     sendMerge(retained = "A1111AA", removed = "A2222BB")
 
+    await untilCallTo { csraNextReviewRepository.findByPrisonerNumber("A1111AA")?.setByReviewId } matches { it == newer.id }
+    assertThat(csraNextReviewRepository.findAll()).hasSize(1)
+    assertThat(csraNextReviewRepository.findByPrisonerNumber("A1111AA")!!.nextReviewDate).isEqualTo(LocalDate.parse("2024-06-01"))
+  }
+
+  @Test
+  fun `the retained prisoner keeps their own next review date when the removed number's review is older`() {
+    val newer = ratedReview("A1111AA", CsraResult.HIGH_GENERAL, LocalDate.parse("2023-06-01"), nextReviewDate = LocalDate.parse("2024-06-01"))
+    refreshCurrentRating("A1111AA")
+    ratedReview("A2222BB", CsraResult.HIGH_GENERAL, LocalDate.parse("2023-01-01"), nextReviewDate = LocalDate.parse("2024-01-01"))
+    refreshCurrentRating("A2222BB")
+
+    sendMerge(retained = "A1111AA", removed = "A2222BB")
+
+    awaitReviewsUnder("A1111AA", 2)
     await untilCallTo { csraNextReviewRepository.findAll().size } matches { it == 1 }
     val surviving = csraNextReviewRepository.findByPrisonerNumber("A1111AA")!!
     assertThat(surviving.setByReviewId).isEqualTo(newer.id)
@@ -257,10 +272,9 @@ class PrisonerMergeListenerTest : SqsIntegrationTestBase() {
   }
 
   @Test
-  fun `the removed prisoner's next review row is repointed when the retained prisoner has none`() {
-    val review = ratedReview("A2222BB", CsraResult.HIGH_GENERAL, LocalDate.parse("2023-06-01"))
+  fun `the removed prisoner's next review date moves with their review when the retained prisoner has none`() {
+    ratedReview("A2222BB", CsraResult.HIGH_GENERAL, LocalDate.parse("2023-06-01"), nextReviewDate = LocalDate.parse("2024-06-01"))
     refreshCurrentRating("A2222BB")
-    saveNextReview("A2222BB", review.id!!, LocalDate.parse("2024-06-01"))
 
     sendMerge(retained = "A1111AA", removed = "A2222BB")
 
@@ -280,17 +294,5 @@ class PrisonerMergeListenerTest : SqsIntegrationTestBase() {
     awaitCsraQueueDrained()
     verify(telemetryClient, never()).trackEvent(eq("csra-merge"), any(), isNull())
     assertThat(csraReviewRepository.findAllByPrisonerNumber("A1111AA")).hasSize(1)
-  }
-
-  private fun saveNextReview(prisonerNumber: String, setByReviewId: UUID, date: LocalDate) {
-    csraNextReviewRepository.saveAndFlush(
-      CsraNextReviewEntity(
-        prisonerNumber = prisonerNumber,
-        nextReviewDate = date,
-        setByReviewId = setByReviewId,
-        updatedAt = LocalDateTime.parse("2023-06-01T09:00:00"),
-        updatedBy = "NQP56Y",
-      ),
-    )
   }
 }

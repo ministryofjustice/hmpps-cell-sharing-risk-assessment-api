@@ -21,13 +21,11 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessm
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStageRiskToEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStageVulnerabilityEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraEvidenceSource
-import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraNextReviewEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraResult
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewStatus
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraType
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraAssessmentStageRepository
-import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraNextReviewRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraReviewRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.resource.CsraReviewNotFoundException
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.resource.MandatoryHighRiskGeneralException
@@ -48,7 +46,6 @@ import java.util.UUID
 class CsraAssessmentService(
   private val csraReviewRepository: CsraReviewRepository,
   private val csraAssessmentStageRepository: CsraAssessmentStageRepository,
-  private val csraNextReviewRepository: CsraNextReviewRepository,
   private val csraReviewService: CsraReviewService,
   private val csraCurrentRatingService: CsraCurrentRatingService,
   private val eventPublishAndAuditService: EventPublishAndAuditService,
@@ -174,7 +171,9 @@ class CsraAssessmentService(
         review.finalResult = request.rating
         review.finalResultDate = today
         review.status = CsraReviewStatus.COMPLETE
-        upsertNextReview(prisonerNumber, review, request.rating, today)
+        // Twelve months on for a high-risk final rating, else none. The prisoner's current date is derived
+        // from this by the refresh below.
+        review.nextReviewDate = if (request.rating.isHigh()) today.plusMonths(12) else null
       }
       // Unreachable: only this class calls submitStage, and only with PROVISIONAL or FINAL. INTERIM is the
       // review journey's first stage and is written by CsraReviewWriteService.
@@ -355,24 +354,5 @@ class CsraAssessmentService(
     if (existingByOffence.isNotEmpty()) {
       stage.offenceEvidence.removeAll(existingByOffence.values.toSet())
     }
-  }
-
-  /** Sets the prisoner's single next review date: 12 months on for a high-risk final rating, else cleared. */
-  private fun upsertNextReview(prisonerNumber: String, review: CsraReviewEntity, rating: CsraResult, finalDate: LocalDate) {
-    val nextReviewDate = if (rating.isHigh()) finalDate.plusMonths(12) else null
-    val existing = csraNextReviewRepository.findByPrisonerNumber(prisonerNumber)
-    val entity = existing?.apply {
-      this.nextReviewDate = nextReviewDate
-      this.setByReviewId = review.id!!
-      this.updatedAt = LocalDateTime.now(clock)
-      this.updatedBy = username
-    } ?: CsraNextReviewEntity(
-      prisonerNumber = prisonerNumber,
-      nextReviewDate = nextReviewDate,
-      setByReviewId = review.id!!,
-      updatedAt = LocalDateTime.now(clock),
-      updatedBy = username,
-    )
-    csraNextReviewRepository.saveAndFlush(entity)
   }
 }

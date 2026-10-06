@@ -70,7 +70,7 @@ class EventPublishAndAuditService(
    * **Only the retained number is announced.** Publishing against [removedNomsNumber] would tell consumers
    * to re-read a prisoner number NOMIS has deleted; the read would correctly answer "No rating", and a
    * consumer that cached it would have recorded "this person has no CSRA" against a number that no longer
-   * exists. Instead the retired number rides along on the retained number's event, so a consumer holding
+   * exists. Instead, the retired number rides along on the retained number's event, so a consumer holding
    * data under the old key learns what to re-key from an event it is certain to receive.
    *
    * **Nothing is published unless the rating actually changed** ([ratingChanged]) — the same principle as
@@ -105,6 +105,32 @@ class EventPublishAndAuditService(
     }
     auditEvent(
       auditType = AuditType.PRISONER_NUMBER_MERGE,
+      id = prisonerNumber,
+      auditData = auditData,
+    )
+  }
+
+  fun publishReviewsMoved(
+    prisonerNumber: String,
+    ratingChanged: Boolean,
+    auditData: Any,
+  ) = afterCommit {
+    if (ratingChanged) {
+      snsService.publishDomainEvent(
+        eventType = CSRADomainEventType.CSRA_AMENDED,
+        description = CSRADomainEventType.CSRA_AMENDED.description,
+        occurredAt = LocalDateTime.now(clock),
+        additionalInformation = AdditionalInformation(
+          // No single review produced this: the rating was re-derived across two changed histories, so the
+          // consumer re-reads `current-rating` rather than following an id.
+          id = null,
+          nomsNumber = prisonerNumber,
+          source = InformationSource.NOMIS,
+        ),
+      )
+    }
+    auditEvent(
+      auditType = AuditType.CSRAS_MOVED,
       id = prisonerNumber,
       auditData = auditData,
     )
