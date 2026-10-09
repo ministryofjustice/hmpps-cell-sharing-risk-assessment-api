@@ -3,11 +3,14 @@ package uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.integration
 import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.http.MediaType
 import org.springframework.test.web.reactive.server.expectBody
 import org.springframework.web.reactive.function.BodyInserters
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentStarted
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.SyncResult
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraResult
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraReviewRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.service.InformationSource
 
 /**
@@ -15,10 +18,16 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.service.Informa
  * an unrated CSRA is still a draft and must never be announced, and every event that is published must
  * say whether the change came from DPS or NOMIS so the sync service does not echo its own writes back.
  *
+ * A DPS change for a prison not switched on for CSRA is never announced either (MAPA-429): NOMIS acts on DPS
+ * events, and while a prison still uses NOMIS nothing DPS does may change it.
+ *
  * Publication is asynchronous, so "nothing was published" is asserted by performing the silent action and
  * then a known-noisy one, and checking the noisy event is the only thing on the queue.
  */
 class CsraEventPublishingTest : SqsIntegrationTestBase() {
+
+  @Autowired
+  private lateinit var csraReviewRepository: CsraReviewRepository
 
   /** The rollout gate (MAPA-363) refuses the user write endpoints unless the prison is switched on. */
   @BeforeEach
@@ -27,22 +36,27 @@ class CsraEventPublishingTest : SqsIntegrationTestBase() {
   }
 
   private val writeRole = listOf("ROLE_CSRA_REVIEW__RW")
+  private val overrideRole = writeRole + "ROLE_PRISONER_CSRA__ROLLOUT_OVERRIDE"
   private val syncRole = listOf("ROLE_PRISONER_CSRA__SYNC__RW")
 
-  private fun stageBody(rating: String) = """
+  private fun stageBody(rating: String, prisonId: String = "LEI") = """
     {
       "rating": "$rating",
-      "prisonId": "LEI",
+      "prisonId": "$prisonId",
       "assessmentComment": "Assessment comment"
     }
   """.trimIndent()
 
   /** [calculatedLevel] of PEND with no review/approved level is a NOMIS review that carries no rating. */
-  private fun reviewJson(calculatedLevel: String = "STANDARD", approvedLevel: String? = "STANDARD") = """
+  private fun reviewJson(
+    calculatedLevel: String = "STANDARD",
+    approvedLevel: String? = "STANDARD",
+    prisonId: String = "LEI",
+  ) = """
     {
       "bookingId": 1234567,
       "nomisSequence": 1,
-      "assessmentPrisonId": "LEI",
+      "assessmentPrisonId": "$prisonId",
       "assessmentDate": "2025-11-22",
       "assessmentType": "CSR",
       "calculatedLevel": "$calculatedLevel",
@@ -56,21 +70,31 @@ class CsraEventPublishingTest : SqsIntegrationTestBase() {
     }
   """.trimIndent()
 
-  private fun start(prisonerNumber: String): CsraAssessmentStarted = webTestClient.post()
+  private fun start(
+    prisonerNumber: String,
+    prisonId: String = "LEI",
+    roles: List<String> = writeRole,
+  ): CsraAssessmentStarted = webTestClient.post()
     .uri("/csra-review/prisoner/$prisonerNumber/assessment")
-    .headers(setAuthorisation(roles = writeRole))
+    .headers(setAuthorisation(roles = roles))
     .contentType(MediaType.APPLICATION_JSON)
-    .body(BodyInserters.fromValue("""{ "prisonId": "LEI" }"""))
+    .body(BodyInserters.fromValue("""{ "prisonId": "$prisonId" }"""))
     .exchange()
     .expectStatus().isCreated
     .expectBody<CsraAssessmentStarted>()
     .returnResult().responseBody!!
 
-  private fun submitProvisional(prisonerNumber: String, assessmentId: Any, rating: String = "STANDARD") {
+  private fun submitProvisional(
+    prisonerNumber: String,
+    assessmentId: Any,
+    rating: String = "STANDARD",
+    prisonId: String = "LEI",
+    roles: List<String> = writeRole,
+  ) {
     webTestClient.put().uri("/csra-review/prisoner/$prisonerNumber/assessment/$assessmentId/provisional")
-      .headers(setAuthorisation(roles = writeRole))
+      .headers(setAuthorisation(roles = roles))
       .contentType(MediaType.APPLICATION_JSON)
-      .body(BodyInserters.fromValue(stageBody(rating)))
+      .body(BodyInserters.fromValue(stageBody(rating, prisonId)))
       .exchange()
       .expectStatus().isOk
   }
@@ -153,5 +177,34 @@ class CsraEventPublishingTest : SqsIntegrationTestBase() {
 
     val event = getDomainEvents(1).single()
     assertThat(event.additionalInformation?.id).isEqualTo(rated.csraReviewId)
+  }
+
+  /**
+   * While a prison still records CSRAs in NOMIS, nothing DPS does may reach NOMIS for it (MAPA-429). The
+   * rollout gate stops ordinary users writing there, but support staff with the override role can, and
+   * what they save must stay in DPS.
+   */
+  @Test
+  fun `a DPS rating saved with the rollout override for a prison not switched on is not published`() {
+    val prisoner = "E6666EE"
+    val assessmentId = start(prisoner, prisonId = "MDI", roles = overrideRole).assessmentId
+    submitProvisional(prisoner, assessmentId, prisonId = "MDI", roles = overrideRole)
+    assertThat(csraReviewRepository.findById(assessmentId).get().interimResult).isEqualTo(CsraResult.STANDARD)
+
+    val published = start("E6667EE").assessmentId
+    submitProvisional("E6667EE", published)
+
+    val event = getDomainEvents(1).single()
+    assertThat(event.additionalInformation?.id).isEqualTo(published)
+  }
+
+  /** NOMIS ignores its own changes coming back, so a NOMIS-sourced event is published whatever the prison's state. */
+  @Test
+  fun `a synchronised NOMIS rating for a prison not switched on is still published`() {
+    val result = sync("E7777EE", reviewJson(prisonId = "MDI"))
+
+    val event = getDomainEvents(1).single()
+    assertThat(event.additionalInformation?.id).isEqualTo(result.csraReviewId)
+    assertThat(event.additionalInformation?.source).isEqualTo(InformationSource.NOMIS)
   }
 }

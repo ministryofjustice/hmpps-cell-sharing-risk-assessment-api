@@ -184,6 +184,7 @@ class PrisonerMovementListenerTest : SqsIntegrationTestBase() {
 
   @Test
   fun `readmission resets the current rating to No rating even when a prior rated review exists`() {
+    switchOn("MDI")
     completedRating("A6666AA", CsraResult.STANDARD)
     assertThat(csraCurrentRatingRepository.findByPrisonerNumber("A6666AA")!!.rating).isEqualTo(CsraResult.STANDARD)
 
@@ -206,6 +207,7 @@ class PrisonerMovementListenerTest : SqsIntegrationTestBase() {
    */
   @Test
   fun `a readmission that clears nothing publishes no event`() {
+    switchOn("MDI")
     // Already at "No rating": the reset changes nothing, so there is nothing to announce.
     send("A7777AA", "MDI", "READMISSION")
     awaitCsraQueueDrained()
@@ -217,8 +219,42 @@ class PrisonerMovementListenerTest : SqsIntegrationTestBase() {
     assertThat(event.additionalInformation?.nomsNumber).isEqualTo("A7778AA")
   }
 
+  /**
+   * While a prison still records CSRAs in NOMIS, NOMIS keeps a returning prisoner's previous CSRA when they
+   * come back on an old booking, so DPS clearing it must not reach NOMIS (MAPA-429). DPS still clears its
+   * own rating and audits it; only the event is held back.
+   */
+  @Test
+  fun `a readmission to a prison not switched on clears the rating but publishes no event`() {
+    switchOn("LEI")
+    completedRating("A9990AA", CsraResult.STANDARD)
+
+    send("A9990AA", "MDI", "READMISSION")
+    await.until { csraCurrentRatingRepository.findByPrisonerNumber("A9990AA")?.rating == null }
+    awaitCsraQueueDrained()
+
+    completedRating("A9991AA", CsraResult.STANDARD)
+    send("A9991AA", "LEI", "READMISSION")
+
+    val event = getDomainEvents(1).single()
+    assertThat(event.additionalInformation?.nomsNumber).isEqualTo("A9991AA")
+
+    val properties = argumentCaptor<Map<String, String>>()
+    verify(telemetryClient).trackEvent(eq("csra-event-suppressed-prison-not-active"), properties.capture(), isNull())
+    assertThat(properties.firstValue).containsAllEntriesOf(
+      mapOf(
+        "eventType" to "cell.sharing.risk.assessment.amended",
+        "csraReviewId" to "",
+        "prisonerNumber" to "A9990AA",
+        "prisonId" to "MDI",
+        "source" to "DPS",
+      ),
+    )
+  }
+
   @Test
   fun `a transfer publishes nothing, even when it closes a review carrying an interim rating`() {
+    switchOn("MDI")
     // R-02 retains the rating, so unlike a readmission the transfer path is deliberately silent.
     val review = inProgressReview("A8888AA", interimResult = CsraResult.HIGH_GENERAL)
     refreshCurrentRating("A8888AA")
