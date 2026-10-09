@@ -9,11 +9,13 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraReview
 import java.time.Clock
 import java.time.LocalDateTime
+import java.util.UUID
 
 @Service
 class EventPublishAndAuditService(
   private val snsService: SnsService,
   private val auditService: AuditService,
+  private val activeAgenciesService: ActiveAgenciesService,
   private val telemetryClient: TelemetryClient,
   private val clock: Clock,
 ) {
@@ -27,13 +29,22 @@ class EventPublishAndAuditService(
    * [source] tells consumers where the change originated. The NOMIS sync service must ignore
    * [InformationSource.NOMIS] events — they are the echo of a change it made itself, and acting on them
    * would loop NOMIS -> DPS -> NOMIS forever.
+   *
+   * A DPS rating for a prison not switched on for CSRA is also audited but never published (MAPA-429) —
+   * see [isHeldBackForRollout]. The prison checked is the review's, which the write journeys keep in step
+   * with the prison on the request the rollout gate checked.
    */
   fun publishEvent(
     eventType: CSRADomainEventType,
     csraReview: CsraReview,
     auditData: Any? = null,
     source: InformationSource = InformationSource.DPS,
-  ) = afterCommit { doPublishEvent(eventType, csraReview, auditData, source) }
+  ) {
+    // Decided now, inside the caller's transaction, not after commit. An unrated review is never published
+    // anyway, so it costs no read.
+    val heldBack = csraReview.isRated() && isHeldBackForRollout(source, csraReview.prisonId)
+    afterCommit { doPublishEvent(eventType, csraReview, auditData, source, heldBack) }
+  }
 
   /**
    * Announces that a prisoner's current CSRA rating was cleared (R-01, readmission after a period of
@@ -43,23 +54,35 @@ class EventPublishAndAuditService(
    *
    * Only called when a rating was actually cleared: an admission that finds the prisoner already at "No
    * rating" publishes nothing, for the same reason an unrated draft does.
+   *
+   * [prisonId] is the prison the prisoner was received into. This is the event most likely to reach NOMIS
+   * for a prison still using it (MAPA-429): a readmission happens whatever the prison's rollout state, and
+   * NOMIS keeps the previous CSRA when a prisoner returns on an old booking, so the reset is audited but
+   * not published unless that prison is switched on.
    */
-  fun publishRatingCleared(prisonerNumber: String, auditData: Any) = afterCommit {
-    snsService.publishDomainEvent(
-      eventType = CSRADomainEventType.CSRA_AMENDED,
-      description = CSRADomainEventType.CSRA_AMENDED.description,
-      occurredAt = LocalDateTime.now(clock),
-      additionalInformation = AdditionalInformation(
-        id = null,
-        nomsNumber = prisonerNumber,
-        source = InformationSource.DPS,
-      ),
-    )
-    auditEvent(
-      auditType = CSRADomainEventType.CSRA_AMENDED.auditType,
-      id = prisonerNumber,
-      auditData = auditData,
-    )
+  fun publishRatingCleared(prisonerNumber: String, prisonId: String?, auditData: Any) {
+    val heldBack = isHeldBackForRollout(InformationSource.DPS, prisonId)
+    afterCommit {
+      if (heldBack) {
+        suppressedPrisonNotActive(CSRADomainEventType.CSRA_AMENDED, null, prisonerNumber, prisonId, InformationSource.DPS)
+      } else {
+        snsService.publishDomainEvent(
+          eventType = CSRADomainEventType.CSRA_AMENDED,
+          description = CSRADomainEventType.CSRA_AMENDED.description,
+          occurredAt = LocalDateTime.now(clock),
+          additionalInformation = AdditionalInformation(
+            id = null,
+            nomsNumber = prisonerNumber,
+            source = InformationSource.DPS,
+          ),
+        )
+      }
+      auditEvent(
+        auditType = CSRADomainEventType.CSRA_AMENDED.auditType,
+        id = prisonerNumber,
+        auditData = auditData,
+      )
+    }
   }
 
   /**
@@ -141,8 +164,13 @@ class EventPublishAndAuditService(
     csraReview: CsraReview,
     auditData: Any?,
     source: InformationSource,
+    heldBack: Boolean,
   ) {
-    if (csraReview.isRated()) {
+    if (!csraReview.isRated()) {
+      suppressed(eventType, csraReview, source)
+    } else if (heldBack) {
+      suppressedPrisonNotActive(eventType, csraReview.id, csraReview.prisonerNumber, csraReview.prisonId, source)
+    } else {
       snsService.publishDomainEvent(
         eventType = eventType,
         description = eventType.description,
@@ -153,8 +181,6 @@ class EventPublishAndAuditService(
           source = source,
         ),
       )
-    } else {
-      suppressed(eventType, csraReview, source)
     }
 
     auditData?.let {
@@ -188,6 +214,40 @@ class EventPublishAndAuditService(
         "eventType" to eventType.value,
         "csraReviewId" to csraReview.id.toString(),
         "prisonerNumber" to csraReview.prisonerNumber,
+        "source" to source.name,
+      ),
+      null,
+    )
+  }
+
+  /**
+   * Whether an event must be held back because its prison is not switched on for CSRA (MAPA-429).
+   *
+   * While a prison still records CSRAs in NOMIS, NOMIS is the correct record there and nothing DPS does may
+   * change it. The NOMIS update service acts only on [InformationSource.DPS] events, so only those are held
+   * back. [InformationSource.NOMIS] events describe a change NOMIS has already made and are published
+   * whatever the prison's state; that also keeps the merge and booking-move events, which carry no prison,
+   * outside this rule. A DPS event with no prison is held back, as nothing shows its prison is switched on.
+   *
+   * Held-back events are not stored, so switching a prison on does not send them later.
+   */
+  private fun isHeldBackForRollout(source: InformationSource, prisonId: String?): Boolean = source == InformationSource.DPS && (prisonId == null || !activeAgenciesService.isActive(prisonId))
+
+  private fun suppressedPrisonNotActive(
+    eventType: CSRADomainEventType,
+    csraReviewId: UUID?,
+    prisonerNumber: String,
+    prisonId: String?,
+    source: InformationSource,
+  ) {
+    log.info("Suppressed {} for {}: prison {} is not switched on for CSRA", eventType.value, prisonerNumber, prisonId)
+    telemetryClient.trackEvent(
+      "csra-event-suppressed-prison-not-active",
+      mapOf(
+        "eventType" to eventType.value,
+        "csraReviewId" to csraReviewId?.toString().orEmpty(),
+        "prisonerNumber" to prisonerNumber,
+        "prisonId" to prisonId.orEmpty(),
         "source" to source.name,
       ),
       null,

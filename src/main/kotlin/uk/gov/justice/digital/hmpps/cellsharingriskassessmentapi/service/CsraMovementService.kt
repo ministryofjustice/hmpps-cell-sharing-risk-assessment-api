@@ -44,9 +44,11 @@ class CsraMovementService(
     // Clearing a rating changes the prisoner's CSRA just as saving one does, so it is announced the same
     // way — otherwise a consumer (notably the DPS -> NOMIS sync) keeps the pre-release rating forever.
     // Only when something was actually cleared: most admissions find the prisoner already at "No rating".
+    // Held back, though still audited, when the receiving prison is not switched on for CSRA (MAPA-429).
     if (csraCurrentRatingService.resetToNoRating(prisonerNumber, SYSTEM_USERNAME)) {
       eventPublishAndAuditService.publishRatingCleared(
         prisonerNumber = prisonerNumber,
+        prisonId = prisonId,
         auditData = mapOf(
           "prisonerNumber" to prisonerNumber,
           "prisonId" to prisonId,
