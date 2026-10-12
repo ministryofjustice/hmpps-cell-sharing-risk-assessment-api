@@ -39,6 +39,7 @@ class CsraMigrationSyncService(
   }
 
   fun migrate(prisonerNumber: String, reviews: List<NomisCsraReview>): List<CsraMigrationResponse> {
+    csraReviewRepository.deleteByPrisonerNumber(prisonerNumber)
     val saved = reviews.map { review ->
       val savedReview = csraReviewRepository.save(review.toNewCsraReview(prisonerNumber))
       csraReviewNomisRepository.save(review.toNomisEntity(savedReview, clock))

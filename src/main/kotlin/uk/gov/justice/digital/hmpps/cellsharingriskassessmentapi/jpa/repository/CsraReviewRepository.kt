@@ -86,4 +86,6 @@ interface CsraReviewRepository :
     """,
   )
   fun findSummaryRows(prisonerNumber: String): List<CsraSummaryRow>
+
+  fun deleteByPrisonerNumber(prisonerNumber: String)
 }

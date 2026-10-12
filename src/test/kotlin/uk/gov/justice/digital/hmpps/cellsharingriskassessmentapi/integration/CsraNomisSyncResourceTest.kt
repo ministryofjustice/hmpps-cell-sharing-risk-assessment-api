@@ -4,6 +4,7 @@ import org.assertj.core.api.Assertions.assertThat
 import org.junit.jupiter.api.Nested
 import org.junit.jupiter.api.Test
 import org.springframework.beans.factory.annotation.Autowired
+import org.springframework.data.repository.findByIdOrNull
 import org.springframework.http.MediaType
 import org.springframework.test.web.reactive.server.expectBody
 import org.springframework.web.reactive.function.BodyInserters
@@ -133,6 +134,59 @@ class CsraNomisSyncResourceTest : SqsIntegrationTestBase() {
       assertThat(nomis.reviewDetails).singleElement()
         .satisfies({ section -> assertThat(section.code).isEqualTo("SEC1") })
       assertThat(csraReviewNomisRepository.findByCsraReviewId(migrated[2].id)).isNotNull()
+    }
+
+    @Test
+    fun `handles reviews that already exist`() {
+      val migrated = webTestClient.post().uri("/nomis-sync/migrate/A1234BC")
+        .headers(setAuthorisation(roles = syncRole))
+        .contentType(MediaType.APPLICATION_JSON)
+        .body(
+          BodyInserters.fromValue(
+            "[${reviewJson(10, 1, "2026-05-01")},${reviewJson(10, 2, "2026-05-02")},${reviewJson(11, 3, "2026-05-03")}]",
+          ),
+        )
+        .exchange()
+        .expectStatus().isCreated
+        .expectBody<List<CsraMigrationResponse>>()
+        .returnResult().responseBody!!
+
+      assertThat(migrated.size).isEqualTo(3)
+      val nomisMigratedFromDb = csraReviewNomisRepository.findAllByCsraReviewIdIn(migrated.map { it.id })
+
+      // re-migrate the same reviews: they are recreated with new ids, and the old ones are deleted
+      val remigrated = webTestClient.post().uri("/nomis-sync/migrate/A1234BC")
+        .headers(setAuthorisation(roles = syncRole))
+        .contentType(MediaType.APPLICATION_JSON)
+        .body(
+          BodyInserters.fromValue(
+            "[${reviewJson(10, 1, "2026-05-01")},${reviewJson(10, 2, "2026-05-02")},${reviewJson(11, 3, "2026-05-03")}]",
+          ),
+        )
+        .exchange()
+        .expectStatus().isCreated
+        .expectBody<List<CsraMigrationResponse>>()
+        .returnResult().responseBody!!
+
+      val remigratedFromDb = csraReviewRepository.findAllByPrisonerNumber("A1234BC")
+      val nomisRemigratedFromDb = csraReviewNomisRepository.findAllByCsraReviewIdIn(remigratedFromDb.map { it.id!! })
+      assertThat(remigratedFromDb.size).isEqualTo(3)
+      assertThat(nomisRemigratedFromDb.size).isEqualTo(3)
+      assertThat(remigratedFromDb.map { it.id!! }).containsExactlyInAnyOrder(*(remigrated.map { it.id }).toTypedArray())
+
+      assertThat(csraReviewRepository.findByIdOrNull(migrated[0].id)).isNull()
+      assertThat(csraReviewRepository.findByIdOrNull(migrated[1].id)).isNull()
+      assertThat(csraReviewRepository.findByIdOrNull(migrated[2].id)).isNull()
+      assertThat(csraReviewRepository.findByIdOrNull(remigrated[0].id)).isNotNull()
+      assertThat(csraReviewRepository.findByIdOrNull(remigrated[1].id)).isNotNull()
+      assertThat(csraReviewRepository.findByIdOrNull(remigrated[2].id)).isNotNull()
+
+      assertThat(csraReviewNomisRepository.findByIdOrNull(nomisMigratedFromDb[0].id!!)).isNull()
+      assertThat(csraReviewNomisRepository.findByIdOrNull(nomisMigratedFromDb[1].id!!)).isNull()
+      assertThat(csraReviewNomisRepository.findByIdOrNull(nomisMigratedFromDb[2].id!!)).isNull()
+      assertThat(csraReviewNomisRepository.findByIdOrNull(nomisRemigratedFromDb[0].id!!)).isNotNull()
+      assertThat(csraReviewNomisRepository.findByIdOrNull(nomisRemigratedFromDb[1].id!!)).isNotNull()
+      assertThat(csraReviewNomisRepository.findByIdOrNull(nomisRemigratedFromDb[2].id!!)).isNotNull()
     }
 
     @Test
