@@ -143,8 +143,8 @@ class CsraNomisSyncResourceTest : SqsIntegrationTestBase() {
         .contentType(MediaType.APPLICATION_JSON)
         .body(
           BodyInserters.fromValue(
-            "[${reviewJson(10, 1, "2026-05-01")},${reviewJson(10, 2, "2026-05-02")},${reviewJson(11, 3, "2026-05-03")}]"
-          )
+            "[${reviewJson(10, 1, "2026-05-01")},${reviewJson(10, 2, "2026-05-02")},${reviewJson(11, 3, "2026-05-03")}]",
+          ),
         )
         .exchange()
         .expectStatus().isCreated
@@ -160,8 +160,8 @@ class CsraNomisSyncResourceTest : SqsIntegrationTestBase() {
         .contentType(MediaType.APPLICATION_JSON)
         .body(
           BodyInserters.fromValue(
-            "[${reviewJson(10, 1, "2026-05-01")},${reviewJson(10, 2, "2026-05-02")},${reviewJson(11, 3, "2026-05-03")}]"
-          )
+            "[${reviewJson(10, 1, "2026-05-01")},${reviewJson(10, 2, "2026-05-02")},${reviewJson(11, 3, "2026-05-03")}]",
+          ),
         )
         .exchange()
         .expectStatus().isCreated
