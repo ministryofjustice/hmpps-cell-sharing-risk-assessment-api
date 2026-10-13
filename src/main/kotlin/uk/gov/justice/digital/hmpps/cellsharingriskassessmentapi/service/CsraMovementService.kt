@@ -118,6 +118,7 @@ class CsraMovementService(
     val movement = when (reason) {
       CsraClosureReason.NOT_COMPLETED_PRISONER_RELEASE -> "readmission"
       CsraClosureReason.NOT_COMPLETED_PRISONER_TRANSFER -> "transfer"
+      CsraClosureReason.CANCELLED -> throw IllegalArgumentException("Cancellation is not a prisoner movement")
     }
     log.info("CSRA review {} {} on {} for {}", review.id, outcome, movement, review.prisonerNumber)
     telemetryClient.trackEvent(

@@ -20,10 +20,12 @@ import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentAnswersRequest
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentCancelRequest
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentDto
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentStageRequest
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentStartRequest
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentStarted
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraCurrentRating
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStage
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.service.CsraAssessmentService
 import uk.gov.justice.hmpps.kotlin.common.ErrorResponse
@@ -88,6 +90,48 @@ class CsraAssessmentResource(
     @RequestBody @Valid
     request: CsraAssessmentStartRequest,
   ) = csraAssessmentService.start(prisonerNumber, request)
+
+  @PostMapping("/{assessmentId}/cancel")
+  @ResponseStatus(HttpStatus.OK)
+  @PreAuthorize("hasRole('ROLE_CSRA_REVIEW__RW')")
+  @Operation(
+    summary = "Cancels an unrated initial CSRA assessment",
+    description = "Archives an in-progress initial assessment before any provisional rating has been submitted. " +
+      "Answers are retained but no longer returned. Leaves the prisoner's current rating unchanged and " +
+      "allows a new assessment to be started. Repeating a successful cancellation returns the current " +
+      "rating without another audit. Requires role ROLE_CSRA_REVIEW__RW",
+    responses = [
+      ApiResponse(
+        responseCode = "200",
+        description = "The assessment is cancelled; returns the current rating",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = CsraCurrentRating::class))],
+      ),
+      ApiResponse(responseCode = "400", description = "Invalid request - no prison supplied"),
+      ApiResponse(responseCode = "401", description = "Unauthorized to access this endpoint"),
+      ApiResponse(
+        responseCode = "403",
+        description = "Missing ROLE_CSRA_REVIEW__RW or prison not active (PrisonNotActive). " +
+          "ROLE_PRISONER_CSRA__ROLLOUT_OVERRIDE bypasses the rollout check",
+      ),
+      ApiResponse(responseCode = "404", description = "No such initial assessment for this prisoner"),
+      ApiResponse(
+        responseCode = "409",
+        description = "CsraReviewNotWritable: a rating has been submitted, the assessment is complete, " +
+          "or a prisoner movement has already closed or archived it",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
+      ),
+    ],
+  )
+  fun cancelAssessment(
+    @Parameter(description = "The prisoner number", example = "A1234BC", required = true)
+    @PathVariable
+    prisonerNumber: String,
+    @Parameter(description = "The in-progress assessment id returned by current-rating", required = true)
+    @PathVariable
+    assessmentId: UUID,
+    @RequestBody @Valid
+    request: CsraAssessmentCancelRequest,
+  ) = csraAssessmentService.cancel(prisonerNumber, assessmentId, request.prisonId)
 
   @PutMapping("/{assessmentId}/provisional")
   @ResponseStatus(HttpStatus.OK)

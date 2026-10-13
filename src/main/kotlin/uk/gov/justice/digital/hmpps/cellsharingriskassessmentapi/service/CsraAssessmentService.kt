@@ -20,6 +20,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessm
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStageEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStageRiskToEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStageVulnerabilityEntity
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraClosureReason
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraEvidenceSource
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraResult
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewEntity
@@ -28,6 +29,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraType
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraAssessmentStageRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraReviewRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.resource.CsraReviewNotFoundException
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.resource.CsraReviewNotWritableException
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.resource.MandatoryHighRiskGeneralException
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.resource.StaleAnswersException
 import uk.gov.justice.hmpps.kotlin.auth.HmppsAuthenticationHolder
@@ -49,6 +51,7 @@ class CsraAssessmentService(
   private val csraReviewService: CsraReviewService,
   private val csraCurrentRatingService: CsraCurrentRatingService,
   private val eventPublishAndAuditService: EventPublishAndAuditService,
+  private val auditService: AuditService,
   private val riskCategoryValidator: CsraRiskCategoryValidator,
   private val writeSupport: CsraWriteSupport,
   private val authenticationHolder: HmppsAuthenticationHolder,
@@ -86,6 +89,29 @@ class CsraAssessmentService(
 
   fun submitFinal(prisonerNumber: String, assessmentId: UUID, request: CsraAssessmentStageRequest) = submitStage(prisonerNumber, assessmentId, request, CsraAssessmentStage.FINAL)
 
+  fun cancel(prisonerNumber: String, assessmentId: UUID, prisonId: String): CsraCurrentRating {
+    writeSupport.rejectIfPrisonNotActive(prisonId)
+    val review = loadInitialReview(prisonerNumber, assessmentId, forUpdate = true)
+    if (review.status == CsraReviewStatus.ARCHIVED && review.closureReason == CsraClosureReason.CANCELLED) {
+      return csraReviewService.getCurrentRating(prisonerNumber)
+    }
+    writeSupport.rejectIfNotWritable(review)
+    if (review.status != CsraReviewStatus.IN_PROGRESS || review.interimResult != null || review.finalResult != null) {
+      throw CsraReviewNotWritableException(assessmentId.toString(), review.status)
+    }
+
+    val now = LocalDateTime.now(clock)
+    review.status = CsraReviewStatus.ARCHIVED
+    review.closureReason = CsraClosureReason.CANCELLED
+    review.closedAt = now
+    review.closedBy = username
+    review.lastModifiedAt = now
+    review.lastModifiedBy = username
+    csraReviewRepository.saveAndFlush(review)
+    auditService.sendMessage(AuditType.CSRA_CANCELLED, assessmentId.toString(), review.toDto())
+    return csraReviewService.getCurrentRating(prisonerNumber)
+  }
+
   /** Partially saves answers for one stage without confirming a rating. Does not affect the prisoner's
    * current rating, does not publish a domain event, and does not mark the stage as completed. The
    * request replaces the whole answer state for the stage so that a cleared answer results in null. */
@@ -93,7 +119,7 @@ class CsraAssessmentService(
     // Rollout gate first: it is about the caller, not the record, so it must not depend on the id
     // existing or on what state the record is in.
     writeSupport.rejectIfPrisonNotActive(request.prisonId)
-    val review = loadInitialReview(prisonerNumber, assessmentId)
+    val review = loadInitialReview(prisonerNumber, assessmentId, forUpdate = true)
     writeSupport.rejectIfNotWritable(review)
 
     if (review.finalResult != null) {
@@ -132,6 +158,9 @@ class CsraAssessmentService(
   @Transactional(readOnly = true)
   fun getAssessment(prisonerNumber: String, assessmentId: UUID): CsraAssessmentDto {
     val review = loadInitialReview(prisonerNumber, assessmentId)
+    if (review.status == CsraReviewStatus.ARCHIVED) {
+      throw CsraReviewNotFoundException(assessmentId.toString())
+    }
     val stages = csraAssessmentStageRepository.findAllByCsraReviewId(assessmentId)
     return review.toAssessmentDto(stages)
   }
@@ -145,7 +174,7 @@ class CsraAssessmentService(
     // Rollout gate first: it is about the caller, not the record, so it must not depend on the id
     // existing or on what state the record is in.
     writeSupport.rejectIfPrisonNotActive(request.prisonId)
-    val review = loadInitialReview(prisonerNumber, assessmentId)
+    val review = loadInitialReview(prisonerNumber, assessmentId, forUpdate = true)
     // Before the content checks: a review the prisoner has moved away from is a lifecycle conflict, not
     // a bad payload, and the caller should be told that rather than shown a validation error.
     writeSupport.rejectIfNotWritable(review)
@@ -196,8 +225,8 @@ class CsraAssessmentService(
     return csraReviewService.getCurrentRating(prisonerNumber)
   }
 
-  private fun loadInitialReview(prisonerNumber: String, assessmentId: UUID): CsraReviewEntity {
-    val review = csraReviewRepository.findByIdOrNull(assessmentId)
+  private fun loadInitialReview(prisonerNumber: String, assessmentId: UUID, forUpdate: Boolean = false): CsraReviewEntity {
+    val review = (if (forUpdate) csraReviewRepository.findByIdForUpdate(assessmentId) else csraReviewRepository.findByIdOrNull(assessmentId))
       ?: throw CsraReviewNotFoundException(assessmentId.toString())
     if (review.prisonerNumber != prisonerNumber || review.type != CsraType.CSRA_INITIAL_ASSESSMENT) {
       throw CsraReviewNotFoundException(assessmentId.toString())

@@ -88,6 +88,7 @@ class CsraReviewService(
    */
   fun getCsraReviewById(id: UUID): CsraReviewDetail? {
     val review = csraReviewRepository.findByIdOrNull(id) ?: return null
+    if (review.status == CsraReviewStatus.ARCHIVED) return null
     val nomis = csraReviewNomisRepository.findByCsraReviewId(id)
     // Cached in-process and degrades to the bare id, so this cannot fail the read.
     val prisonName = review.prisonId?.let { prisonRegisterClient.getPrisonNames()[it] ?: it }

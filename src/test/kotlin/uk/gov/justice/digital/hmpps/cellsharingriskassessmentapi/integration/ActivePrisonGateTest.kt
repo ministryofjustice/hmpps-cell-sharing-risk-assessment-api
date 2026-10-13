@@ -142,6 +142,12 @@ class ActivePrisonGateTest : SqsIntegrationTestBase() {
     fun gatedRequests() = listOf(
       GatedRequest(
         HttpMethod.POST,
+        "/csra-review/prisoner/{prisonerNumber}/assessment/{assessmentId}/cancel",
+        "/csra-review/prisoner/$PRISONER/assessment/${UUID.randomUUID()}/cancel",
+        START_BODY,
+      ),
+      GatedRequest(
+        HttpMethod.POST,
         "/csra-review/prisoner/{prisonerNumber}/assessment",
         "/csra-review/prisoner/$PRISONER/assessment",
         START_BODY,
@@ -186,6 +192,7 @@ class ActivePrisonGateTest : SqsIntegrationTestBase() {
 
     /** The user write journeys. A write here is refused unless the prison is switched on. */
     private val GATED = setOf(
+      "POST /csra-review/prisoner/{prisonerNumber}/assessment/{assessmentId}/cancel",
       "POST /csra-review/prisoner/{prisonerNumber}/assessment",
       "PUT /csra-review/prisoner/{prisonerNumber}/assessment/{assessmentId}/provisional",
       "PUT /csra-review/prisoner/{prisonerNumber}/assessment/{assessmentId}/final",
