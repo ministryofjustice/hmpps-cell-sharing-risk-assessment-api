@@ -99,7 +99,10 @@ class ActivePrisonGateTest : SqsIntegrationTestBase() {
   @Test
   fun `the gate outranks the record lookup, so an unknown id at an inactive prison is 403 not 404`() {
     // A 404 would tell a caller with no business writing at this prison whether the id exists.
-    exchange(gatedRequests()[1]).expectStatus().isForbidden
+    val request = gatedRequests().single {
+      it.template == "/csra-review/prisoner/{prisonerNumber}/assessment/{assessmentId}/provisional"
+    }
+    exchange(request).expectStatus().isForbidden
   }
 
   private fun exchange(

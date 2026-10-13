@@ -13,6 +13,7 @@ import org.junit.jupiter.params.provider.ValueSource
 import org.mockito.kotlin.any
 import org.mockito.kotlin.eq
 import org.mockito.kotlin.isNull
+import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.http.MediaType
@@ -266,6 +267,37 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
       .jsonPath("$.reviewId").isEqualTo(previousId.toString())
     assertThat(csraCurrentRatingRepository.findByPrisonerNumber(prisoner))
       .usingRecursiveComparison().isEqualTo(previous)
+    assertThat(getNumberOfMessagesCurrentlyOnQueue()).isZero()
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = [true, false])
+  @WithMockAuthUser(username = "CANCELLER", roles = ["CSRA_REVIEW__RW"])
+  fun `cancellation audit and telemetry are sent only after a successful commit`(rollback: Boolean) {
+    val prisoner = "C0008CC"
+    val assessmentId = start(prisoner).assessmentId
+
+    TransactionTemplate(transactionManager).executeWithoutResult { transaction ->
+      csraAssessmentService.cancel(prisoner, assessmentId, "LEI")
+      assertThat(countAuditMessages()).isZero()
+      verify(telemetryClient, never()).trackEvent(eq("CSRA_CANCELLED"), any(), isNull())
+      if (rollback) transaction.setRollbackOnly()
+    }
+
+    val review = csraReviewRepository.findById(assessmentId).orElseThrow()
+    if (rollback) {
+      assertThat(review.status).isEqualTo(CsraReviewStatus.IN_PROGRESS)
+      assertThat(review.closureReason).isNull()
+      assertThat(review.closedAt).isNull()
+      assertThat(review.closedBy).isNull()
+      assertThat(countAuditMessages()).isZero()
+      verify(telemetryClient, never()).trackEvent(eq("CSRA_CANCELLED"), any(), isNull())
+    } else {
+      assertThat(review.status).isEqualTo(CsraReviewStatus.ARCHIVED)
+      assertThat(review.closureReason).isEqualTo(CsraClosureReason.CANCELLED)
+      await untilCallTo { countAuditMessages() } matches { it == 1 }
+      verify(telemetryClient).trackEvent(eq("CSRA_CANCELLED"), any(), isNull())
+    }
     assertThat(getNumberOfMessagesCurrentlyOnQueue()).isZero()
   }
 

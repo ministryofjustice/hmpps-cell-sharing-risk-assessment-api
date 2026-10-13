@@ -76,7 +76,7 @@ class ExportReferenceData {
         CsraReviewStatus.IN_PROGRESS to "Started and editable, with no final rating yet.",
         CsraReviewStatus.COMPLETE to "A final rating has been recorded. Also the state of every migrated NOMIS review.",
         CsraReviewStatus.CLOSED to "Was in progress with a provisional or interim rating when the prisoner moved. No longer in progress, but its rating still counts as current.",
-        CsraReviewStatus.ARCHIVED to "Was in progress with no rating when the prisoner moved. Retained for investigation but hidden from the service, and never a current rating.",
+        CsraReviewStatus.ARCHIVED to "An unrated in-progress review archived when the prisoner moved, or an unrated initial assessment cancelled by a user. Answers are retained, but the record is hidden from the service and never a current rating.",
       ),
     )
 
@@ -84,6 +84,7 @@ class ExportReferenceData {
       "csra_review.closure_reason",
       CsraClosureReason.entries,
       mapOf(
+        CsraClosureReason.CANCELLED to "An unrated in-progress initial assessment was cancelled by a user. Archived with its answers retained; the prisoner's current rating is unchanged.",
         CsraClosureReason.NOT_COMPLETED_PRISONER_TRANSFER to "The prisoner was transferred to another establishment, with no release in between, before the review was completed.",
         CsraClosureReason.NOT_COMPLETED_PRISONER_RELEASE to "The prisoner was readmitted following a period of release before the review was completed. The rating is also reset to No rating.",
       ),

@@ -51,7 +51,6 @@ class CsraAssessmentService(
   private val csraReviewService: CsraReviewService,
   private val csraCurrentRatingService: CsraCurrentRatingService,
   private val eventPublishAndAuditService: EventPublishAndAuditService,
-  private val auditService: AuditService,
   private val riskCategoryValidator: CsraRiskCategoryValidator,
   private val writeSupport: CsraWriteSupport,
   private val authenticationHolder: HmppsAuthenticationHolder,
@@ -108,7 +107,7 @@ class CsraAssessmentService(
     review.lastModifiedAt = now
     review.lastModifiedBy = username
     csraReviewRepository.saveAndFlush(review)
-    auditService.sendMessage(AuditType.CSRA_CANCELLED, assessmentId.toString(), review.toDto())
+    eventPublishAndAuditService.auditEventAfterCommit(AuditType.CSRA_CANCELLED, assessmentId.toString(), review.toDto())
     return csraReviewService.getCurrentRating(prisonerNumber)
   }
 

@@ -193,6 +193,14 @@ class EventPublishAndAuditService(
     }
   }
 
+  fun auditEventAfterCommit(
+    auditType: AuditType,
+    id: String,
+    auditData: Any,
+  ) = afterCommit {
+    auditEvent(auditType, id, auditData)
+  }
+
   fun auditEvent(
     auditType: AuditType,
     id: String,
