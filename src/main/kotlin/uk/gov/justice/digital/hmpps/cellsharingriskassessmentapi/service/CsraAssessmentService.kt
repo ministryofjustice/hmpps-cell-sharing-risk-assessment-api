@@ -28,8 +28,8 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewS
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraType
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraAssessmentStageRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraReviewRepository
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.resource.CsraAssessmentNotCancellableException
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.resource.CsraReviewNotFoundException
-import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.resource.CsraReviewNotWritableException
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.resource.MandatoryHighRiskGeneralException
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.resource.StaleAnswersException
 import uk.gov.justice.hmpps.kotlin.auth.HmppsAuthenticationHolder
@@ -95,8 +95,11 @@ class CsraAssessmentService(
       return csraReviewService.getCurrentRating(prisonerNumber)
     }
     writeSupport.rejectIfNotWritable(review)
-    if (review.status != CsraReviewStatus.IN_PROGRESS || review.interimResult != null || review.finalResult != null) {
-      throw CsraReviewNotWritableException(assessmentId.toString(), review.status)
+    if (review.interimResult != null || review.finalResult != null) {
+      throw CsraAssessmentNotCancellableException(assessmentId.toString(), "has a rating")
+    }
+    if (review.status != CsraReviewStatus.IN_PROGRESS) {
+      throw CsraAssessmentNotCancellableException(assessmentId.toString(), "is complete")
     }
 
     val now = LocalDateTime.now(clock)
@@ -107,7 +110,7 @@ class CsraAssessmentService(
     review.lastModifiedAt = now
     review.lastModifiedBy = username
     csraReviewRepository.saveAndFlush(review)
-    eventPublishAndAuditService.auditEventAfterCommit(AuditType.CSRA_CANCELLED, assessmentId.toString(), review.toDto())
+    eventPublishAndAuditService.auditAssessmentCancelled(review.toDto(), prisonId)
     return csraReviewService.getCurrentRating(prisonerNumber)
   }
 

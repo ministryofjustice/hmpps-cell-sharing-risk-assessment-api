@@ -116,8 +116,8 @@ class CsraAssessmentResource(
       ApiResponse(responseCode = "404", description = "No such initial assessment for this prisoner"),
       ApiResponse(
         responseCode = "409",
-        description = "CsraReviewNotWritable: a rating has been submitted, the assessment is complete, " +
-          "or a prisoner movement has already closed or archived it",
+        description = "CsraAssessmentNotCancellable: a rating has been submitted or the assessment is complete. " +
+          "CsraReviewNotWritable: a prisoner movement has already closed or archived it",
         content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
       ),
     ],
@@ -166,7 +166,7 @@ class CsraAssessmentResource(
       ),
       ApiResponse(
         responseCode = "409",
-        description = "The assessment has been closed or archived by a prisoner movement and can no longer be edited",
+        description = "The assessment has been closed or archived by a prisoner movement, or cancelled by a user, and can no longer be edited",
         content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
       ),
     ],
@@ -215,7 +215,7 @@ class CsraAssessmentResource(
       ),
       ApiResponse(
         responseCode = "409",
-        description = "The assessment has been closed or archived by a prisoner movement and can no longer be edited",
+        description = "The assessment has been closed or archived by a prisoner movement, or cancelled by a user, and can no longer be edited",
         content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
       ),
     ],
@@ -311,7 +311,7 @@ class CsraAssessmentResource(
       ),
       ApiResponse(
         responseCode = "409",
-        description = "The assessment has been closed or archived by a prisoner movement and can no longer be edited",
+        description = "The assessment has been closed or archived by a prisoner movement, or cancelled by a user, and can no longer be edited",
         content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
       ),
     ],

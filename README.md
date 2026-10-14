@@ -46,13 +46,15 @@ The API has four surfaces, each guarded by its own role.
 | Path | Purpose |
 | --- | --- |
 | `POST /csra-review/prisoner/{prisonerNumber}/assessment` | Start a draft assessment. Requires `{"prisonId": "LEI"}` — the prison is what puts the draft on that prison's worklist |
-| `POST /csra-review/prisoner/{prisonerNumber}/assessment/{assessmentId}/cancel` | Cancel an in-progress initial assessment before a provisional rating is submitted. Requires `{"prisonId": "LEI"}` for the rollout check; returns the current rating. Repeating cancellation succeeds; rated, completed or movement-closed assessments return 409 `CsraReviewNotWritable` |
+| `POST /csra-review/prisoner/{prisonerNumber}/assessment/{assessmentId}/cancel` | Cancel an in-progress initial assessment before a provisional rating is submitted. Requires `{"prisonId": "LEI"}` for the rollout check; returns the current rating. Repeating cancellation succeeds. Rated or completed assessments return 409 `CsraAssessmentNotCancellable`; movement-closed assessments return 409 `CsraReviewNotWritable` |
 | `PUT /csra-review/prisoner/{prisonerNumber}/assessment/{assessmentId}/provisional` | Submit the provisional (Day 1) stage |
 | `PUT /csra-review/prisoner/{prisonerNumber}/assessment/{assessmentId}/final` | Submit the final (Day 2) stage |
 
 Cancellation archives the draft with closure reason `CANCELLED`, retaining its answers but hiding it from
 reads and freeing the prisoner for a new assessment. It records the closing user and time, sends a
-`CSRA_CANCELLED` audit and telemetry event, and publishes no domain event to NOMIS. Use the in-progress
+`CSRA_CANCELLED` audit, and publishes no domain event to NOMIS. After commit, `csra-assessment-cancelled`
+telemetry records `assessmentId`, `prisonerNumber`, `prisonId` (the assessment's prison), and
+`requestPrisonId`. Audit details contain the assessment snapshot and `requestPrisonId`. Use the in-progress
 assessment id from current-rating; the existing GET assessment endpoint supplies confirmation details
 before cancellation. Any unrated draft can be cancelled, regardless of which answers have been saved.
 

@@ -18,4 +18,5 @@ enum class ErrorCode(val errorCode: Int) {
   CsraReviewNotWritable(109),
   PrisonNotActive(110),
   InvalidRatingFilter(111),
+  CsraAssessmentNotCancellable(112),
 }
