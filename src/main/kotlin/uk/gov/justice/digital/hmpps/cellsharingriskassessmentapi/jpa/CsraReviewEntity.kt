@@ -6,6 +6,7 @@ import jakarta.persistence.EnumType
 import jakarta.persistence.Enumerated
 import jakarta.persistence.Id
 import jakarta.persistence.Table
+import jakarta.persistence.Version
 import org.hibernate.Hibernate
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.helper.GeneratedUuidV7
 import java.time.LocalDate
@@ -77,6 +78,13 @@ class CsraReviewEntity(
   var createdBy: String,
   var lastModifiedAt: LocalDateTime? = null,
   var lastModifiedBy: String? = null,
+
+  // Optimistic locking (MAPA-437). Every writer - the user journeys, the movement and merge listeners, the
+  // NOMIS sync - saves the whole row, so without this the second of two concurrent saves silently undid
+  // the first. Now it fails with ObjectOptimisticLockingFailureException: a 409 over HTTP, a retried
+  // message on SQS.
+  @Version
+  var version: Int = 0,
 ) {
   override fun equals(other: Any?): Boolean {
     if (this === other) return true

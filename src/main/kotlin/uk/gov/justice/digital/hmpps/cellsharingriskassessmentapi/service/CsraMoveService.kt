@@ -31,6 +31,10 @@ import java.util.UUID
  * [CsraCurrentRatingService.refreshFromReviews] from whatever reviews they are left with, rather than being
  * assumed empty. Each review carries the next review date it set (SDIT-4297), so the date follows the moved
  * reviews without any move-specific code.
+ *
+ * A DPS write to one of the named reviews while this runs makes the move fail on the review's version
+ * (MAPA-437) with a 409 rather than write back a stale copy. The caller retries, and the retry skips any
+ * review already under the correct number.
  */
 @Service
 @Transactional

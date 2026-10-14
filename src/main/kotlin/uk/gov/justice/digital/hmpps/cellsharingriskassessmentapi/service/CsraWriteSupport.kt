@@ -91,8 +91,8 @@ class CsraWriteSupport(
    * `finalStage ?: firstStage` — and because the NOMIS sync path and SQL data fixes can both set
    * `finalResult` on a review that has no stage rows at all.
    *
-   * The short-circuit on FINAL is load-bearing twice over: it means the row upserted moments earlier is
-   * never consulted, and it is what lets a capture that goes straight to FINAL still record a prison.
+   * The short-circuit on FINAL is load-bearing twice over: it means the FINAL row the same write is saving
+   * is never consulted, and it is what lets a capture that goes straight to FINAL still record a prison.
    */
   fun updateHeadlinePrison(review: CsraReviewEntity, stage: CsraAssessmentStage, prisonId: String) {
     if (stage == CsraAssessmentStage.FINAL ||

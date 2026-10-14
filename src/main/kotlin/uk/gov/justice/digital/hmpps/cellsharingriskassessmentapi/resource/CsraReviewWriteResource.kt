@@ -127,7 +127,8 @@ class CsraReviewWriteResource(
       ),
       ApiResponse(
         responseCode = "409",
-        description = "The review has been closed or archived by a prisoner movement and can no longer be edited",
+        description = "CsraReviewNotWritable: the review has been closed or archived by a prisoner movement and can no longer be edited. " +
+          "ConcurrentUpdate: another request changed it at the same time - re-read it and try again",
         content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
       ),
     ],
@@ -180,7 +181,8 @@ class CsraReviewWriteResource(
       ),
       ApiResponse(
         responseCode = "409",
-        description = "The review has been closed or archived by a prisoner movement and can no longer be edited",
+        description = "CsraReviewNotWritable: the review has been closed or archived by a prisoner movement and can no longer be edited. " +
+          "ConcurrentUpdate: another request changed it at the same time - re-read it and try again",
         content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
       ),
     ],

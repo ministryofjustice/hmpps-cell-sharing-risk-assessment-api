@@ -22,6 +22,11 @@ import java.time.LocalDateTime
  * rating stands), and one with no rating yet is **archived** (retained but hidden). Both are naturally
  * idempotent: a redelivered event finds no in-progress review and does nothing.
  *
+ * That is also what makes a version clash safe (MAPA-437). If a user saves the review between this handler
+ * reading it and writing it back - a provisional rating landing during a transfer, say - the write fails,
+ * the transaction rolls back, and the redelivered message decides close or archive again from the current
+ * row. Without the version check the stale copy won and the rating was silently wiped.
+ *
  * The two paths differ in what they record as the closure reason: a readmission after release is not a
  * transfer, and the record has to say so.
  */
@@ -106,7 +111,8 @@ class CsraMovementService(
       review.closureReason = reason
       review.closedAt = LocalDateTime.now(clock)
       review.closedBy = SYSTEM_USERNAME
-      csraReviewRepository.save(review)
+      // Flushed now so a version clash fails here, before the closure is reported to telemetry.
+      csraReviewRepository.saveAndFlush(review)
       recordClosure(review, prisonId, reason, outcome)
     }
   }
