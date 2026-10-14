@@ -99,7 +99,10 @@ class ActivePrisonGateTest : SqsIntegrationTestBase() {
   @Test
   fun `the gate outranks the record lookup, so an unknown id at an inactive prison is 403 not 404`() {
     // A 404 would tell a caller with no business writing at this prison whether the id exists.
-    exchange(gatedRequests()[1]).expectStatus().isForbidden
+    val request = gatedRequests().single {
+      it.template == "/csra-review/prisoner/{prisonerNumber}/assessment/{assessmentId}/provisional"
+    }
+    exchange(request).expectStatus().isForbidden
   }
 
   private fun exchange(
@@ -140,6 +143,12 @@ class ActivePrisonGateTest : SqsIntegrationTestBase() {
 
     @JvmStatic
     fun gatedRequests() = listOf(
+      GatedRequest(
+        HttpMethod.POST,
+        "/csra-review/prisoner/{prisonerNumber}/assessment/{assessmentId}/cancel",
+        "/csra-review/prisoner/$PRISONER/assessment/${UUID.randomUUID()}/cancel",
+        START_BODY,
+      ),
       GatedRequest(
         HttpMethod.POST,
         "/csra-review/prisoner/{prisonerNumber}/assessment",
@@ -186,6 +195,7 @@ class ActivePrisonGateTest : SqsIntegrationTestBase() {
 
     /** The user write journeys. A write here is refused unless the prison is switched on. */
     private val GATED = setOf(
+      "POST /csra-review/prisoner/{prisonerNumber}/assessment/{assessmentId}/cancel",
       "POST /csra-review/prisoner/{prisonerNumber}/assessment",
       "PUT /csra-review/prisoner/{prisonerNumber}/assessment/{assessmentId}/provisional",
       "PUT /csra-review/prisoner/{prisonerNumber}/assessment/{assessmentId}/final",

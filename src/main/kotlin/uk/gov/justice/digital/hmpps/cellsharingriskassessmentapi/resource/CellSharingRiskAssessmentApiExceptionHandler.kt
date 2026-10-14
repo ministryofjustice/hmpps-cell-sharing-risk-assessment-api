@@ -123,6 +123,18 @@ class CellSharingRiskAssessmentApiExceptionHandler {
       ),
     ).also { log.info("CSRA review is no longer writable: {}", e.message) }
 
+  @ExceptionHandler(CsraAssessmentNotCancellableException::class)
+  fun handleCsraAssessmentNotCancellableException(e: CsraAssessmentNotCancellableException): ResponseEntity<ErrorResponse> = ResponseEntity
+    .status(CONFLICT)
+    .body(
+      ErrorResponse(
+        status = CONFLICT,
+        errorCode = ErrorCode.CsraAssessmentNotCancellable.name,
+        userMessage = "Conflict: ${e.message}",
+        developerMessage = e.message,
+      ),
+    ).also { log.info("CSRA assessment cannot be cancelled: {}", e.message) }
+
   @ExceptionHandler(CsraPrisonNotActiveException::class)
   fun handleCsraPrisonNotActiveException(e: CsraPrisonNotActiveException): ResponseEntity<ErrorResponse> = ResponseEntity
     .status(FORBIDDEN)
@@ -207,11 +219,15 @@ class MandatoryHighRiskGeneralException : Exception("The rating must be HIGH_GEN
 
 class CsraAssessmentInProgressException(prisonerNumber: String) : Exception("An assessment is already in progress for prisoner $prisonerNumber")
 
+class CsraAssessmentNotCancellableException(id: String, reason: String) : Exception("CSRA assessment $id $reason and cannot be cancelled")
+
 /**
- * A write against a CSRA that a prisoner movement has already closed or archived (R-03).
+ * A write against a CSRA that a prisoner movement has already closed or archived (R-03), or an initial
+ * assessment archived by user cancellation.
  *
  * A conflict rather than a 404: the record exists and the caller may legitimately have had it open when
- * the prisoner moved. Only CLOSED and ARCHIVED are refused - amending a COMPLETE review is supported.
+ * the prisoner moved or another user cancelled it. Only CLOSED and ARCHIVED are refused - amending a
+ * COMPLETE review is supported.
  */
 class CsraReviewNotWritableException(id: String, status: CsraReviewStatus) : Exception("CSRA review $id is $status and can no longer be edited")
 

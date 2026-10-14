@@ -1,0 +1,1 @@
+COMMENT ON COLUMN csra_review.closure_reason IS 'Why an in-progress review was closed or archived - NOT_COMPLETED_PRISONER_TRANSFER (moved to another establishment), NOT_COMPLETED_PRISONER_RELEASE (readmitted after a period of release), or CANCELLED (an unrated initial assessment cancelled by a user). [Sensitivity: PERSONAL]';

@@ -193,6 +193,27 @@ class EventPublishAndAuditService(
     }
   }
 
+  fun auditAssessmentCancelled(
+    csraReview: CsraReview,
+    requestPrisonId: String,
+  ) = afterCommit {
+    telemetryClient.trackEvent(
+      "csra-assessment-cancelled",
+      mapOf(
+        "assessmentId" to csraReview.id.toString(),
+        "prisonerNumber" to csraReview.prisonerNumber,
+        "prisonId" to csraReview.prisonId.orEmpty(),
+        "requestPrisonId" to requestPrisonId,
+      ),
+      null,
+    )
+    auditEvent(
+      auditType = AuditType.CSRA_CANCELLED,
+      id = csraReview.id.toString(),
+      auditData = mapOf("assessment" to csraReview, "requestPrisonId" to requestPrisonId),
+    )
+  }
+
   fun auditEvent(
     auditType: AuditType,
     id: String,

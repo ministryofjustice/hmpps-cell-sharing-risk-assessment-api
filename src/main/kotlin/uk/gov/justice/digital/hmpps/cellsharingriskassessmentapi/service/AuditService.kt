@@ -73,6 +73,7 @@ data class AuditEvent(
 enum class AuditType {
   CSRA_CREATED,
   CSRA_AMENDED,
+  CSRA_CANCELLED,
 
   /**
    * A NOMIS prisoner-number merge moved a prisoner's CSRA data onto their surviving number. Not a

@@ -1,5 +1,6 @@
 package uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.integration
 
+import com.microsoft.applicationinsights.TelemetryClient
 import org.assertj.core.api.Assertions.assertThat
 import org.awaitility.kotlin.await
 import org.awaitility.kotlin.matches
@@ -8,17 +9,31 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.CsvSource
+import org.junit.jupiter.params.provider.ValueSource
+import org.mockito.kotlin.any
+import org.mockito.kotlin.eq
+import org.mockito.kotlin.isNull
+import org.mockito.kotlin.never
+import org.mockito.kotlin.verify
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.http.MediaType
+import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.test.context.bean.override.mockito.MockitoBean
 import org.springframework.test.web.reactive.server.expectBody
+import org.springframework.transaction.PlatformTransactionManager
+import org.springframework.transaction.support.TransactionTemplate
 import org.springframework.web.reactive.function.BodyInserters
+import software.amazon.awssdk.services.sqs.model.DeleteMessageRequest
+import software.amazon.awssdk.services.sqs.model.ReceiveMessageRequest
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentDto
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentStageRequest
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentStarted
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraRatingStatus
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.integration.wiremock.HmppsAuthApiExtension.Companion.hmppsAuth
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.integration.wiremock.PrisonerSearchApiExtension.Companion.prisonerSearch
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.integration.wiremock.PrisonerSearchMockServer.RollMemberStub
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStage
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraClosureReason
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraOffence
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraResult
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewEntity
@@ -29,18 +44,26 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraCurrentRatingRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraNextReviewRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraReviewRepository
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.service.CsraAssessmentService
 import uk.gov.justice.hmpps.sqs.HmppsQueue
 import uk.gov.justice.hmpps.sqs.HmppsQueueService
+import uk.gov.justice.hmpps.sqs.countAllMessagesOnQueue
 import uk.gov.justice.hmpps.sqs.countMessagesOnQueue
+import uk.gov.justice.hmpps.test.kotlin.auth.WithMockAuthUser
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.util.UUID
+import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
 
 class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
 
   /** Every prison this class writes at. Without this the rollout gate (MAPA-363) refuses every write. */
   @BeforeEach
   fun switchOnTestPrisons() {
+    csraNextReviewRepository.deleteAll()
+    csraCurrentRatingRepository.deleteAll()
+    csraReviewRepository.deleteAll()
     switchOn("LEI", "BXI", "WWI")
   }
 
@@ -63,6 +86,18 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
   private lateinit var hmppsQueueService: HmppsQueueService
 
   private val auditQueue by lazy { hmppsQueueService.findByQueueId("audit") as HmppsQueue }
+
+  @MockitoBean
+  private lateinit var telemetryClient: TelemetryClient
+
+  @Autowired
+  private lateinit var transactionManager: PlatformTransactionManager
+
+  @Autowired
+  private lateinit var jdbcTemplate: JdbcTemplate
+
+  @Autowired
+  private lateinit var csraAssessmentService: CsraAssessmentService
 
   private val writeRole = listOf("ROLE_CSRA_REVIEW__RW")
 
@@ -87,6 +122,13 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
   """.trimIndent()
 
   private fun startBody(prisonId: String) = """{ "prisonId": "$prisonId" }"""
+
+  private fun cancel(prisonerNumber: String, assessmentId: UUID, prisonId: String = "LEI") = webTestClient.post()
+    .uri("/csra-review/prisoner/$prisonerNumber/assessment/$assessmentId/cancel")
+    .headers(setAuthorisation(user = "CANCELLER", roles = writeRole))
+    .contentType(MediaType.APPLICATION_JSON)
+    .bodyValue(startBody(prisonId))
+    .exchange()
 
   private fun start(prisonerNumber: String, prisonId: String = "LEI"): CsraAssessmentStarted = webTestClient.post()
     .uri("/csra-review/prisoner/$prisonerNumber/assessment")
@@ -144,6 +186,295 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
     if (pncChecked != null) append(""", "pncChecked": $pncChecked""")
     if (arson != null) append(""", "offenceArson": $arson""")
     append(" }")
+  }
+
+  @Test
+  fun `cancel retains draft answers but hides the assessment and allows a fresh start`() {
+    val prisoner = "C0001CC"
+    val assessmentId = start(prisoner).assessmentId
+    webTestClient.put()
+      .uri("/csra-review/prisoner/$prisoner/assessment/$assessmentId/stage/PROVISIONAL/answers")
+      .headers(setAuthorisation(roles = writeRole))
+      .contentType(MediaType.APPLICATION_JSON)
+      .bodyValue(answersBody("LEI", pncChecked = true, arson = true))
+      .exchange()
+      .expectStatus().isOk
+
+    cancel(prisoner, assessmentId, prisonId = "BXI").expectStatus().isOk
+      .expectBody().jsonPath("$.rating").isEmpty
+
+    val archived = csraReviewRepository.findById(assessmentId).orElseThrow()
+    assertThat(archived.status).isEqualTo(CsraReviewStatus.ARCHIVED)
+    assertThat(archived.closureReason).isEqualTo(CsraClosureReason.CANCELLED)
+    assertThat(archived.closedAt).isEqualTo(LocalDateTime.now(clock))
+    assertThat(archived.closedBy).isEqualTo("CANCELLER")
+    val answers = csraAssessmentStageRepository.findByCsraReviewIdAndStage(assessmentId, CsraAssessmentStage.PROVISIONAL)!!
+    assertThat(answers.pncChecked).isTrue()
+    assertThat(answers.offenceArson).isTrue()
+    assertThat(csraCurrentRatingRepository.findByPrisonerNumber(prisoner)).isNull()
+
+    webTestClient.get().uri("/csra-review/prisoner/$prisoner/assessment/$assessmentId")
+      .headers(setAuthorisation(roles = listOf("ROLE_CSRA_REVIEW__R")))
+      .exchange().expectStatus().isNotFound
+
+    webTestClient.get().uri("/csra-review/$assessmentId")
+      .headers(setAuthorisation(roles = listOf("ROLE_CSRA_REVIEW__R")))
+      .exchange().expectStatus().isNotFound
+    assertThat(
+      csraReviewRepository.findAllByPrisonIdAndTypeAndFinalResultIsNullAndStatus(
+        "LEI",
+        CsraType.CSRA_INITIAL_ASSESSMENT,
+        CsraReviewStatus.IN_PROGRESS,
+      ).map { it.id },
+    ).doesNotContain(assessmentId)
+    assertThat(csraReviewRepository.findSummaryRows(prisoner)).isEmpty()
+
+    submitProvisional(prisoner, assessmentId, stageBody("STANDARD", "Too late"))
+      .expectStatus().isEqualTo(409)
+
+    cancel(prisoner, assessmentId, prisonId = "WWI").expectStatus().isOk
+    val repeated = csraReviewRepository.findById(assessmentId).orElseThrow()
+    assertThat(repeated.closedAt).isEqualTo(archived.closedAt)
+    assertThat(repeated.closedBy).isEqualTo(archived.closedBy)
+    await untilCallTo { countAuditMessages() } matches { it == 1 }
+    val message = auditQueue.sqsClient.receiveMessage(
+      ReceiveMessageRequest.builder().queueUrl(auditQueue.queueUrl).build(),
+    ).get().messages().single()
+    auditQueue.sqsClient.deleteMessage(
+      DeleteMessageRequest.builder().queueUrl(auditQueue.queueUrl).receiptHandle(message.receiptHandle()).build(),
+    ).get()
+    await untilCallTo { auditQueue.sqsClient.countAllMessagesOnQueue(auditQueue.queueUrl).get() } matches { it == 0 }
+    val audit = objectMapper.readTree(message.body())
+    assertThat(audit.path("what").asText()).isEqualTo("CSRA_CANCELLED")
+    assertThat(audit.path("who").asText()).isEqualTo("CANCELLER")
+    val auditDetails = objectMapper.readTree(audit.path("details").asText())
+    assertThat(auditDetails.path("assessment").path("id").asText()).isEqualTo(assessmentId.toString())
+    assertThat(auditDetails.path("assessment").path("prisonerNumber").asText()).isEqualTo(prisoner)
+    assertThat(auditDetails.path("assessment").path("prisonId").asText()).isEqualTo("LEI")
+    assertThat(auditDetails.path("requestPrisonId").asText()).isEqualTo("BXI")
+    verify(telemetryClient).trackEvent(eq("CSRA_CANCELLED"), any(), isNull())
+    verify(telemetryClient).trackEvent(
+      eq("csra-assessment-cancelled"),
+      eq(mapOf("assessmentId" to assessmentId.toString(), "prisonerNumber" to prisoner, "prisonId" to "LEI", "requestPrisonId" to "BXI")),
+      isNull(),
+    )
+    verify(telemetryClient, never()).trackEvent(
+      eq("csra-assessment-cancelled"),
+      eq(mapOf("assessmentId" to assessmentId.toString(), "prisonerNumber" to prisoner, "prisonId" to "LEI", "requestPrisonId" to "WWI")),
+      isNull(),
+    )
+    assertThat(getNumberOfMessagesCurrentlyOnQueue()).isZero()
+
+    assertThat(start(prisoner).assessmentId).isNotEqualTo(assessmentId)
+  }
+
+  @Test
+  fun `cancel leaves an existing current rating untouched and emits no rating event`() {
+    val prisoner = "C0002CC"
+    val previousId = start(prisoner).assessmentId
+    webTestClient.put().uri("/csra-review/prisoner/$prisoner/assessment/$previousId/final")
+      .headers(setAuthorisation(roles = writeRole))
+      .contentType(MediaType.APPLICATION_JSON)
+      .bodyValue(stageBody("STANDARD", "Existing rating"))
+      .exchange().expectStatus().isOk
+    getDomainEvents(1)
+    val previous = csraCurrentRatingRepository.findByPrisonerNumber(prisoner)!!
+    val assessmentId = start(prisoner).assessmentId
+
+    cancel(prisoner, assessmentId).expectStatus().isOk
+      .expectBody()
+      .jsonPath("$.rating").isEqualTo("STANDARD")
+      .jsonPath("$.reviewId").isEqualTo(previousId.toString())
+    assertThat(csraCurrentRatingRepository.findByPrisonerNumber(prisoner))
+      .usingRecursiveComparison().isEqualTo(previous)
+    assertThat(getNumberOfMessagesCurrentlyOnQueue()).isZero()
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = [true, false])
+  @WithMockAuthUser(username = "CANCELLER", roles = ["CSRA_REVIEW__RW"])
+  fun `cancellation audit and telemetry are sent only after a successful commit`(rollback: Boolean) {
+    val prisoner = "C0008CC"
+    val assessmentId = start(prisoner).assessmentId
+
+    TransactionTemplate(transactionManager).executeWithoutResult { transaction ->
+      csraAssessmentService.cancel(prisoner, assessmentId, "BXI")
+      assertThat(countAuditMessages()).isZero()
+      verify(telemetryClient, never()).trackEvent(eq("CSRA_CANCELLED"), any(), isNull())
+      verify(telemetryClient, never()).trackEvent(eq("csra-assessment-cancelled"), any(), isNull())
+      if (rollback) transaction.setRollbackOnly()
+    }
+
+    val review = csraReviewRepository.findById(assessmentId).orElseThrow()
+    if (rollback) {
+      assertThat(review.status).isEqualTo(CsraReviewStatus.IN_PROGRESS)
+      assertThat(review.closureReason).isNull()
+      assertThat(review.closedAt).isNull()
+      assertThat(review.closedBy).isNull()
+      assertThat(countAuditMessages()).isZero()
+      verify(telemetryClient, never()).trackEvent(eq("CSRA_CANCELLED"), any(), isNull())
+      verify(telemetryClient, never()).trackEvent(eq("csra-assessment-cancelled"), any(), isNull())
+    } else {
+      assertThat(review.status).isEqualTo(CsraReviewStatus.ARCHIVED)
+      assertThat(review.closureReason).isEqualTo(CsraClosureReason.CANCELLED)
+      await untilCallTo { countAuditMessages() } matches { it == 1 }
+      verify(telemetryClient).trackEvent(eq("CSRA_CANCELLED"), any(), isNull())
+      verify(telemetryClient).trackEvent(
+        eq("csra-assessment-cancelled"),
+        eq(mapOf("assessmentId" to assessmentId.toString(), "prisonerNumber" to prisoner, "prisonId" to "LEI", "requestPrisonId" to "BXI")),
+        isNull(),
+      )
+    }
+    assertThat(getNumberOfMessagesCurrentlyOnQueue()).isZero()
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = [true, false])
+  @WithMockAuthUser(username = "CANCELLER", roles = ["CSRA_REVIEW__RW"])
+  fun `cancellation and provisional submission serialize on the review row`(cancelFirst: Boolean) {
+    val prisoner = "C0007CC"
+    val assessmentId = start(prisoner).assessmentId
+    Executors.newSingleThreadExecutor().use { executor ->
+      val waitingWrite = TransactionTemplate(transactionManager).execute {
+        csraReviewRepository.findByIdForUpdate(assessmentId)!!
+        val lockingBackendPid = jdbcTemplate.queryForObject("SELECT pg_backend_pid()", Int::class.java)!!
+        val waiting = executor.submit {
+          if (cancelFirst) {
+            submitProvisional(prisoner, assessmentId, stageBody("STANDARD", "Concurrent rating"))
+              .expectStatus().isEqualTo(409)
+          } else {
+            cancel(prisoner, assessmentId).expectStatus().isEqualTo(409)
+          }
+        }
+        await untilCallTo {
+          jdbcTemplate.queryForObject(
+            "SELECT COUNT(*) FROM pg_stat_activity " +
+              "WHERE datname = current_database() AND wait_event_type = 'Lock' " +
+              "AND query LIKE '%csra_review%' AND ? = ANY(pg_blocking_pids(pid))",
+            Int::class.java,
+            lockingBackendPid,
+          )
+        } matches { it == 1 }
+        if (cancelFirst) {
+          csraAssessmentService.cancel(prisoner, assessmentId, "LEI")
+        } else {
+          csraAssessmentService.submitProvisional(
+            prisoner,
+            assessmentId,
+            CsraAssessmentStageRequest(rating = CsraResult.STANDARD, prisonId = "LEI", assessmentComment = "Rating first"),
+          )
+        }
+        waiting
+      }!!
+      waitingWrite.get(10, TimeUnit.SECONDS)
+    }
+    val review = csraReviewRepository.findById(assessmentId).orElseThrow()
+    if (cancelFirst) {
+      assertThat(review.status).isEqualTo(CsraReviewStatus.ARCHIVED)
+      assertThat(review.interimResult).isNull()
+      assertThat(getNumberOfMessagesCurrentlyOnQueue()).isZero()
+    } else {
+      assertThat(review.status).isEqualTo(CsraReviewStatus.IN_PROGRESS)
+      assertThat(review.interimResult).isEqualTo(CsraResult.STANDARD)
+      assertThat(review.closureReason).isNull()
+      verify(telemetryClient, never()).trackEvent(eq("CSRA_CANCELLED"), any(), isNull())
+      verify(telemetryClient, never()).trackEvent(eq("csra-assessment-cancelled"), any(), isNull())
+      await untilCallTo { countAuditMessages() } matches { it == 1 }
+      val message = auditQueue.sqsClient.receiveMessage(
+        ReceiveMessageRequest.builder().queueUrl(auditQueue.queueUrl).build(),
+      ).get().messages().single()
+      auditQueue.sqsClient.deleteMessage(
+        DeleteMessageRequest.builder().queueUrl(auditQueue.queueUrl).receiptHandle(message.receiptHandle()).build(),
+      ).get()
+      val audit = objectMapper.readTree(message.body())
+      assertThat(audit.path("what").asText()).isEqualTo("CSRA_CREATED")
+      assertThat(objectMapper.readTree(audit.path("details").asText()).path("id").asText()).isEqualTo(assessmentId.toString())
+      await untilCallTo { auditQueue.sqsClient.countAllMessagesOnQueue(auditQueue.queueUrl).get() } matches { it == 0 }
+    }
+  }
+
+  @ParameterizedTest
+  @CsvSource(
+    "IN_PROGRESS,STANDARD,,CsraAssessmentNotCancellable,has a rating and cannot be cancelled",
+    "COMPLETE,,STANDARD,CsraAssessmentNotCancellable,has a rating and cannot be cancelled",
+    "COMPLETE,,,CsraAssessmentNotCancellable,is complete and cannot be cancelled",
+    "CLOSED,STANDARD,,CsraReviewNotWritable,is CLOSED and can no longer be edited",
+    "ARCHIVED,,,CsraReviewNotWritable,is ARCHIVED and can no longer be edited",
+  )
+  fun `cancel rejects rated completed and movement-closed assessments`(
+    status: CsraReviewStatus,
+    provisional: CsraResult?,
+    final: CsraResult?,
+    expectedErrorCode: String,
+    expectedReason: String,
+  ) {
+    val review = seedAssessment("C0003CC", status).apply {
+      interimResult = provisional
+      finalResult = final
+      if (status == CsraReviewStatus.CLOSED || status == CsraReviewStatus.ARCHIVED) {
+        closureReason = CsraClosureReason.NOT_COMPLETED_PRISONER_TRANSFER
+      }
+    }
+    csraReviewRepository.saveAndFlush(review)
+
+    cancel(review.prisonerNumber, review.id!!).expectStatus().isEqualTo(409)
+      .expectBody()
+      .jsonPath("$.errorCode").isEqualTo(expectedErrorCode)
+      .jsonPath("$.userMessage").value<String> { message -> assertThat(message).endsWith(expectedReason) }
+      .jsonPath("$.developerMessage").value<String> { message -> assertThat(message).endsWith(expectedReason) }
+    assertThat(csraReviewRepository.findById(review.id!!).orElseThrow().status).isEqualTo(status)
+    assertThat(countAuditMessages()).isZero()
+    assertThat(getNumberOfMessagesCurrentlyOnQueue()).isZero()
+  }
+
+  @Test
+  fun `an already-rated assessment cannot be cancelled but can still be edited`() {
+    val prisoner = "C0009CC"
+    val assessmentId = start(prisoner).assessmentId
+    submitProvisional(prisoner, assessmentId, stageBody("STANDARD", "First rating"))
+      .expectStatus().isOk
+
+    cancel(prisoner, assessmentId).expectStatus().isEqualTo(409)
+      .expectBody()
+      .jsonPath("$.errorCode").isEqualTo("CsraAssessmentNotCancellable")
+      .jsonPath("$.userMessage").isEqualTo("Conflict: CSRA assessment $assessmentId has a rating and cannot be cancelled")
+
+    submitProvisional(prisoner, assessmentId, stageBody("STANDARD", "Updated comment"))
+      .expectStatus().isOk
+      .expectBody().jsonPath("$.provisionalAssessmentComment").isEqualTo("Updated comment")
+  }
+
+  @Test
+  fun `cancel returns 404 for unknown mismatched and non-initial assessment ids`() {
+    cancel("C0004CC", UUID.randomUUID()).expectStatus().isNotFound
+    val assessmentId = start("C0004CC").assessmentId
+    cancel("C9999CC", assessmentId).expectStatus().isNotFound
+    val review = csraReviewRepository.findById(assessmentId).orElseThrow().apply { type = CsraType.CSRA_REVIEW }
+    csraReviewRepository.saveAndFlush(review)
+    cancel("C0004CC", assessmentId).expectStatus().isNotFound
+    assertThat(countAuditMessages()).isZero()
+  }
+
+  @ParameterizedTest
+  @CsvSource("'',400", "'{}',400", "'{\"prisonId\":\"\"}',400")
+  fun `cancel requires a prison in the body`(body: String, expectedStatus: Int) {
+    webTestClient.post().uri("/csra-review/prisoner/C0005CC/assessment/${UUID.randomUUID()}/cancel")
+      .headers(setAuthorisation(roles = writeRole))
+      .contentType(MediaType.APPLICATION_JSON)
+      .bodyValue(body)
+      .exchange().expectStatus().isEqualTo(expectedStatus)
+  }
+
+  @Test
+  fun `cancel requires authentication and the write role`() {
+    val uri = "/csra-review/prisoner/C0006CC/assessment/${UUID.randomUUID()}/cancel"
+    webTestClient.post().uri(uri)
+      .contentType(MediaType.APPLICATION_JSON).bodyValue(startBody("LEI"))
+      .exchange().expectStatus().isUnauthorized
+    webTestClient.post().uri(uri)
+      .headers(setAuthorisation(roles = listOf("ROLE_CSRA_REVIEW__R")))
+      .contentType(MediaType.APPLICATION_JSON).bodyValue(startBody("LEI"))
+      .exchange().expectStatus().isForbidden
   }
 
   @Test
