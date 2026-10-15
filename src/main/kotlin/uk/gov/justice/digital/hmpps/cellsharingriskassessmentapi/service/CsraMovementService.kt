@@ -111,13 +111,15 @@ class CsraMovementService(
       review.closureReason = reason
       review.closedAt = LocalDateTime.now(clock)
       review.closedBy = SYSTEM_USERNAME
-      // Flushed now so a version clash fails here, before the closure is reported to telemetry.
-      csraReviewRepository.saveAndFlush(review)
+      csraReviewRepository.save(review)
       recordClosure(review, prisonId, reason, outcome)
     }
   }
 
   // R-05: record close/archive events so the team can measure how often in-progress work is disrupted.
+  // Only once the movement commits. A version clash later in the same transaction - closing a second
+  // review, or superseding older ones on readmission - rolls this closure back, and the redelivered
+  // message closes the review again; reporting it straight away would count it twice.
   private fun recordClosure(review: CsraReviewEntity, prisonId: String?, reason: CsraClosureReason, outcome: CsraReviewStatus) {
     // Derived from the reason rather than passed separately, so the label and the stored reason cannot
     // drift. The existing values are kept because App Insights queries filter on them.
@@ -126,19 +128,23 @@ class CsraMovementService(
       CsraClosureReason.NOT_COMPLETED_PRISONER_TRANSFER -> "transfer"
       CsraClosureReason.CANCELLED -> throw IllegalArgumentException("Cancellation is not a prisoner movement")
     }
-    log.info("CSRA review {} {} on {} for {}", review.id, outcome, movement, review.prisonerNumber)
-    telemetryClient.trackEvent(
-      "csra-in-progress-closed-on-admission",
-      mapOf(
-        "prisonerNumber" to review.prisonerNumber,
-        "reviewId" to review.id.toString(),
-        "prisonId" to (prisonId ?: ""),
-        "movement" to movement,
-        "outcome" to outcome.name,
-        "reason" to reason.name,
-      ),
-      null,
-    )
+    val reviewId = review.id
+    val prisonerNumber = review.prisonerNumber
+    afterCommit {
+      log.info("CSRA review {} {} on {} for {}", reviewId, outcome, movement, prisonerNumber)
+      telemetryClient.trackEvent(
+        "csra-in-progress-closed-on-admission",
+        mapOf(
+          "prisonerNumber" to prisonerNumber,
+          "reviewId" to reviewId.toString(),
+          "prisonId" to (prisonId ?: ""),
+          "movement" to movement,
+          "outcome" to outcome.name,
+          "reason" to reason.name,
+        ),
+        null,
+      )
+    }
   }
 
   private companion object {

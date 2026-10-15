@@ -24,6 +24,7 @@ import org.springframework.transaction.PlatformTransactionManager
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentStageRequest
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentStarted
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraReviewStarted
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraSyncRequest
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.SyncResult
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.integration.wiremock.HmppsAuthApiExtension.Companion.hmppsAuth
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStage
@@ -35,6 +36,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraNextReviewRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraReviewRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.service.CsraAssessmentService
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.service.CsraMigrationSyncService
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.service.CsraMovementService
 import uk.gov.justice.hmpps.test.kotlin.auth.WithMockAuthUser
 import java.util.UUID
@@ -73,6 +75,9 @@ class CsraConcurrentWriteTest : SqsIntegrationTestBase() {
 
   @Autowired
   private lateinit var csraMovementService: CsraMovementService
+
+  @Autowired
+  private lateinit var csraMigrationSyncService: CsraMigrationSyncService
 
   @Autowired
   private lateinit var transactionManager: PlatformTransactionManager
@@ -164,30 +169,30 @@ class CsraConcurrentWriteTest : SqsIntegrationTestBase() {
     .uri("/nomis-sync/sync/$prisonerNumber")
     .headers(setAuthorisation(roles = syncRole))
     .contentType(MediaType.APPLICATION_JSON)
-    .bodyValue(
-      """
-      {
-        ${csraReviewId?.let { """"csraReviewId": "$it",""" } ?: ""}
-        "review": {
-          "bookingId": 1234567,
-          "nomisSequence": 1,
-          "assessmentPrisonId": "LEI",
-          "assessmentDate": "2023-06-01",
-          "assessmentType": "CSR",
-          "calculatedLevel": "$level",
-          "score": 1000,
-          "status": "A",
-          "committeeCode": "REVIEW",
-          "createdDateTime": "2023-06-01T12:34:56",
-          "createdBy": "NQP56Y",
-          "reviewLevel": "$level",
-          "approvedLevel": "$level",
-          "evaluationDate": "2023-06-02"
-        }
-      }
-      """.trimIndent(),
-    )
+    .bodyValue(syncRequest(csraReviewId, level))
     .exchange()
+
+  private fun syncRequest(csraReviewId: UUID?, level: String) = """
+    {
+      ${csraReviewId?.let { """"csraReviewId": "$it",""" } ?: ""}
+      "review": {
+        "bookingId": 1234567,
+        "nomisSequence": 1,
+        "assessmentPrisonId": "LEI",
+        "assessmentDate": "2023-06-01",
+        "assessmentType": "CSR",
+        "calculatedLevel": "$level",
+        "score": 1000,
+        "status": "A",
+        "committeeCode": "REVIEW",
+        "createdDateTime": "2023-06-01T12:34:56",
+        "createdBy": "NQP56Y",
+        "reviewLevel": "$level",
+        "approvedLevel": "$level",
+        "evaluationDate": "2023-06-02"
+      }
+    }
+  """.trimIndent()
 
   private fun receivedEvent(prisonerNumber: String, reason: String) = """
     {
@@ -389,5 +394,33 @@ class CsraConcurrentWriteTest : SqsIntegrationTestBase() {
     assertThat(csraCurrentRatingRepository.findByPrisonerNumber(prisoner)?.rating).isNull()
     // Created on the first sync, cleared by the readmission, amended by the retried sync.
     getDomainEvents(3)
+  }
+
+  @Test
+  // The sync is called directly so it joins the held transaction, and its audit reads the acting user.
+  @WithMockAuthUser(username = "ASSESSOR", roles = ["CSRA_REVIEW__RW"])
+  fun `a readmission that clashes after archiving a draft reports the archive once, when it is retried`() {
+    val prisoner = "G0010GG"
+    val syncedId = sync(prisoner, csraReviewId = null, level = "HI")
+      .expectStatus().isCreated
+      .expectBody<SyncResult>().returnResult().responseBody!!.csraReviewId
+    val draftId = startReview(prisoner)
+
+    // The listener archives the draft first, then clashes with the sync while superseding the synced review,
+    // so the whole attempt rolls back - archive included - and the redelivered message archives it again.
+    race.commitOnceBlocked(
+      first = { csraMigrationSyncService.sync(prisoner, objectMapper.readValue(syncRequest(syncedId, "STANDARD"), CsraSyncRequest::class.java)) },
+    ) { publishDomainEvent("prison-offender-events.prisoner.received", receivedEvent(prisoner, "NEW_ADMISSION")) }
+
+    await untilCallTo { review(draftId).status } matches { it == CsraReviewStatus.ARCHIVED }
+    awaitCsraQueueDrained()
+    assertThat(review(syncedId).finalResult).isEqualTo(CsraResult.STANDARD)
+    assertThat(review(syncedId).supersededAt).isNotNull()
+    // Reported once, for the attempt that committed - not again for the one that rolled back.
+    verify(telemetryClient).trackEvent(
+      eq("csra-in-progress-closed-on-admission"),
+      argThat { this["reviewId"] == draftId.toString() },
+      isNull(),
+    )
   }
 }
