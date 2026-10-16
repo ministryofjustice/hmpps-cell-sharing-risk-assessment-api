@@ -251,18 +251,18 @@
         "comments": ""
     },
     {
-        "tableName": "active_agency",
-        "tableFileName": "active_agency",
+        "tableName": "csra_review",
+        "tableFileName": "csra_review",
         "tableType": "Table",
-        "keyClass": "primaryKey",
-        "keyTitle": "Primary Key",
-        "name": "<i class='icon ion-key iconkey' style='padding-left: 5px;'><\/i>id",
-        "type": "uuid",
-        "length": 2147483647,
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "version",
+        "type": "int4",
+        "length": 10,
         "nullable": "",
         "autoUpdated": "",
-        "defaultValue": "null",
-        "comments": "<p>Primary key. Time-ordered UUID v7. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+        "defaultValue": "0",
+        "comments": "<p>Optimistic locking version, incremented on every change to the review. A write made from an out-of-date copy of the review is rejected rather than overwriting the newer change. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
     },
     {
         "tableName": "csra_next_review",
@@ -396,13 +396,13 @@
         "tableType": "Table",
         "keyClass": "",
         "keyTitle": "",
-        "name": "updated_by",
-        "type": "varchar",
-        "length": 40,
-        "nullable": "√",
+        "name": "updated_at",
+        "type": "timestamp",
+        "length": 29,
+        "nullable": "",
         "autoUpdated": "",
         "defaultValue": "null",
-        "comments": "<p>Username of the member of staff who last changed the switch. Identifies a member of staff. <a href=\"./null\">Sensitivity: STAFF<\/a><\/p>"
+        "comments": "<p>When the prison was last switched on or off. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
     },
     {
         "tableName": "csra_review_nomis",
@@ -606,13 +606,13 @@
         "tableType": "Table",
         "keyClass": "",
         "keyTitle": "",
-        "name": "updated_at",
-        "type": "timestamp",
-        "length": 29,
+        "name": "active",
+        "type": "bool",
+        "length": 1,
         "nullable": "",
         "autoUpdated": "",
-        "defaultValue": "null",
-        "comments": "<p>When the prison was last switched on or off. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+        "defaultValue": "true",
+        "comments": "<p>Whether CSRA is currently switched on for the prison. False means it was switched on at some point and has since been switched off. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
     },
     {
         "tableName": "csra_assessment_stage_evidence_source",
@@ -730,15 +730,15 @@
         "tableName": "active_agency",
         "tableFileName": "active_agency",
         "tableType": "Table",
-        "keyClass": "",
-        "keyTitle": "",
-        "name": "active",
-        "type": "bool",
-        "length": 1,
+        "keyClass": "indexedColumn",
+        "keyTitle": "Indexed",
+        "name": "<i class='fa fa-sitemap fa-rotate-120' style='padding-right: 5px;'><\/i>agency_id",
+        "type": "varchar",
+        "length": 6,
         "nullable": "",
         "autoUpdated": "",
-        "defaultValue": "true",
-        "comments": "<p>Whether CSRA is currently switched on for the prison. False means it was switched on at some point and has since been switched off. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+        "defaultValue": "null",
+        "comments": "<p>Agency (prison) code. Unique - one row per prison. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
     },
     {
         "tableName": "csra_next_review",
@@ -1497,6 +1497,20 @@
         "comments": "<p>NOMIS offender number (noms id) of the prisoner assessed. The link that makes every row here personal data about that prisoner. <a href=\"./null\">Sensitivity: PERSONAL<\/a><\/p>"
     },
     {
+        "tableName": "active_agency",
+        "tableFileName": "active_agency",
+        "tableType": "Table",
+        "keyClass": "",
+        "keyTitle": "",
+        "name": "updated_by",
+        "type": "varchar",
+        "length": 40,
+        "nullable": "√",
+        "autoUpdated": "",
+        "defaultValue": "null",
+        "comments": "<p>Username of the member of staff who last changed the switch. Identifies a member of staff. <a href=\"./null\">Sensitivity: STAFF<\/a><\/p>"
+    },
+    {
         "tableName": "csra_assessment_stage",
         "tableFileName": "csra_assessment_stage",
         "tableType": "Table",
@@ -1808,15 +1822,15 @@
         "tableName": "active_agency",
         "tableFileName": "active_agency",
         "tableType": "Table",
-        "keyClass": "indexedColumn",
-        "keyTitle": "Indexed",
-        "name": "<i class='fa fa-sitemap fa-rotate-120' style='padding-right: 5px;'><\/i>agency_id",
-        "type": "varchar",
-        "length": 6,
+        "keyClass": "primaryKey",
+        "keyTitle": "Primary Key",
+        "name": "<i class='icon ion-key iconkey' style='padding-left: 5px;'><\/i>id",
+        "type": "uuid",
+        "length": 2147483647,
         "nullable": "",
         "autoUpdated": "",
         "defaultValue": "null",
-        "comments": "<p>Agency (prison) code. Unique - one row per prison. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
+        "comments": "<p>Primary key. Time-ordered UUID v7. <a href=\"./null\">Sensitivity: NONE<\/a><\/p>"
     },
     {
         "tableName": "csra_assessment_stage",
