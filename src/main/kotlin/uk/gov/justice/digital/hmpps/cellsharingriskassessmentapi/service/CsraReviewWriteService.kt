@@ -117,9 +117,9 @@ class CsraReviewWriteService(
     val now = LocalDateTime.now(clock)
     val today = LocalDate.now(clock)
 
-    upsertStage(review, stage, request, now)
+    // The review row is written before the stage so that, of two concurrent writes, the second fails on the
+    // review's version (a 409) rather than on the stage table's unique index (a 500).
     writeSupport.updateHeadlinePrison(review, stage, request.prisonId)
-
     when (stage) {
       CsraAssessmentStage.INTERIM -> {
         review.interimResult = request.rating
@@ -140,6 +140,7 @@ class CsraReviewWriteService(
     review.lastModifiedAt = now
     review.lastModifiedBy = username
     csraReviewRepository.saveAndFlush(review)
+    upsertStage(review, stage, request, now)
 
     // A saved interim/final rating becomes the prisoner's current rating.
     csraCurrentRatingService.refreshFromReviews(prisonerNumber, username)

@@ -30,6 +30,11 @@ import java.util.UUID
  * constraint, so those simply move. `csra_current_rating` and `csra_next_review` have one row per prisoner
  * behind a **unique index on `prisoner_number`**, so the retired number's rows are deleted and the
  * survivor's re-derived from the combined reviews rather than repointed.
+ *
+ * A user or movement saving one of the retired number's reviews while this runs makes the repoint fail on
+ * the review's version (MAPA-437) rather than write back a stale copy - which could return a cancelled
+ * assessment to in progress or wipe a rating. The transaction rolls back and the redelivered message moves
+ * the reviews as they now stand.
  */
 @Service
 @Transactional

@@ -59,6 +59,11 @@ class CsraNomisSyncResource(
         description = "Missing required role. Requires the PRISONER_CSRA__SYNC__RW role",
         content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
       ),
+      ApiResponse(
+        responseCode = "409",
+        description = "ConcurrentUpdate: a DPS user or event changed one of the prisoner's reviews at the same time - retry the migration",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
+      ),
     ],
   )
   fun migrate(
@@ -91,7 +96,8 @@ class CsraNomisSyncResource(
       ),
       ApiResponse(
         responseCode = "409",
-        description = "The review has been closed or archived by a prisoner movement and can no longer be updated",
+        description = "CsraReviewNotWritable: the review has been closed or archived by a prisoner movement and can no longer be updated. " +
+          "ConcurrentUpdate: a DPS user or event changed the same review at the same time - retry the sync, which re-reads it",
         content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
       ),
     ],
@@ -118,6 +124,11 @@ class CsraNomisSyncResource(
       ApiResponse(
         responseCode = "403",
         description = "Missing required role. Requires the PRISONER_CSRA__SYNC__RW role",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
+      ),
+      ApiResponse(
+        responseCode = "409",
+        description = "ConcurrentUpdate: a DPS user or event changed one of the reviews at the same time - retry the move, which skips reviews already moved",
         content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
       ),
     ],

@@ -2,6 +2,7 @@ package uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.resource
 
 import jakarta.validation.ValidationException
 import org.slf4j.LoggerFactory
+import org.springframework.dao.OptimisticLockingFailureException
 import org.springframework.http.HttpStatus.BAD_REQUEST
 import org.springframework.http.HttpStatus.CONFLICT
 import org.springframework.http.HttpStatus.FORBIDDEN
@@ -158,6 +159,24 @@ class CellSharingRiskAssessmentApiExceptionHandler {
         developerMessage = e.message,
       ),
     ).also { log.info("Stale answers version: {}", e.message) }
+
+  /**
+   * Another request changed the same CSRA review or stage between this request reading it and saving it
+   * (MAPA-437): the version check on `csra_review` or `csra_assessment_stage` failed and nothing from this
+   * request was saved. The caller should re-read the record and decide again - the other change may have
+   * been a cancellation, a movement closing the review, or a rating.
+   */
+  @ExceptionHandler(OptimisticLockingFailureException::class)
+  fun handleOptimisticLockingFailureException(e: OptimisticLockingFailureException): ResponseEntity<ErrorResponse> = ResponseEntity
+    .status(CONFLICT)
+    .body(
+      ErrorResponse(
+        status = CONFLICT,
+        errorCode = ErrorCode.ConcurrentUpdate.name,
+        userMessage = "Conflict: The CSRA record was changed by another request at the same time. Reload it and try again",
+        developerMessage = e.message,
+      ),
+    ).also { log.info("Concurrent update rejected: {}", e.message) }
 
   @ExceptionHandler(CsraInvalidRatingFilterException::class)
   fun handleCsraInvalidRatingFilterException(e: CsraInvalidRatingFilterException): ResponseEntity<ErrorResponse> = ResponseEntity

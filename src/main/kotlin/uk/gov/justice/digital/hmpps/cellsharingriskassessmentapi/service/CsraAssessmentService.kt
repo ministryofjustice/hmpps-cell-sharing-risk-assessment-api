@@ -90,7 +90,7 @@ class CsraAssessmentService(
 
   fun cancel(prisonerNumber: String, assessmentId: UUID, prisonId: String): CsraCurrentRating {
     writeSupport.rejectIfPrisonNotActive(prisonId)
-    val review = loadInitialReview(prisonerNumber, assessmentId, forUpdate = true)
+    val review = loadInitialReview(prisonerNumber, assessmentId)
     if (review.status == CsraReviewStatus.ARCHIVED && review.closureReason == CsraClosureReason.CANCELLED) {
       return csraReviewService.getCurrentRating(prisonerNumber)
     }
@@ -121,7 +121,7 @@ class CsraAssessmentService(
     // Rollout gate first: it is about the caller, not the record, so it must not depend on the id
     // existing or on what state the record is in.
     writeSupport.rejectIfPrisonNotActive(request.prisonId)
-    val review = loadInitialReview(prisonerNumber, assessmentId, forUpdate = true)
+    val review = loadInitialReview(prisonerNumber, assessmentId)
     writeSupport.rejectIfNotWritable(review)
 
     if (review.finalResult != null) {
@@ -144,12 +144,14 @@ class CsraAssessmentService(
     validateOffenceEvidence(request.offenceEvidence)
     val now = LocalDateTime.now(clock)
 
-    upsertAnswers(review, stage, request, now)
+    // The review row is written before the stage so that, of two concurrent writes, the second fails on the
+    // review's version (a 409) rather than on the stage table's unique index (a 500).
     writeSupport.updateHeadlinePrison(review, stage, request.prisonId)
-
     review.lastModifiedAt = now
     review.lastModifiedBy = username
     csraReviewRepository.saveAndFlush(review)
+
+    upsertAnswers(review, stage, request, now)
 
     val stages = csraAssessmentStageRepository.findAllByCsraReviewId(assessmentId)
     return review.toAssessmentDto(stages)
@@ -176,7 +178,7 @@ class CsraAssessmentService(
     // Rollout gate first: it is about the caller, not the record, so it must not depend on the id
     // existing or on what state the record is in.
     writeSupport.rejectIfPrisonNotActive(request.prisonId)
-    val review = loadInitialReview(prisonerNumber, assessmentId, forUpdate = true)
+    val review = loadInitialReview(prisonerNumber, assessmentId)
     // Before the content checks: a review the prisoner has moved away from is a lifecycle conflict, not
     // a bad payload, and the caller should be told that rather than shown a validation error.
     writeSupport.rejectIfNotWritable(review)
@@ -190,9 +192,9 @@ class CsraAssessmentService(
     val now = LocalDateTime.now(clock)
     val today = LocalDate.now(clock)
 
-    upsertStage(review, stage, request, now)
+    // The review row is written before the stage so that, of two concurrent writes, the second fails on the
+    // review's version (a 409) rather than on the stage table's unique index (a 500).
     writeSupport.updateHeadlinePrison(review, stage, request.prisonId)
-
     when (stage) {
       CsraAssessmentStage.PROVISIONAL -> {
         review.interimResult = request.rating
@@ -213,6 +215,7 @@ class CsraAssessmentService(
     review.lastModifiedAt = now
     review.lastModifiedBy = username
     csraReviewRepository.saveAndFlush(review)
+    upsertStage(review, stage, request, now)
 
     // A saved provisional/final rating becomes the prisoner's current rating.
     csraCurrentRatingService.refreshFromReviews(prisonerNumber, username)
@@ -227,8 +230,8 @@ class CsraAssessmentService(
     return csraReviewService.getCurrentRating(prisonerNumber)
   }
 
-  private fun loadInitialReview(prisonerNumber: String, assessmentId: UUID, forUpdate: Boolean = false): CsraReviewEntity {
-    val review = (if (forUpdate) csraReviewRepository.findByIdForUpdate(assessmentId) else csraReviewRepository.findByIdOrNull(assessmentId))
+  private fun loadInitialReview(prisonerNumber: String, assessmentId: UUID): CsraReviewEntity {
+    val review = csraReviewRepository.findByIdOrNull(assessmentId)
       ?: throw CsraReviewNotFoundException(assessmentId.toString())
     if (review.prisonerNumber != prisonerNumber || review.type != CsraType.CSRA_INITIAL_ASSESSMENT) {
       throw CsraReviewNotFoundException(assessmentId.toString())

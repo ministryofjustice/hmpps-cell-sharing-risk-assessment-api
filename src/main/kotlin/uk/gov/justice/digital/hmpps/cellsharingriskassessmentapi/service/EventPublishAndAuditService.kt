@@ -4,8 +4,6 @@ import com.microsoft.applicationinsights.TelemetryClient
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
-import org.springframework.transaction.support.TransactionSynchronization
-import org.springframework.transaction.support.TransactionSynchronizationManager
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraReview
 import java.time.Clock
 import java.time.LocalDateTime
@@ -276,22 +274,6 @@ class EventPublishAndAuditService(
   }
 
   private fun CsraReview.isRated() = interimResult != null || finalResult != null
-
-  /**
-   * Defers [block] until the surrounding transaction commits, so a write that is later rolled back never
-   * announces itself. Runs immediately when there is no transaction in progress.
-   */
-  private fun afterCommit(block: () -> Unit) {
-    if (!TransactionSynchronizationManager.isSynchronizationActive()) {
-      block()
-      return
-    }
-    TransactionSynchronizationManager.registerSynchronization(
-      object : TransactionSynchronization {
-        override fun afterCommit() = block()
-      },
-    )
-  }
 
   private companion object {
     val log: Logger = LoggerFactory.getLogger(EventPublishAndAuditService::class.java)

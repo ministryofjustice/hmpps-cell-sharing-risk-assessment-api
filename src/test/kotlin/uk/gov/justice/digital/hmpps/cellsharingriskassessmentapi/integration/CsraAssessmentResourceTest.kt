@@ -1,6 +1,7 @@
 package uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.integration
 
 import com.microsoft.applicationinsights.TelemetryClient
+import jakarta.persistence.EntityManager
 import org.assertj.core.api.Assertions.assertThat
 import org.awaitility.kotlin.await
 import org.awaitility.kotlin.matches
@@ -53,6 +54,7 @@ import uk.gov.justice.hmpps.test.kotlin.auth.WithMockAuthUser
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.util.UUID
+import java.util.concurrent.Callable
 import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
@@ -98,6 +100,11 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
 
   @Autowired
   private lateinit var csraAssessmentService: CsraAssessmentService
+
+  @Autowired
+  private lateinit var entityManager: EntityManager
+
+  private val race by lazy { ReviewRowRace(transactionManager, jdbcTemplate, entityManager) }
 
   private val writeRole = listOf("ROLE_CSRA_REVIEW__RW")
 
@@ -331,42 +338,38 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
   @ParameterizedTest
   @ValueSource(booleans = [true, false])
   @WithMockAuthUser(username = "CANCELLER", roles = ["CSRA_REVIEW__RW"])
-  fun `cancellation and provisional submission serialize on the review row`(cancelFirst: Boolean) {
+  fun `of a cancellation and a provisional rating landing together, the second is rejected`(cancelFirst: Boolean) {
     val prisoner = "C0007CC"
     val assessmentId = start(prisoner).assessmentId
+    // The second request reads the assessment before the first commits, so it cannot see the change it is
+    // about to collide with. The review's version (MAPA-437) is what stops it saving over it.
     Executors.newSingleThreadExecutor().use { executor ->
-      val waitingWrite = TransactionTemplate(transactionManager).execute {
-        csraReviewRepository.findByIdForUpdate(assessmentId)!!
-        val lockingBackendPid = jdbcTemplate.queryForObject("SELECT pg_backend_pid()", Int::class.java)!!
-        val waiting = executor.submit {
+      val competing = race.commitOnceBlocked(
+        first = {
           if (cancelFirst) {
-            submitProvisional(prisoner, assessmentId, stageBody("STANDARD", "Concurrent rating"))
-              .expectStatus().isEqualTo(409)
+            csraAssessmentService.cancel(prisoner, assessmentId, "LEI")
           } else {
-            cancel(prisoner, assessmentId).expectStatus().isEqualTo(409)
+            csraAssessmentService.submitProvisional(
+              prisoner,
+              assessmentId,
+              CsraAssessmentStageRequest(rating = CsraResult.STANDARD, prisonId = "LEI", assessmentComment = "Rating first"),
+            )
           }
-        }
-        await untilCallTo {
-          jdbcTemplate.queryForObject(
-            "SELECT COUNT(*) FROM pg_stat_activity " +
-              "WHERE datname = current_database() AND wait_event_type = 'Lock' " +
-              "AND query LIKE '%csra_review%' AND ? = ANY(pg_blocking_pids(pid))",
-            Int::class.java,
-            lockingBackendPid,
-          )
-        } matches { it == 1 }
-        if (cancelFirst) {
-          csraAssessmentService.cancel(prisoner, assessmentId, "LEI")
-        } else {
-          csraAssessmentService.submitProvisional(
-            prisoner,
-            assessmentId,
-            CsraAssessmentStageRequest(rating = CsraResult.STANDARD, prisonId = "LEI", assessmentComment = "Rating first"),
-          )
-        }
-        waiting
-      }!!
-      waitingWrite.get(10, TimeUnit.SECONDS)
+        },
+      ) {
+        executor.submit(
+          Callable {
+            val response = if (cancelFirst) {
+              submitProvisional(prisoner, assessmentId, stageBody("STANDARD", "Concurrent rating"))
+            } else {
+              cancel(prisoner, assessmentId)
+            }
+            response.expectStatus().isEqualTo(409)
+              .expectBody().jsonPath("$.errorCode").isEqualTo("ConcurrentUpdate")
+          },
+        )
+      }
+      competing.get(10, TimeUnit.SECONDS)
     }
     val review = csraReviewRepository.findById(assessmentId).orElseThrow()
     if (cancelFirst) {

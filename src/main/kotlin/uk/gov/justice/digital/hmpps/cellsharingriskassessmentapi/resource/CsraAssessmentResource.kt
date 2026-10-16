@@ -117,7 +117,9 @@ class CsraAssessmentResource(
       ApiResponse(
         responseCode = "409",
         description = "CsraAssessmentNotCancellable: a rating has been submitted or the assessment is complete. " +
-          "CsraReviewNotWritable: a prisoner movement has already closed or archived it",
+          "CsraReviewNotWritable: a prisoner movement has already closed or archived it. " +
+          "ConcurrentUpdate: another request changed it at the same time, which includes a second cancellation " +
+          "sent at the same moment (a double click) - re-read it and try again",
         content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
       ),
     ],
@@ -166,7 +168,9 @@ class CsraAssessmentResource(
       ),
       ApiResponse(
         responseCode = "409",
-        description = "The assessment has been closed or archived by a prisoner movement, or cancelled by a user, and can no longer be edited",
+        description = "CsraReviewNotWritable: the assessment has been closed or archived by a prisoner movement, or cancelled by a user, " +
+          "and can no longer be edited. " +
+          "ConcurrentUpdate: another request changed it at the same time - re-read it and try again",
         content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
       ),
     ],
@@ -215,7 +219,9 @@ class CsraAssessmentResource(
       ),
       ApiResponse(
         responseCode = "409",
-        description = "The assessment has been closed or archived by a prisoner movement, or cancelled by a user, and can no longer be edited",
+        description = "CsraReviewNotWritable: the assessment has been closed or archived by a prisoner movement, or cancelled by a user, " +
+          "and can no longer be edited. " +
+          "ConcurrentUpdate: another request changed it at the same time - re-read it and try again",
         content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
       ),
     ],
@@ -311,7 +317,9 @@ class CsraAssessmentResource(
       ),
       ApiResponse(
         responseCode = "409",
-        description = "The assessment has been closed or archived by a prisoner movement, or cancelled by a user, and can no longer be edited",
+        description = "CsraReviewNotWritable: the assessment has been closed or archived by a prisoner movement, or cancelled by a user, " +
+          "and can no longer be edited. StaleAnswersVersion: the version sent is not the stage's current version. " +
+          "ConcurrentUpdate: another request changed it at the same time - re-read it and try again",
         content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
       ),
     ],
