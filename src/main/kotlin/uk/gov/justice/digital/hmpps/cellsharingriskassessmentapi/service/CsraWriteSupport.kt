@@ -83,6 +83,12 @@ class CsraWriteSupport(
     }
   }
 
+  /**
+   * The user picks the next review date, so unlike a computed date it can be wrong. Only the obvious error
+   * is rejected: a date already past sets up a review that is overdue the moment it is saved. No upper
+   * bound: policy runs high-risk reviews on a twelve-month cycle, but the API has not been told that is a
+   * hard limit, and inventing one would silently block a legitimate longer interval.
+   */
   fun rejectIfNextReviewDateNotInFuture(nextReviewDate: LocalDate?, today: LocalDate) {
     val date = nextReviewDate ?: return
     if (!date.isAfter(today)) {

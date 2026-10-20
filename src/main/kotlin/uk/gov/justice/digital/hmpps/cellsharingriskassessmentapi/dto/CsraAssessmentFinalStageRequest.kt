@@ -5,7 +5,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraResult
 import java.time.LocalDate
 
 @Schema(description = "The answers and rating confirmed for the final stage of an initial CSRA assessment")
-class CsraAssessmentFinalRequest(
+class CsraAssessmentFinalStageRequest(
   rating: CsraResult,
   prisonId: String,
   assessmentComment: String,

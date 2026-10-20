@@ -644,6 +644,25 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
   }
 
   @Test
+  fun `a standard final rating ignores a supplied future next review date`() {
+    val prisoner = "S3333SS"
+    val assessmentId = start(prisoner).assessmentId
+
+    webTestClient.put().uri("/csra-review/prisoner/$prisoner/assessment/$assessmentId/final")
+      .headers(setAuthorisation(roles = writeRole))
+      .contentType(MediaType.APPLICATION_JSON)
+      .bodyValue(stageBody("STANDARD", "Final rating", nextReviewDate = "2024-03-01"))
+      .exchange()
+      .expectStatus().isOk
+      .expectBody()
+      .jsonPath("$.rating").isEqualTo("STANDARD")
+      .jsonPath("$.nextReviewDate").isEmpty
+
+    assertThat(csraReviewRepository.findById(assessmentId).orElseThrow().nextReviewDate).isNull()
+    assertThat(csraNextReviewRepository.findByPrisonerNumber(prisoner)!!.nextReviewDate).isNull()
+  }
+
+  @Test
   fun `rejects a next review date that is not in the future`() {
     val prisoner = "H4444HH"
     val assessmentId = start(prisoner).assessmentId

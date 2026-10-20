@@ -12,7 +12,7 @@ import org.junit.jupiter.api.Test
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraResult
 import java.time.LocalDate
 
-class CsraAssessmentFinalRequestTest {
+class CsraAssessmentFinalStageRequestTest {
   private val objectMapper = jacksonObjectMapper()
     .registerModule(JavaTimeModule())
     .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
@@ -61,7 +61,7 @@ class CsraAssessmentFinalRequestTest {
       }
     """.trimIndent()
 
-    val request = objectMapper.readValue<CsraAssessmentFinalRequest>(json)
+    val request = objectMapper.readValue<CsraAssessmentFinalStageRequest>(json)
 
     assertThat(request.nextReviewDate).isEqualTo(LocalDate.parse("2027-06-01"))
     assertThat(objectMapper.valueToTree<JsonNode>(request)).isEqualTo(objectMapper.readTree(json))
@@ -69,7 +69,7 @@ class CsraAssessmentFinalRequestTest {
 
   @Test
   fun `final request defaults the review date and unanswered fields`() {
-    val request = objectMapper.readValue<CsraAssessmentFinalRequest>(
+    val request = objectMapper.readValue<CsraAssessmentFinalStageRequest>(
       """{"rating":"STANDARD","prisonId":"LEI","assessmentComment":"Final assessment"}""",
     )
 
@@ -84,7 +84,7 @@ class CsraAssessmentFinalRequestTest {
   fun `final request inherits shared field validation`() {
     Validation.buildDefaultValidatorFactory().use { factory ->
       val violations = factory.validator.validate(
-        CsraAssessmentFinalRequest(rating = CsraResult.STANDARD, prisonId = "", assessmentComment = ""),
+        CsraAssessmentFinalStageRequest(rating = CsraResult.STANDARD, prisonId = "", assessmentComment = ""),
       )
 
       assertThat(violations.map { it.propertyPath.toString() })
@@ -94,8 +94,8 @@ class CsraAssessmentFinalRequestTest {
 
   @Test
   fun `only the final request schema includes the review date`() {
-    val schemas = ModelConverters.getInstance().read(CsraAssessmentFinalRequest::class.java)
-    val finalSchema = schemas.getValue("CsraAssessmentFinalRequest")
+    val schemas = ModelConverters.getInstance().read(CsraAssessmentFinalStageRequest::class.java)
+    val finalSchema = schemas.getValue("CsraAssessmentFinalStageRequest")
     val stageSchema = ModelConverters.getInstance().read(CsraAssessmentStageRequest::class.java)
       .getValue("CsraAssessmentStageRequest")
 

@@ -7,7 +7,7 @@ import org.springframework.transaction.annotation.Transactional
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.SYSTEM_USERNAME
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentAnswersRequest
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentDto
-import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentFinalRequest
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentFinalStageRequest
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentStageRequest
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentStartRequest
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentStarted
@@ -87,7 +87,7 @@ class CsraAssessmentService(
 
   fun submitProvisional(prisonerNumber: String, assessmentId: UUID, request: CsraAssessmentStageRequest) = submitStage(prisonerNumber, assessmentId, request, CsraAssessmentStage.PROVISIONAL)
 
-  fun submitFinal(prisonerNumber: String, assessmentId: UUID, request: CsraAssessmentFinalRequest) = submitStage(prisonerNumber, assessmentId, request, CsraAssessmentStage.FINAL)
+  fun submitFinal(prisonerNumber: String, assessmentId: UUID, request: CsraAssessmentFinalStageRequest) = submitStage(prisonerNumber, assessmentId, request, CsraAssessmentStage.FINAL)
 
   fun cancel(prisonerNumber: String, assessmentId: UUID, prisonId: String): CsraCurrentRating {
     writeSupport.rejectIfPrisonNotActive(prisonId)
@@ -184,7 +184,7 @@ class CsraAssessmentService(
     // a bad payload, and the caller should be told that rather than shown a validation error.
     writeSupport.rejectIfNotWritable(review)
     val nextReviewDate = when (request) {
-      is CsraAssessmentFinalRequest -> request.nextReviewDate
+      is CsraAssessmentFinalStageRequest -> request.nextReviewDate
       else -> null
     }
     if (stage == CsraAssessmentStage.FINAL) {

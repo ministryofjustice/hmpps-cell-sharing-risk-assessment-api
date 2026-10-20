@@ -118,11 +118,11 @@ class OpenApiDocsTest : SqsIntegrationTestBase() {
       .jsonPath("$.paths['$path/provisional'].put.requestBody.content['application/json'].schema['\$ref']")
       .isEqualTo("#/components/schemas/CsraAssessmentStageRequest")
       .jsonPath("$.paths['$path/final'].put.requestBody.content['application/json'].schema['\$ref']")
-      .isEqualTo("#/components/schemas/CsraAssessmentFinalRequest")
+      .isEqualTo("#/components/schemas/CsraAssessmentFinalStageRequest")
       .jsonPath("$.components.schemas.CsraAssessmentStageRequest.properties.nextReviewDate").doesNotExist()
-      .jsonPath("$.components.schemas.CsraAssessmentFinalRequest.properties.nextReviewDate.type").isEqualTo("string")
-      .jsonPath("$.components.schemas.CsraAssessmentFinalRequest.properties.rating").exists()
-      .jsonPath("$.components.schemas.CsraAssessmentFinalRequest.required").value<List<String>> {
+      .jsonPath("$.components.schemas.CsraAssessmentFinalStageRequest.properties.nextReviewDate.format").isEqualTo("date")
+      .jsonPath("$.components.schemas.CsraAssessmentFinalStageRequest.properties.rating").exists()
+      .jsonPath("$.components.schemas.CsraAssessmentFinalStageRequest.required").value<List<String>> {
         assertThat(it).contains("rating", "prisonId", "assessmentComment")
       }
   }

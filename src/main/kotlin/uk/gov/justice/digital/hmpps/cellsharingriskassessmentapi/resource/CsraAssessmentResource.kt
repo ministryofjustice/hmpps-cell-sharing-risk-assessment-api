@@ -22,7 +22,7 @@ import org.springframework.web.bind.annotation.RestController
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentAnswersRequest
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentCancelRequest
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentDto
-import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentFinalRequest
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentFinalStageRequest
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentStageRequest
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentStartRequest
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentStarted
@@ -237,7 +237,7 @@ class CsraAssessmentResource(
     @PathVariable
     assessmentId: UUID,
     @RequestBody @Valid
-    request: CsraAssessmentFinalRequest,
+    request: CsraAssessmentFinalStageRequest,
   ) = csraAssessmentService.submitFinal(prisonerNumber, assessmentId, request)
 
   @GetMapping("/{assessmentId}")
