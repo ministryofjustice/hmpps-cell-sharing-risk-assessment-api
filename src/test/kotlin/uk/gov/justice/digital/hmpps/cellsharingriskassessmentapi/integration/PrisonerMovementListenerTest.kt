@@ -24,6 +24,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraType
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraCurrentRatingRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraReviewRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.service.InformationSource
+import java.time.Duration
 import java.time.LocalDate
 import java.time.LocalDateTime
 import java.util.UUID
@@ -78,7 +79,7 @@ class PrisonerMovementListenerTest : SqsIntegrationTestBase() {
 
   private fun receivedEvent(prisonerNumber: String, prisonId: String, reason: String) = """
     {
-      "eventType":"prison-offender-events.prisoner.received",
+      "eventType":"prisoner-offender-search.prisoner.received",
       "additionalInformation":{"nomsNumber":"$prisonerNumber","prisonId":"$prisonId","reason":"$reason"},
       "version":"1.0",
       "occurredAt":"2023-12-05T12:00:00+00:00",
@@ -87,7 +88,7 @@ class PrisonerMovementListenerTest : SqsIntegrationTestBase() {
   """.trimIndent()
 
   private fun send(prisonerNumber: String, prisonId: String, reason: String) {
-    publishDomainEvent("prison-offender-events.prisoner.received", receivedEvent(prisonerNumber, prisonId, reason))
+    publishDomainEvent("prisoner-offender-search.prisoner.received", receivedEvent(prisonerNumber, prisonId, reason))
   }
 
   private fun awaitStatus(id: UUID, expected: CsraReviewStatus) {
@@ -363,6 +364,24 @@ class PrisonerMovementListenerTest : SqsIntegrationTestBase() {
     awaitCsraQueueDrained()
 
     assertThat(csraReviewRepository.findById(review.id!!).get().status).isEqualTo(CsraReviewStatus.IN_PROGRESS)
+  }
+
+  @Test
+  fun `the prison-offender-events received event is not acted on`() {
+    // It shares the name but reports every admission as ADMISSION, so listening to it meant R-01 never ran
+    // (MAPA-459). Sent as a transfer, the one reason both events share: if this event were ever wired back
+    // in, the review below would be archived.
+    val review = inProgressReview("A8888AA")
+
+    publishDomainEvent(
+      "prison-offender-events.prisoner.received",
+      receivedEvent("A8888AA", "MDI", "TRANSFERRED").replace("prisoner-offender-search", "prison-offender-events"),
+    )
+
+    // Held for a period rather than checked once the queue is empty: the queue count drops as soon as the
+    // listener takes the message, before it has been handled, so a single check would pass either way.
+    await.during(Duration.ofSeconds(2)).atMost(Duration.ofSeconds(5))
+      .until { csraReviewRepository.findById(review.id!!).get().status == CsraReviewStatus.IN_PROGRESS }
   }
 
   @Test

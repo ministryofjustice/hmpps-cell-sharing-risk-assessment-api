@@ -196,7 +196,7 @@ class CsraConcurrentWriteTest : SqsIntegrationTestBase() {
 
   private fun receivedEvent(prisonerNumber: String, reason: String) = """
     {
-      "eventType":"prison-offender-events.prisoner.received",
+      "eventType":"prisoner-offender-search.prisoner.received",
       "additionalInformation":{"nomsNumber":"$prisonerNumber","prisonId":"BXI","reason":"$reason"},
       "version":"1.0",
       "occurredAt":"2023-12-05T12:00:00+00:00",
@@ -242,7 +242,7 @@ class CsraConcurrentWriteTest : SqsIntegrationTestBase() {
     // commits underneath it. Before MAPA-437 the listener's stale copy won: archived, rating gone.
     race.commitOnceBlocked(
       first = { csraAssessmentService.submitProvisional(prisoner, assessmentId, provisional()) },
-    ) { publishDomainEvent("prison-offender-events.prisoner.received", receivedEvent(prisoner, "TRANSFERRED")) }
+    ) { publishDomainEvent("prisoner-offender-search.prisoner.received", receivedEvent(prisoner, "TRANSFERRED")) }
 
     // The listener's first attempt fails on the version; the redelivered message re-reads the rated draft.
     await untilCallTo { review(assessmentId).status } matches { it == CsraReviewStatus.CLOSED }
@@ -410,7 +410,7 @@ class CsraConcurrentWriteTest : SqsIntegrationTestBase() {
     // so the whole attempt rolls back - archive included - and the redelivered message archives it again.
     race.commitOnceBlocked(
       first = { csraMigrationSyncService.sync(prisoner, objectMapper.readValue(syncRequest(syncedId, "STANDARD"), CsraSyncRequest::class.java)) },
-    ) { publishDomainEvent("prison-offender-events.prisoner.received", receivedEvent(prisoner, "NEW_ADMISSION")) }
+    ) { publishDomainEvent("prisoner-offender-search.prisoner.received", receivedEvent(prisoner, "NEW_ADMISSION")) }
 
     await untilCallTo { review(draftId).status } matches { it == CsraReviewStatus.ARCHIVED }
     awaitCsraQueueDrained()

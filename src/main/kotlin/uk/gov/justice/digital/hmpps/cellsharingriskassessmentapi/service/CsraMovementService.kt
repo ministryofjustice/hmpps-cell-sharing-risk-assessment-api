@@ -14,7 +14,7 @@ import java.time.Clock
 import java.time.LocalDateTime
 
 /**
- * Reacts to prisoner movements (driven by the `prison-offender-events.prisoner.received` event) by
+ * Reacts to prisoner movements (driven by the `prisoner-offender-search.prisoner.received` event) by
  * tidying up in-progress CSRA work, per rules R-01/R-02/R-04/R-05 (see the admission-event rules).
  *
  * On any admission that ends the prisoner's in-progress work at the sending establishment, an in-progress
