@@ -12,7 +12,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraResult
  * confirming officer is taken from the authenticated user, not this request.
  */
 @Schema(description = "The answers and rating confirmed for one stage of an initial CSRA assessment")
-data class CsraAssessmentStageRequest(
+open class CsraAssessmentStageRequest(
   @param:Schema(description = "The rating being confirmed for this stage", example = "STANDARD", requiredMode = Schema.RequiredMode.REQUIRED)
   @field:NotNull
   val rating: CsraResult,
