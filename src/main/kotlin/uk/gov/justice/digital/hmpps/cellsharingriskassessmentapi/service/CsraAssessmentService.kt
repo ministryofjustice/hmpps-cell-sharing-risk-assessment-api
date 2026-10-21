@@ -87,7 +87,7 @@ class CsraAssessmentService(
 
   fun submitProvisional(prisonerNumber: String, assessmentId: UUID, request: CsraAssessmentStageRequest) = submitStage(prisonerNumber, assessmentId, request, CsraAssessmentStage.PROVISIONAL)
 
-  fun submitFinal(prisonerNumber: String, assessmentId: UUID, request: CsraAssessmentFinalStageRequest) = submitStage(prisonerNumber, assessmentId, request, CsraAssessmentStage.FINAL)
+  fun submitFinal(prisonerNumber: String, assessmentId: UUID, request: CsraAssessmentFinalStageRequest) = submitStage(prisonerNumber, assessmentId, request, CsraAssessmentStage.FINAL, request.nextReviewDate)
 
   fun cancel(prisonerNumber: String, assessmentId: UUID, prisonId: String): CsraCurrentRating {
     writeSupport.rejectIfPrisonNotActive(prisonId)
@@ -175,6 +175,7 @@ class CsraAssessmentService(
     assessmentId: UUID,
     request: CsraAssessmentStageRequest,
     stage: CsraAssessmentStage,
+    nextReviewDate: LocalDate? = null,
   ): CsraCurrentRating {
     // Rollout gate first: it is about the caller, not the record, so it must not depend on the id
     // existing or on what state the record is in.
@@ -183,13 +184,7 @@ class CsraAssessmentService(
     // Before the content checks: a review the prisoner has moved away from is a lifecycle conflict, not
     // a bad payload, and the caller should be told that rather than shown a validation error.
     writeSupport.rejectIfNotWritable(review)
-    val nextReviewDate = when (request) {
-      is CsraAssessmentFinalStageRequest -> request.nextReviewDate
-      else -> null
-    }
-    if (stage == CsraAssessmentStage.FINAL) {
-      writeSupport.rejectIfNextReviewDateNotInFuture(nextReviewDate, LocalDate.now(clock))
-    }
+    writeSupport.rejectIfNextReviewDateNotInFuture(nextReviewDate, LocalDate.now(clock))
     validateMandatoryHigh(request)
     validateOffenceEvidence(request.offenceEvidence)
     riskCategoryValidator.validate(request.rating, request.riskTo, request.vulnerabilities)
