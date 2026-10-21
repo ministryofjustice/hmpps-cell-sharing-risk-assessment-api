@@ -7,12 +7,17 @@ import jakarta.validation.constraints.NotNull
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraResult
 
 /**
- * The whole answer set submitted for one stage (provisional or final) of a new-model initial CSRA
- * assessment. The nullable answer columns allow Day 1 (provisional) to leave questions unanswered; the
- * confirming officer is taken from the authenticated user, not this request.
+ * The shared answers and rating for a new-model initial CSRA assessment stage.
+ * Used directly for provisional (Day 1) submits; final (Day 2) submits use
+ * [CsraAssessmentFinalStageRequest], which adds the next review date.
+ *
+ * The nullable answer columns allow Day 1 (provisional) to leave questions unanswered;
+ * the confirming officer is taken from the authenticated user, not this request.
+ *
+ * Open rather than a data class so the final request can extend it with a distinct endpoint schema.
  */
 @Schema(description = "The answers and rating confirmed for one stage of an initial CSRA assessment")
-data class CsraAssessmentStageRequest(
+open class CsraAssessmentStageRequest(
   @param:Schema(description = "The rating being confirmed for this stage", example = "STANDARD", requiredMode = Schema.RequiredMode.REQUIRED)
   @field:NotNull
   val rating: CsraResult,

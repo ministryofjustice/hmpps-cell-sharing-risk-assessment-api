@@ -22,7 +22,6 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraType
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraAssessmentStageRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraReviewRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.resource.CsraMissingAnswerDetailException
-import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.resource.CsraNextReviewDateInvalidException
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.resource.CsraReviewNotFoundException
 import uk.gov.justice.hmpps.kotlin.auth.HmppsAuthenticationHolder
 import java.time.Clock
@@ -108,7 +107,7 @@ class CsraReviewWriteService(
     writeSupport.rejectIfNotWritable(review)
     // Deliberately no mandatory-high check — see the class doc.
     validateAnswerDetail(request)
-    validateNextReviewDate(request)
+    writeSupport.rejectIfNextReviewDateNotInFuture(request.nextReviewDate, LocalDate.now(clock))
     riskCategoryValidator.validate(request.rating, request.riskTo, request.vulnerabilities)
 
     // The first rating on a review is a "created" event; a subsequent one (e.g. final after interim) is an
@@ -197,19 +196,6 @@ class CsraReviewWriteService(
     }
     if (missing.isNotEmpty()) {
       throw CsraMissingAnswerDetailException(missing)
-    }
-  }
-
-  /**
-   * The reviewer picks the next review date, so unlike the computed assessment date it can be wrong. Only
-   * the obvious error is rejected — a date already past sets up a review that is overdue the moment it is
-   * saved. No upper bound: policy runs high-risk reviews on a twelve-month cycle, but the API has not been
-   * told that is a hard limit, and inventing one would silently block a legitimate longer interval.
-   */
-  private fun validateNextReviewDate(request: CsraReviewStageRequest) {
-    val date = request.nextReviewDate ?: return
-    if (!date.isAfter(LocalDate.now(clock))) {
-      throw CsraNextReviewDateInvalidException("nextReviewDate must be in the future, but was $date")
     }
   }
 

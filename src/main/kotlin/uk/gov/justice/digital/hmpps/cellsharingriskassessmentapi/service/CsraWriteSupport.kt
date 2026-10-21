@@ -7,9 +7,11 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewS
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraAssessmentStageRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraReviewRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.resource.CsraAssessmentInProgressException
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.resource.CsraNextReviewDateInvalidException
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.resource.CsraPrisonNotActiveException
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.resource.CsraReviewNotWritableException
 import uk.gov.justice.hmpps.kotlin.auth.HmppsAuthenticationHolder
+import java.time.LocalDate
 
 /**
  * The rules both CSRA write journeys share. Extracted so the assessment and review services cannot drift
@@ -78,6 +80,19 @@ class CsraWriteSupport(
   fun rejectIfNotWritable(review: CsraReviewEntity) {
     if (review.status == CsraReviewStatus.CLOSED || review.status == CsraReviewStatus.ARCHIVED) {
       throw CsraReviewNotWritableException(review.id.toString(), review.status)
+    }
+  }
+
+  /**
+   * The user picks the next review date, so unlike a computed date it can be wrong. Only the obvious error
+   * is rejected: a date already past sets up a review that is overdue the moment it is saved. No upper
+   * bound: policy runs high-risk reviews on a twelve-month cycle, but the API has not been told that is a
+   * hard limit, and inventing one would silently block a legitimate longer interval.
+   */
+  fun rejectIfNextReviewDateNotInFuture(nextReviewDate: LocalDate?, today: LocalDate) {
+    val date = nextReviewDate ?: return
+    if (!date.isAfter(today)) {
+      throw CsraNextReviewDateInvalidException("nextReviewDate must be in the future, but was $date")
     }
   }
 

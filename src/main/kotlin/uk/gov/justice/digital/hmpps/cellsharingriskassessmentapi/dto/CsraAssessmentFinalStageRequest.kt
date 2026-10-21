@@ -1,0 +1,75 @@
+package uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto
+
+import io.swagger.v3.oas.annotations.media.Schema
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraResult
+import java.time.LocalDate
+
+@Schema(description = "The answers and rating confirmed for the final stage of an initial CSRA assessment")
+class CsraAssessmentFinalStageRequest(
+  rating: CsraResult,
+  prisonId: String,
+  assessmentComment: String,
+  dpsChecked: Boolean? = null,
+  perChecked: Boolean? = null,
+  warrantChecked: Boolean? = null,
+  pncChecked: Boolean? = null,
+  offenceMurderManslaughter: Boolean? = null,
+  offenceAssistingSuicide: Boolean? = null,
+  offenceSexualAssault: Boolean? = null,
+  offenceRepeatedViolence: Boolean? = null,
+  offencePrejudiceMotivated: Boolean? = null,
+  offenceArson: Boolean? = null,
+  offenceKidnapHostage: Boolean? = null,
+  offenceEvidence: List<CsraOffenceEvidence> = emptyList(),
+  officerSpokeToPrisoner: Boolean? = null,
+  likelyToHarmCellmate: Boolean? = null,
+  likelyToHarmCellmateDetail: String? = null,
+  significantlyVulnerable: Boolean? = null,
+  significantlyVulnerableDetail: String? = null,
+  causeForConcernSharing: Boolean? = null,
+  causeForConcernSharingDetail: String? = null,
+  otherHighRiskIndicators: Boolean? = null,
+  otherHighRiskIndicatorsDetail: String? = null,
+  seenByHealthcare: Boolean? = null,
+  healthcareIncreasedRisk: Boolean? = null,
+  healthcareIncreasedRiskDetail: String? = null,
+  riskTo: List<CsraRiskToDetail> = emptyList(),
+  vulnerabilities: List<CsraVulnerabilityDetail> = emptyList(),
+
+  @param:Schema(
+    description = "The date the next review is due, defaulting to 12 months from submission date. Only " +
+      "used when a HIGH level rating is given and must be in the future.",
+    example = "2027-06-01",
+  )
+  val nextReviewDate: LocalDate? = null,
+) : CsraAssessmentStageRequest(
+  rating = rating,
+  prisonId = prisonId,
+  assessmentComment = assessmentComment,
+  dpsChecked = dpsChecked,
+  perChecked = perChecked,
+  warrantChecked = warrantChecked,
+  pncChecked = pncChecked,
+  offenceMurderManslaughter = offenceMurderManslaughter,
+  offenceAssistingSuicide = offenceAssistingSuicide,
+  offenceSexualAssault = offenceSexualAssault,
+  offenceRepeatedViolence = offenceRepeatedViolence,
+  offencePrejudiceMotivated = offencePrejudiceMotivated,
+  offenceArson = offenceArson,
+  offenceKidnapHostage = offenceKidnapHostage,
+  offenceEvidence = offenceEvidence,
+  officerSpokeToPrisoner = officerSpokeToPrisoner,
+  likelyToHarmCellmate = likelyToHarmCellmate,
+  likelyToHarmCellmateDetail = likelyToHarmCellmateDetail,
+  significantlyVulnerable = significantlyVulnerable,
+  significantlyVulnerableDetail = significantlyVulnerableDetail,
+  causeForConcernSharing = causeForConcernSharing,
+  causeForConcernSharingDetail = causeForConcernSharingDetail,
+  otherHighRiskIndicators = otherHighRiskIndicators,
+  otherHighRiskIndicatorsDetail = otherHighRiskIndicatorsDetail,
+  seenByHealthcare = seenByHealthcare,
+  healthcareIncreasedRisk = healthcareIncreasedRisk,
+  healthcareIncreasedRiskDetail = healthcareIncreasedRiskDetail,
+  riskTo = riskTo,
+  vulnerabilities = vulnerabilities,
+)

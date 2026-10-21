@@ -116,6 +116,7 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
     murder: Boolean = false,
     riskTo: String = "[]",
     vulnerabilities: String = "[]",
+    nextReviewDate: String? = null,
   ) = """
     {
       "rating": "$rating",
@@ -125,6 +126,7 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
       "offenceMurderManslaughter": $murder,
       "riskTo": $riskTo,
       "vulnerabilities": $vulnerabilities
+      ${nextReviewDate?.let { ""","nextReviewDate": "$it"""" } ?: ""}
     }
   """.trimIndent()
 
@@ -621,6 +623,60 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
 
     assertThat(getDomainEvents(1).map { it.eventType })
       .containsExactly("cell.sharing.risk.assessment.created")
+  }
+
+  @Test
+  fun `a high-risk final rating accepts a supplied future next review date`() {
+    val prisoner = "H3333HH"
+    val assessmentId = start(prisoner).assessmentId
+
+    webTestClient.put().uri("/csra-review/prisoner/$prisoner/assessment/$assessmentId/final")
+      .headers(setAuthorisation(roles = writeRole))
+      .contentType(MediaType.APPLICATION_JSON)
+      .bodyValue(stageBody("HIGH_GENERAL", "Final rating", nextReviewDate = "2024-03-01"))
+      .exchange()
+      .expectStatus().isOk
+      .expectBody()
+      .jsonPath("$.nextReviewDate").isEqualTo("2024-03-01")
+
+    assertThat(csraReviewRepository.findById(assessmentId).orElseThrow().nextReviewDate)
+      .isEqualTo(LocalDate.parse("2024-03-01"))
+  }
+
+  @Test
+  fun `a standard final rating ignores a supplied future next review date`() {
+    val prisoner = "S3333SS"
+    val assessmentId = start(prisoner).assessmentId
+
+    webTestClient.put().uri("/csra-review/prisoner/$prisoner/assessment/$assessmentId/final")
+      .headers(setAuthorisation(roles = writeRole))
+      .contentType(MediaType.APPLICATION_JSON)
+      .bodyValue(stageBody("STANDARD", "Final rating", nextReviewDate = "2024-03-01"))
+      .exchange()
+      .expectStatus().isOk
+      .expectBody()
+      .jsonPath("$.rating").isEqualTo("STANDARD")
+      .jsonPath("$.nextReviewDate").isEmpty
+
+    assertThat(csraReviewRepository.findById(assessmentId).orElseThrow().nextReviewDate).isNull()
+    assertThat(csraNextReviewRepository.findByPrisonerNumber(prisoner)!!.nextReviewDate).isNull()
+  }
+
+  @Test
+  fun `rejects a next review date that is not in the future`() {
+    val prisoner = "H4444HH"
+    val assessmentId = start(prisoner).assessmentId
+
+    webTestClient.put().uri("/csra-review/prisoner/$prisoner/assessment/$assessmentId/final")
+      .headers(setAuthorisation(roles = writeRole))
+      .contentType(MediaType.APPLICATION_JSON)
+      .bodyValue(stageBody("HIGH_GENERAL", "Final rating", nextReviewDate = "2023-12-05"))
+      .exchange()
+      .expectStatus().isBadRequest
+      .expectBody()
+      .jsonPath("$.errorCode").isEqualTo("NextReviewDateInvalid")
+
+    assertThat(csraReviewRepository.findById(assessmentId).orElseThrow().finalResult).isNull()
   }
 
   @Test
