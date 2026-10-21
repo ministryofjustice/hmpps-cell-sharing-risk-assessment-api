@@ -221,17 +221,16 @@ class PrisonerMovementListenerTest : SqsIntegrationTestBase() {
   }
 
   /**
-   * While a prison still records CSRAs in NOMIS, NOMIS keeps a returning prisoner's previous CSRA when they
-   * come back on an old booking, so DPS clearing it must not reach NOMIS (MAPA-429). DPS still clears its
-   * own rating and audits it; only the event is held back.
+   * While a prison still records CSRAs in NOMIS, NOMIS keeps a returning prisoner's previous CSRA, so DPS
+   * keeps it too and the two stay in step until the prison moves to DPS. Nothing is cleared, so there is
+   * nothing to publish.
    */
   @Test
-  fun `a readmission to a prison not switched on clears the rating but publishes no event`() {
+  fun `a readmission to a prison not switched on keeps the rating and publishes no event`() {
     switchOn("LEI")
     completedRating("A9990AA", CsraResult.STANDARD)
 
     send("A9990AA", "MDI", "READMISSION")
-    await.until { csraCurrentRatingRepository.findByPrisonerNumber("A9990AA")?.rating == null }
     awaitCsraQueueDrained()
 
     completedRating("A9991AA", CsraResult.STANDARD)
@@ -240,17 +239,42 @@ class PrisonerMovementListenerTest : SqsIntegrationTestBase() {
     val event = getDomainEvents(1).single()
     assertThat(event.additionalInformation?.nomsNumber).isEqualTo("A9991AA")
 
+    val kept = csraCurrentRatingRepository.findByPrisonerNumber("A9990AA")!!
+    assertThat(kept.rating).isEqualTo(CsraResult.STANDARD)
+    assertThat(kept.setReason.name).isEqualTo("RATING_SAVED")
+
     val properties = argumentCaptor<Map<String, String>>()
-    verify(telemetryClient).trackEvent(eq("csra-event-suppressed-prison-not-active"), properties.capture(), isNull())
-    assertThat(properties.firstValue).containsAllEntriesOf(
-      mapOf(
-        "eventType" to "cell.sharing.risk.assessment.amended",
-        "csraReviewId" to "",
-        "prisonerNumber" to "A9990AA",
-        "prisonId" to "MDI",
-        "source" to "DPS",
-      ),
-    )
+    verify(telemetryClient).trackEvent(eq("csra-rating-kept-on-readmission-prison-not-active"), properties.capture(), isNull())
+    assertThat(properties.firstValue).containsAllEntriesOf(mapOf("prisonerNumber" to "A9990AA", "prisonId" to "MDI"))
+  }
+
+  /**
+   * Superseding the previous custody period without clearing the rating would only delay the clear: the
+   * next NOMIS sync re-derives the rating without superseded reviews and NOMIS and DPS drift apart anyway.
+   */
+  @Test
+  fun `a readmission to a prison not switched on supersedes nothing, so a later refresh keeps the rating`() {
+    completedRating("A9992AA", CsraResult.HIGH)
+
+    send("A9992AA", "MDI", "READMISSION")
+    awaitCsraQueueDrained()
+
+    assertThat(csraReviewRepository.findAllByPrisonerNumberAndSupersededAtIsNull("A9992AA")).hasSize(1)
+    // What a NOMIS migrate or sync for this prisoner does next.
+    refreshCurrentRating("A9992AA")
+    assertThat(csraCurrentRatingRepository.findByPrisonerNumber("A9992AA")?.rating).isEqualTo(CsraResult.HIGH)
+  }
+
+  /** Closing a review leaves its rating standing, so the tidy-up is safe at a prison still using NOMIS. */
+  @Test
+  fun `a readmission to a prison not switched on still closes an in-progress review`() {
+    val review = inProgressReview("A9993AA", interimResult = CsraResult.HIGH_GENERAL)
+    refreshCurrentRating("A9993AA")
+
+    send("A9993AA", "MDI", "READMISSION")
+
+    awaitStatus(review.id!!, CsraReviewStatus.CLOSED)
+    assertThat(csraCurrentRatingRepository.findByPrisonerNumber("A9993AA")?.rating).isEqualTo(CsraResult.HIGH_GENERAL)
   }
 
   @Test
@@ -276,6 +300,7 @@ class PrisonerMovementListenerTest : SqsIntegrationTestBase() {
    */
   @Test
   fun `the No rating reset survives a later refresh`() {
+    switchOn("MDI")
     completedRating("A9001AA", CsraResult.STANDARD)
 
     send("A9001AA", "MDI", "READMISSION")
@@ -289,6 +314,7 @@ class PrisonerMovementListenerTest : SqsIntegrationTestBase() {
 
   @Test
   fun `a rating saved after the readmission still becomes the current rating`() {
+    switchOn("MDI")
     completedRating("A9002AA", CsraResult.STANDARD)
 
     send("A9002AA", "MDI", "READMISSION")
@@ -332,6 +358,7 @@ class PrisonerMovementListenerTest : SqsIntegrationTestBase() {
 
   @Test
   fun `a redelivered readmission does not move the supersede timestamp`() {
+    switchOn("MDI")
     completedRating("A9004AA", CsraResult.STANDARD)
 
     send("A9004AA", "MDI", "READMISSION")
@@ -348,6 +375,7 @@ class PrisonerMovementListenerTest : SqsIntegrationTestBase() {
   /** An unrated review is stamped too - it can gain a rating later when NOMIS next syncs it. */
   @Test
   fun `readmission supersedes unrated reviews as well as rated ones`() {
+    switchOn("MDI")
     val unrated = inProgressReview("A9005AA")
 
     send("A9005AA", "MDI", "READMISSION")
