@@ -105,4 +105,25 @@ class OpenApiDocsTest : SqsIntegrationTestBase() {
         assertThat(it).containsExactly("status")
       }
   }
+
+  @Test
+  fun `only the final assessment request documents a next review date`() {
+    val path = "/csra-review/prisoner/{prisonerNumber}/assessment/{assessmentId}"
+    webTestClient.get()
+      .uri("/v3/api-docs")
+      .accept(MediaType.APPLICATION_JSON)
+      .exchange()
+      .expectStatus().isOk
+      .expectBody()
+      .jsonPath("$.paths['$path/provisional'].put.requestBody.content['application/json'].schema['\$ref']")
+      .isEqualTo("#/components/schemas/CsraAssessmentStageRequest")
+      .jsonPath("$.paths['$path/final'].put.requestBody.content['application/json'].schema['\$ref']")
+      .isEqualTo("#/components/schemas/CsraAssessmentFinalStageRequest")
+      .jsonPath("$.components.schemas.CsraAssessmentStageRequest.properties.nextReviewDate").doesNotExist()
+      .jsonPath("$.components.schemas.CsraAssessmentFinalStageRequest.properties.nextReviewDate.format").isEqualTo("date")
+      .jsonPath("$.components.schemas.CsraAssessmentFinalStageRequest.properties.rating").exists()
+      .jsonPath("$.components.schemas.CsraAssessmentFinalStageRequest.required").value<List<String>> {
+        assertThat(it).contains("rating", "prisonId", "assessmentComment")
+      }
+  }
 }

@@ -22,6 +22,7 @@ import org.springframework.web.bind.annotation.RestController
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentAnswersRequest
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentCancelRequest
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentDto
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentFinalStageRequest
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentStageRequest
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentStartRequest
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentStarted
@@ -192,12 +193,14 @@ class CsraAssessmentResource(
   @Operation(
     summary = "Submits the final (Day 2) stage of an initial CSRA assessment",
     description = "Records the final answers and rating, setting the prisoner's final CSRA result and, for a " +
-      "high-risk rating, the next review date. Requires role ROLE_CSRA_REVIEW__RW",
+      "high-risk rating, the next review date. Any supplied next review date must be in the future. Requires role " +
+      "ROLE_CSRA_REVIEW__RW",
     responses = [
       ApiResponse(responseCode = "200", description = "The final stage was recorded"),
       ApiResponse(
         responseCode = "400",
-        description = "Invalid request, or the rating conflicts with a mandatory high-risk offence trigger",
+        description = "Invalid request, including a next review date that is not in the future, or the rating " +
+          "conflicts with a mandatory high-risk offence trigger",
         content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
       ),
       ApiResponse(
@@ -234,7 +237,7 @@ class CsraAssessmentResource(
     @PathVariable
     assessmentId: UUID,
     @RequestBody @Valid
-    request: CsraAssessmentStageRequest,
+    request: CsraAssessmentFinalStageRequest,
   ) = csraAssessmentService.submitFinal(prisonerNumber, assessmentId, request)
 
   @GetMapping("/{assessmentId}")

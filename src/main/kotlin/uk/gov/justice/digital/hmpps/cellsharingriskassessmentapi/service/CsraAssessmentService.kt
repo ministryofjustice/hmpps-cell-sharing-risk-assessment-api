@@ -7,6 +7,7 @@ import org.springframework.transaction.annotation.Transactional
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.SYSTEM_USERNAME
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentAnswersRequest
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentDto
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentFinalStageRequest
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentStageRequest
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentStartRequest
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentStarted
@@ -86,7 +87,7 @@ class CsraAssessmentService(
 
   fun submitProvisional(prisonerNumber: String, assessmentId: UUID, request: CsraAssessmentStageRequest) = submitStage(prisonerNumber, assessmentId, request, CsraAssessmentStage.PROVISIONAL)
 
-  fun submitFinal(prisonerNumber: String, assessmentId: UUID, request: CsraAssessmentStageRequest) = submitStage(prisonerNumber, assessmentId, request, CsraAssessmentStage.FINAL)
+  fun submitFinal(prisonerNumber: String, assessmentId: UUID, request: CsraAssessmentFinalStageRequest) = submitStage(prisonerNumber, assessmentId, request, CsraAssessmentStage.FINAL, request.nextReviewDate)
 
   fun cancel(prisonerNumber: String, assessmentId: UUID, prisonId: String): CsraCurrentRating {
     writeSupport.rejectIfPrisonNotActive(prisonId)
@@ -174,6 +175,7 @@ class CsraAssessmentService(
     assessmentId: UUID,
     request: CsraAssessmentStageRequest,
     stage: CsraAssessmentStage,
+    nextReviewDate: LocalDate? = null,
   ): CsraCurrentRating {
     // Rollout gate first: it is about the caller, not the record, so it must not depend on the id
     // existing or on what state the record is in.
@@ -182,6 +184,7 @@ class CsraAssessmentService(
     // Before the content checks: a review the prisoner has moved away from is a lifecycle conflict, not
     // a bad payload, and the caller should be told that rather than shown a validation error.
     writeSupport.rejectIfNotWritable(review)
+    writeSupport.rejectIfNextReviewDateNotInFuture(nextReviewDate, LocalDate.now(clock))
     validateMandatoryHigh(request)
     validateOffenceEvidence(request.offenceEvidence)
     riskCategoryValidator.validate(request.rating, request.riskTo, request.vulnerabilities)
@@ -204,9 +207,9 @@ class CsraAssessmentService(
         review.finalResult = request.rating
         review.finalResultDate = today
         review.status = CsraReviewStatus.COMPLETE
-        // Twelve months on for a high-risk final rating, else none. The prisoner's current date is derived
-        // from this by the refresh below.
-        review.nextReviewDate = if (request.rating.isHigh()) today.plusMonths(12) else null
+        // Use the supplied nextReviewDate or default to twelve months on for a high-risk final rating, else none.
+        // The prisoner's current date is derived from this by the refresh below.
+        review.nextReviewDate = if (request.rating.isHigh()) nextReviewDate ?: today.plusMonths(12) else null
       }
       // Unreachable: only this class calls submitStage, and only with PROVISIONAL or FINAL. INTERIM is the
       // review journey's first stage and is written by CsraReviewWriteService.
