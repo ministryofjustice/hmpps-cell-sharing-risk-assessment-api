@@ -14,7 +14,7 @@ import java.time.Clock
 import java.time.LocalDateTime
 
 /**
- * Reacts to prisoner movements (driven by the `prison-offender-events.prisoner.received` event) by
+ * Reacts to prisoner movements (driven by the `prisoner-offender-search.prisoner.received` event) by
  * tidying up in-progress CSRA work, per rules R-01/R-02/R-04/R-05 (see the admission-event rules).
  *
  * On any admission that ends the prisoner's in-progress work at the sending establishment, an in-progress
@@ -36,20 +36,34 @@ class CsraMovementService(
   private val csraReviewRepository: CsraReviewRepository,
   private val csraCurrentRatingService: CsraCurrentRatingService,
   private val eventPublishAndAuditService: EventPublishAndAuditService,
+  private val activeAgenciesService: ActiveAgenciesService,
   private val telemetryClient: TelemetryClient,
   private val clock: Clock,
 ) {
   /**
    * Readmission after a period of release (R-01): close/archive any in-progress review and reset the
    * prisoner's current CSRA rating to "No rating" (a fresh period of custody starts with no rating).
+   *
+   * The reset only happens when the receiving prison is switched on for CSRA. A prison still using NOMIS
+   * keeps the previous CSRA when a prisoner returns, so DPS keeps it too: the rating is left standing, the
+   * previous custody period is not superseded and nothing is published. The two systems stay in step until
+   * the prison moves to DPS, and the prisoner's rating at switch-on is the one NOMIS holds. Superseding
+   * alone would not do - the next NOMIS sync re-derives the rating without the superseded reviews and
+   * clears it anyway. A prison with no id counts as not switched on, as it does for publishing (MAPA-429).
+   *
+   * The in-progress tidy-up still runs everywhere: closing a review leaves its rating standing and
+   * archiving removes an unrated draft, so neither changes the prisoner's CSRA.
    */
   fun handleReadmission(prisonerNumber: String, prisonId: String?) {
     closeOrArchiveInProgress(prisonerNumber, prisonId, CsraClosureReason.NOT_COMPLETED_PRISONER_RELEASE)
+    if (prisonId == null || !activeAgenciesService.isActive(prisonId)) {
+      recordRatingKept(prisonerNumber, prisonId)
+      return
+    }
     supersedePreviousCustody(prisonerNumber)
     // Clearing a rating changes the prisoner's CSRA just as saving one does, so it is announced the same
     // way — otherwise a consumer (notably the DPS -> NOMIS sync) keeps the pre-release rating forever.
     // Only when something was actually cleared: most admissions find the prisoner already at "No rating".
-    // Held back, though still audited, when the receiving prison is not switched on for CSRA (MAPA-429).
     if (csraCurrentRatingService.resetToNoRating(prisonerNumber, SYSTEM_USERNAME)) {
       eventPublishAndAuditService.publishRatingCleared(
         prisonerNumber = prisonerNumber,
@@ -114,6 +128,20 @@ class CsraMovementService(
       csraReviewRepository.save(review)
       recordClosure(review, prisonId, reason, outcome)
     }
+  }
+
+  // Lets the team see how many returning prisoners keep a previous rating because their prison is not yet
+  // using DPS for CSRA. After commit, for the same reason as [recordClosure].
+  private fun recordRatingKept(prisonerNumber: String, prisonId: String?) = afterCommit {
+    log.info("CSRA rating kept on readmission of {} to {}, not switched on for CSRA", prisonerNumber, prisonId)
+    telemetryClient.trackEvent(
+      "csra-rating-kept-on-readmission-prison-not-active",
+      mapOf(
+        "prisonerNumber" to prisonerNumber,
+        "prisonId" to (prisonId ?: ""),
+      ),
+      null,
+    )
   }
 
   // R-05: record close/archive events so the team can measure how often in-progress work is disrupted.

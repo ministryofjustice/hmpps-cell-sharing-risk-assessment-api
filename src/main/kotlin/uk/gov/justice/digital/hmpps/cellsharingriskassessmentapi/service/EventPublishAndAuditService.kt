@@ -53,10 +53,10 @@ class EventPublishAndAuditService(
    * Only called when a rating was actually cleared: an admission that finds the prisoner already at "No
    * rating" publishes nothing, for the same reason an unrated draft does.
    *
-   * [prisonId] is the prison the prisoner was received into. This is the event most likely to reach NOMIS
-   * for a prison still using it (MAPA-429): a readmission happens whatever the prison's rollout state, and
-   * NOMIS keeps the previous CSRA when a prisoner returns on an old booking, so the reset is audited but
-   * not published unless that prison is switched on.
+   * [prisonId] is the prison the prisoner was received into. NOMIS keeps the previous CSRA when a prisoner
+   * returns on an old booking, so a reset must never reach NOMIS for a prison still using it (MAPA-429).
+   * [CsraMovementService.handleReadmission] no longer clears the rating at such a prison at all; the check
+   * here stays as a second line, so a future caller cannot send one by mistake.
    */
   fun publishRatingCleared(prisonerNumber: String, prisonId: String?, auditData: Any) {
     val heldBack = isHeldBackForRollout(InformationSource.DPS, prisonId)

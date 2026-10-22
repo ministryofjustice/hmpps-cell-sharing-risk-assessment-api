@@ -14,10 +14,14 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.service.CsraMov
  *
  * Two event types matter:
  *
- * - **`prison-offender-events.prisoner.received`** — per the CSRA rules nothing happens at release; the
+ * - **`prisoner-offender-search.prisoner.received`** — per the CSRA rules nothing happens at release; the
  *   tidy-up of in-progress work happens on the next admission, and the event's `reason` tells us whether
  *   it was a readmission after release (R-01) or a transfer between establishments (R-02). Returns from
  *   court or temporary absence (same establishment) are ignored.
+ *
+ *   Not `prison-offender-events.prisoner.received`, which shares the name but reports every admission as
+ *   `ADMISSION`. The readmission reasons below exist only on this event; listening to the other one meant
+ *   R-01 never ran (MAPA-459).
  * - **`prison-offender-events.prisoner.merged`** — NOMIS has resolved two prisoner numbers for the same
  *   person into one. All CSRA data moves from the retired number to the retained one.
  *
@@ -97,7 +101,7 @@ class PrisonerDomainEventListener(
   }
 
   private companion object {
-    private const val PRISONER_RECEIVED_EVENT_TYPE = "prison-offender-events.prisoner.received"
+    private const val PRISONER_RECEIVED_EVENT_TYPE = "prisoner-offender-search.prisoner.received"
     private const val PRISONER_MERGED_EVENT_TYPE = "prison-offender-events.prisoner.merged"
     private const val TRANSFERRED_REASON = "TRANSFERRED"
 

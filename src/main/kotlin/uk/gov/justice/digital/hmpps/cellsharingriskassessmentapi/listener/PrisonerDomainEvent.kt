@@ -23,7 +23,7 @@ data class PrisonerDomainEvent(
 /**
  * The union of the `additionalInformation` fields we read across the event types on this queue.
  *
- * - `prison-offender-events.prisoner.received` populates [nomsNumber], [prisonId] and [reason].
+ * - `prisoner-offender-search.prisoner.received` populates [nomsNumber], [prisonId] and [reason].
  * - `prison-offender-events.prisoner.merged` populates [nomsNumber] (the *retained* number),
  *   [removedNomsNumber] (the retired one), [reason] `MERGE` and [bookingId].
  *
