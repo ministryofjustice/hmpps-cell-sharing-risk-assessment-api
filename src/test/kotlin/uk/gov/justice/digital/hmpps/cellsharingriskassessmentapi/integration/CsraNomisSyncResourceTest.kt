@@ -47,6 +47,7 @@ class CsraNomisSyncResourceTest : SqsIntegrationTestBase() {
       "assessmentDate": "$assessmentDate",
       "assessmentType": "CSR",
       "calculatedLevel": "STANDARD",
+      "overrideLevel": "STANDARD",
       "score": 1000,
       "status": "A",
       "committeeCode": "REVIEW",
@@ -54,8 +55,7 @@ class CsraNomisSyncResourceTest : SqsIntegrationTestBase() {
       "comment": "All good",
       "createdDateTime": "2025-12-06T12:34:56",
       "createdBy": "NQP56Y",
-      "reviewLevel": "STANDARD",
-      "approvedLevel": "HI",
+      "reviewLevel": "HI",
       "evaluationDate": "2025-12-08",
       "reviewDetails": [
         { "code": "SEC1", "questions": [ { "code": "Q1", "responses": [ { "code": "R1", "answer": "Yes" } ] } ] }
@@ -128,7 +128,8 @@ class CsraNomisSyncResourceTest : SqsIntegrationTestBase() {
       assertThat(nomis.score).isEqualByComparingTo(BigDecimal("1000"))
       assertThat(nomis.status).isEqualTo(CsraStatus.A)
       assertThat(nomis.calculatedLevel).isEqualTo(CsraLevel.STANDARD)
-      assertThat(nomis.approvedLevel).isEqualTo(CsraLevel.HI)
+      assertThat(nomis.overrideLevel).isEqualTo(CsraLevel.STANDARD)
+      assertThat(nomis.reviewLevel).isEqualTo(CsraLevel.HI)
       assertThat(nomis.committeeCode).isEqualTo(CsraCommitteeCode.REVIEW)
       assertThat(nomis.comment).isEqualTo("All good")
       assertThat(nomis.reviewDetails).singleElement()
@@ -236,7 +237,7 @@ class CsraNomisSyncResourceTest : SqsIntegrationTestBase() {
       val created = objectMapper.readValue(createBody, SyncResult::class.java)
 
       // sync again with the id -> update (200)
-      val updateJson = reviewJson().replace("\"approvedLevel\": \"HI\"", "\"approvedLevel\": \"STANDARD\"")
+      val updateJson = reviewJson().replace("\"reviewLevel\": \"HI\"", "\"reviewLevel\": \"STANDARD\"")
       webTestClient.post().uri("/nomis-sync/sync/A1234BC")
         .headers(setAuthorisation(roles = syncRole))
         .contentType(MediaType.APPLICATION_JSON)
@@ -259,7 +260,7 @@ class CsraNomisSyncResourceTest : SqsIntegrationTestBase() {
 
       // the adjacent NOMIS record was created on sync-create and refreshed on sync-update
       val nomis = csraReviewNomisRepository.findByCsraReviewId(created.csraReviewId)!!
-      assertThat(nomis.approvedLevel).isEqualTo(CsraLevel.STANDARD)
+      assertThat(nomis.reviewLevel).isEqualTo(CsraLevel.STANDARD)
       assertThat(nomis.reviewDetails).singleElement()
         .satisfies({ section -> assertThat(section.code).isEqualTo("SEC1") })
     }
@@ -270,8 +271,7 @@ class CsraNomisSyncResourceTest : SqsIntegrationTestBase() {
       // governance step that was almost never used. The calculated level is the rating NOMIS shows, and
       // it is settled: there is nothing left to complete, so it is final rather than provisional.
       val pendingJson = reviewJson()
-        .replace("\"approvedLevel\": \"HI\",", "")
-        .replace("\"reviewLevel\": \"STANDARD\",", "")
+        .replace("\"reviewLevel\": \"HI\",", "")
         .replace("\"calculatedLevel\": \"STANDARD\"", "\"calculatedLevel\": \"HI\"")
 
       webTestClient.post().uri("/nomis-sync/sync/P1111PP")
@@ -293,8 +293,7 @@ class CsraNomisSyncResourceTest : SqsIntegrationTestBase() {
     @Test
     fun `a review NOMIS still holds as provisional becomes a provisional current rating`() {
       val provisionalJson = reviewJson()
-        .replace("\"approvedLevel\": \"HI\",", "")
-        .replace("\"reviewLevel\": \"STANDARD\",", "")
+        .replace("\"reviewLevel\": \"HI\",", "")
         .replace("\"calculatedLevel\": \"STANDARD\"", "\"calculatedLevel\": \"HI\"")
         .replace("\"status\": \"A\"", "\"status\": \"P\"")
 
@@ -312,6 +311,51 @@ class CsraNomisSyncResourceTest : SqsIntegrationTestBase() {
         .expectBody()
         .jsonPath("$.rating").isEqualTo("HIGH")
         .jsonPath("$.provisional").isEqualTo(true)
+    }
+
+    @Test
+    fun `a review level is the rating even where the calculated and override levels are higher`() {
+      // A review that lowered a high score. NOMIS and prison-api show Standard; a calculated or override
+      // level can never beat a review level that is not PEND (MAPA-468).
+      val loweredJson = reviewJson()
+        .replace("\"calculatedLevel\": \"STANDARD\"", "\"calculatedLevel\": \"HI\"")
+        .replace("\"overrideLevel\": \"STANDARD\"", "\"overrideLevel\": \"HI\"")
+        .replace("\"reviewLevel\": \"HI\"", "\"reviewLevel\": \"STANDARD\"")
+
+      webTestClient.post().uri("/nomis-sync/sync/L1111LL")
+        .headers(setAuthorisation(roles = syncRole))
+        .contentType(MediaType.APPLICATION_JSON)
+        .body(BodyInserters.fromValue("""{ "review": $loweredJson }"""))
+        .exchange()
+        .expectStatus().isCreated
+
+      webTestClient.get().uri("/csra-review/prisoner/L1111LL/current-rating")
+        .headers(setAuthorisation(roles = listOf("ROLE_CSRA_REVIEW__R")))
+        .exchange()
+        .expectStatus().isOk
+        .expectBody()
+        .jsonPath("$.rating").isEqualTo("STANDARD")
+    }
+
+    @Test
+    fun `with no review level the stronger of the override and calculated levels is the rating`() {
+      val overriddenJson = reviewJson()
+        .replace("\"reviewLevel\": \"HI\",", "")
+        .replace("\"calculatedLevel\": \"STANDARD\"", "\"calculatedLevel\": \"HI\"")
+
+      webTestClient.post().uri("/nomis-sync/sync/L2222LL")
+        .headers(setAuthorisation(roles = syncRole))
+        .contentType(MediaType.APPLICATION_JSON)
+        .body(BodyInserters.fromValue("""{ "review": $overriddenJson }"""))
+        .exchange()
+        .expectStatus().isCreated
+
+      webTestClient.get().uri("/csra-review/prisoner/L2222LL/current-rating")
+        .headers(setAuthorisation(roles = listOf("ROLE_CSRA_REVIEW__R")))
+        .exchange()
+        .expectStatus().isOk
+        .expectBody()
+        .jsonPath("$.rating").isEqualTo("HIGH")
     }
 
     @Test

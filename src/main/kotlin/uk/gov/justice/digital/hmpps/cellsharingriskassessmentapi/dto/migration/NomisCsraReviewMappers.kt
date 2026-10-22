@@ -55,42 +55,51 @@ data class NomisCsraOutcome(val result: CsraResult?, val settled: Boolean)
 private val LEVEL_PRIORITY = listOf(CsraLevel.HI, CsraLevel.STANDARD, CsraLevel.MED, CsraLevel.LOW)
 
 /**
- * Which of a NOMIS review's three levels is the one NOMIS itself would display, mirroring prison-api
- * `OffenderAssessment.getClassificationSummary`:
+ * Which of a NOMIS review's levels is the one NOMIS itself would display, mirroring prison-api
+ * `OffenderAssessment.getClassificationSummary` exactly:
  *
- *  1. an approved level that is not PEND wins outright;
- *  2. otherwise, where both the reviewer's level and the calculated level are set, the stronger of the
- *     two wins (HI > STANDARD > MED > LOW), the reviewer's level taking precedence at equal rank;
- *  3. otherwise the reviewer's level, if set — this is the case where NOMIS displays a bare "PEND";
+ *  1. the review level (`REVIEW_SUP_LEVEL_TYPE`, which NOMIS displays as the approved level) wins outright
+ *     if it is not PEND;
+ *  2. otherwise, where both the override level and the calculated level are set, the stronger of the two
+ *     wins (HI > STANDARD > MED > LOW), the override taking precedence at equal rank;
+ *  3. otherwise the override level, if set, even where it is PEND;
  *  4. otherwise the calculated level, if it is not PEND;
  *  5. otherwise no level at all.
  *
- * This rule is also implemented in SQL by `V8__recalculate_nomis_csra_results.sql`, so the two must stay
- * in step. It lives here once rather than being re-derived by each caller: [nomisOutcome] needs the
- * resolved *result*, while the history read path needs the raw *level*, so that legacy LOW and MED rows
- * can be displayed as such rather than as the STANDARD they resolve to.
+ * Only the override and the calculated level are ever compared. A calculated level can beat an override,
+ * but never a review level. `APPROVED_SUP_LEVEL_TYPE` (our `approvedLevel`) plays no part: it is null on
+ * every known CSRA row and prison-api does not map it.
+ *
+ * `V8__recalculate_nomis_csra_results.sql` applied an earlier, wrong version of this rule (MAPA-468); the
+ * rows it set are corrected by re-migrating rather than by SQL, because the override level was not stored
+ * separately until then. The rule lives here once rather than being re-derived by each caller:
+ * [nomisOutcome] needs the resolved *result*, while the history read path needs the raw *level*, so that
+ * legacy LOW and MED rows can be displayed as such rather than as the STANDARD they resolve to.
  */
-fun resolveNomisLevel(calculatedLevel: CsraLevel?, reviewLevel: CsraLevel?, approvedLevel: CsraLevel?): CsraLevel? {
-  if (approvedLevel != null && approvedLevel != CsraLevel.PEND) return approvedLevel
+fun resolveNomisLevel(calculatedLevel: CsraLevel?, overrideLevel: CsraLevel?, reviewLevel: CsraLevel?): CsraLevel? {
+  if (reviewLevel != null && reviewLevel != CsraLevel.PEND) return reviewLevel
+
+  if (overrideLevel != null && calculatedLevel != null) {
+    // Where both are PEND neither ranks, and NOMIS falls through to the override's bare PEND.
+    LEVEL_PRIORITY.firstOrNull { it == overrideLevel || it == calculatedLevel }?.let { return it }
+  }
 
   return when {
-    reviewLevel != null && calculatedLevel != null ->
-      LEVEL_PRIORITY.firstNotNullOfOrNull { rank -> rank.takeIf { it == reviewLevel || it == calculatedLevel } }
-    reviewLevel != null -> reviewLevel
+    overrideLevel != null -> overrideLevel
     calculatedLevel != CsraLevel.PEND -> calculatedLevel
     else -> null
   }
 }
 
 /** The level [resolveNomisLevel] picks for an already-persisted NOMIS record. */
-fun CsraReviewNomisEntity.resolvedLevel(): CsraLevel? = resolveNomisLevel(calculatedLevel, reviewLevel, approvedLevel)
+fun CsraReviewNomisEntity.resolvedLevel(): CsraLevel? = resolveNomisLevel(calculatedLevel = calculatedLevel, overrideLevel = overrideLevel, reviewLevel = reviewLevel)
 
 /**
  * Resolves a NOMIS review to a rating and whether it is settled — see [resolveNomisLevel] for how the
  * level is chosen, and [NomisCsraOutcome] for why approval does not decide whether it is settled.
  */
 fun NomisCsraReview.nomisOutcome(): NomisCsraOutcome = NomisCsraOutcome(
-  result = resolveNomisLevel(calculatedLevel, reviewLevel, approvedLevel).toCsraResult(),
+  result = resolveNomisLevel(calculatedLevel = calculatedLevel, overrideLevel = overrideLevel, reviewLevel = reviewLevel).toCsraResult(),
   // A review NOMIS still holds as provisional is unfinished whatever level it carries.
   settled = status != CsraStatus.P,
 )
@@ -146,6 +155,7 @@ fun NomisCsraReview.toNomisEntity(core: CsraReviewEntity, clock: Clock): CsraRev
   score = score,
   status = status,
   calculatedLevel = calculatedLevel,
+  overrideLevel = overrideLevel,
   reviewLevel = reviewLevel,
   approvedLevel = approvedLevel,
   committeeCode = committeeCode,
@@ -169,6 +179,7 @@ fun CsraReviewNomisEntity.updateFromNomis(review: NomisCsraReview, clock: Clock)
   this.score = review.score
   this.status = review.status
   this.calculatedLevel = review.calculatedLevel
+  this.overrideLevel = review.overrideLevel
   this.reviewLevel = review.reviewLevel
   this.approvedLevel = review.approvedLevel
   this.committeeCode = review.committeeCode

@@ -102,6 +102,9 @@ data class CsraLegacyReviewDetail(
   @param:Schema(description = "The level NOMIS calculated from the answers given", example = "STANDARD", required = false)
   val calculatedResult: CsraLevel?,
 
+  @param:Schema(description = "The level the assessor chose in place of the calculated level, where they overrode it", example = "STANDARD", required = false)
+  val overrideResult: CsraLevel?,
+
   @param:Schema(description = "The level approved for this review — NOMIS's reviewed level, which is what it displays as the approved result", example = "STANDARD", required = false)
   val approvedResult: CsraLevel?,
 
@@ -176,6 +179,7 @@ fun CsraReviewNomisEntity.toLegacyReviewDetail() = CsraLegacyReviewDetail(
   level = resolvedLevel(),
   approvalStatus = approvalStatus(),
   calculatedResult = calculatedLevel,
+  overrideResult = overrideLevel,
   // NOMIS's reviewed level, NOT approvedLevel — see the class comment. approvedLevel is never populated.
   approvedResult = reviewLevel,
   assessmentComment = comment,

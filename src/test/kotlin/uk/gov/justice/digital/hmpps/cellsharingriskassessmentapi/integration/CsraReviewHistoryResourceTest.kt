@@ -285,21 +285,24 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
   }
 
   @Test
-  fun `a legacy review with reviewer LOW under calculated STANDARD is found under Standard (legacy), not Low`() {
+  fun `a legacy review with reviewer LOW over calculated STANDARD is found under Low, not Standard (legacy)`() {
+    // The review level wins outright, as in NOMIS and prison-api (MAPA-468).
     val review = review("R2222RR", LocalDate.parse("2024-01-01"), CsraResult.STANDARD, "LEI")
     withNomis(review, calculatedLevel = CsraLevel.STANDARD, reviewLevel = CsraLevel.LOW)
 
-    webTestClient.get().uri("/csra-review/prisoner/R2222RR/history?ratings=STANDARD_LEGACY")
+    webTestClient.get().uri("/csra-review/prisoner/R2222RR/history?ratings=LOW")
       .headers(setAuthorisation(roles = readRole))
       .exchange()
       .expectStatus().isOk
       .expectBody()
-      .jsonPath("$.summary.ratings.length()").isEqualTo(1)
+      // A LOW row offers Standard (legacy) from its rating as well as Low from its level, as any LOW row does.
+      .jsonPath("$.summary.ratings.length()").isEqualTo(2)
       .jsonPath("$.summary.ratings[0]").isEqualTo("STANDARD_LEGACY")
+      .jsonPath("$.summary.ratings[1]").isEqualTo("LOW")
       .jsonPath("$.totalElements").isEqualTo(1)
-      .jsonPath("$.content[0].legacy.level").isEqualTo("STANDARD")
+      .jsonPath("$.content[0].legacy.level").isEqualTo("LOW")
 
-    webTestClient.get().uri("/csra-review/prisoner/R2222RR/history?ratings=LOW")
+    webTestClient.get().uri("/csra-review/prisoner/R2222RR/history?ratings=STANDARD_LEGACY")
       .headers(setAuthorisation(roles = readRole))
       .exchange()
       .expectStatus().isOk
@@ -308,19 +311,20 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
   }
 
   @Test
-  fun `a legacy review with reviewer STANDARD under calculated HI is offered only High, and is found under it`() {
-    val review = review("R3333RR", LocalDate.parse("2024-01-01"), CsraResult.HIGH, "LEI")
+  fun `a legacy review with reviewer STANDARD under calculated HI is offered only Standard (legacy), and is found under it`() {
+    // The review level wins outright, as in NOMIS and prison-api (MAPA-468).
+    val review = review("R3333RR", LocalDate.parse("2024-01-01"), CsraResult.STANDARD, "LEI")
     withNomis(review, calculatedLevel = CsraLevel.HI, reviewLevel = CsraLevel.STANDARD)
 
-    webTestClient.get().uri("/csra-review/prisoner/R3333RR/history?ratings=HIGH")
+    webTestClient.get().uri("/csra-review/prisoner/R3333RR/history?ratings=STANDARD_LEGACY")
       .headers(setAuthorisation(roles = readRole))
       .exchange()
       .expectStatus().isOk
       .expectBody()
       .jsonPath("$.summary.ratings.length()").isEqualTo(1)
-      .jsonPath("$.summary.ratings[0]").isEqualTo("HIGH")
+      .jsonPath("$.summary.ratings[0]").isEqualTo("STANDARD_LEGACY")
       .jsonPath("$.totalElements").isEqualTo(1)
-      .jsonPath("$.content[0].legacy.level").isEqualTo("HI")
+      .jsonPath("$.content[0].legacy.level").isEqualTo("STANDARD")
   }
 
   @Test
@@ -513,7 +517,7 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
     withNomis(
       approved,
       calculatedLevel = CsraLevel.STANDARD,
-      approvedLevel = CsraLevel.HI,
+      reviewLevel = CsraLevel.HI,
       evaluationResultCode = CsraEvaluationResultCode.APP,
       evaluationDate = LocalDate.parse("2012-06-01"),
     )

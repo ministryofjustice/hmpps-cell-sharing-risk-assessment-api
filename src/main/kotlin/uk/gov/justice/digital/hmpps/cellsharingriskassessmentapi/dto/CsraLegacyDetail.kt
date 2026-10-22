@@ -31,6 +31,9 @@ data class CsraLegacyDetail(
   @param:Schema(description = "The calculated NOMIS level before any review or approval level overrode it.", example = "LOW", required = false)
   val calculatedLevel: CsraLevel?,
 
+  @param:Schema(description = "The level the assessor chose in place of the calculated level, where they overrode it.", example = "STANDARD", required = false)
+  val overrideLevel: CsraLevel?,
+
   @param:Schema(description = "The assessment comment recorded in NOMIS", required = false)
   val assessmentComment: String?,
 
@@ -54,6 +57,7 @@ data class CsraLegacyDetail(
 fun CsraReviewNomisEntity.toLegacyDetail(assessmentDate: LocalDate) = CsraLegacyDetail(
   level = resolvedLevel(),
   calculatedLevel = calculatedLevel,
+  overrideLevel = overrideLevel,
   assessmentComment = comment,
   assessmentDate = assessmentDate,
   approvalStatus = approvalStatus(),

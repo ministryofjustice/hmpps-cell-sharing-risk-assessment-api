@@ -34,6 +34,9 @@ data class NomisCsraReview(
   @param:Schema(description = "The calculated CSRA level", example = "STANDARD", required = false, enumAsRef = true)
   val calculatedLevel: CsraLevel? = null,
 
+  @param:Schema(description = "The override CSRA level (NOMIS OVERRIDED_SUP_LEVEL_TYPE)", example = "STANDARD", required = false, enumAsRef = true)
+  val overrideLevel: CsraLevel? = null,
+
   @param:Schema(description = "Score", example = "1000", required = true)
   val score: BigDecimal,
 

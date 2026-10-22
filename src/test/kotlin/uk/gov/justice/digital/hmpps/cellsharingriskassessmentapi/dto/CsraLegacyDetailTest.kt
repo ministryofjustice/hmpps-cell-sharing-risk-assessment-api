@@ -27,6 +27,7 @@ class CsraLegacyDetailTest {
 
   private fun nomis(
     calculatedLevel: CsraLevel? = null,
+    overrideLevel: CsraLevel? = null,
     reviewLevel: CsraLevel? = null,
     approvedLevel: CsraLevel? = null,
     evaluationResultCode: CsraEvaluationResultCode? = null,
@@ -38,6 +39,7 @@ class CsraLegacyDetailTest {
     csraReview = core(),
     status = CsraStatus.A,
     calculatedLevel = calculatedLevel,
+    overrideLevel = overrideLevel,
     reviewLevel = reviewLevel,
     approvedLevel = approvedLevel,
     evaluationResultCode = evaluationResultCode,
@@ -101,15 +103,25 @@ class CsraLegacyDetailTest {
   }
 
   @Test
-  fun `an approved level that raised the rating is still simply approved`() {
-    // NOMIS records no approved level on any review — zero rows across 5.1M in dev and preprod — so
-    // there is no "level changed at approval" state to detect, and none is exposed.
+  fun `an approved level is shown as approved but does not change the level`() {
+    // NOMIS records no approved level on any review — zero rows across 5.1M in dev and preprod — and
+    // prison-api never reads it, so it feeds the approval badge only, never the level.
     val detail = nomis(calculatedLevel = CsraLevel.STANDARD, approvedLevel = CsraLevel.HI)
       .toLegacyDetail(assessmentDate)
 
     assertThat(detail.approvalStatus).isEqualTo(CsraApprovalStatus.APPROVED)
-    assertThat(detail.level).isEqualTo(CsraLevel.HI)
+    assertThat(detail.level).isEqualTo(CsraLevel.STANDARD)
     assertThat(detail.calculatedLevel).isEqualTo(CsraLevel.STANDARD)
+  }
+
+  @Test
+  fun `a review level that lowered the calculated and override levels is the level shown`() {
+    val detail = nomis(calculatedLevel = CsraLevel.HI, overrideLevel = CsraLevel.HI, reviewLevel = CsraLevel.STANDARD)
+      .toLegacyDetail(assessmentDate)
+
+    assertThat(detail.level).isEqualTo(CsraLevel.STANDARD)
+    assertThat(detail.calculatedLevel).isEqualTo(CsraLevel.HI)
+    assertThat(detail.overrideLevel).isEqualTo(CsraLevel.HI)
   }
 
   @Test
