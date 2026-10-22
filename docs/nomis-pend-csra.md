@@ -3,9 +3,9 @@
 How a migrated NOMIS CSRA resolves to a rating, why almost none of them are provisional, and the two
 legacy branches that look load-bearing and never fire.
 
-Implemented in `dto/migration/NomisCsraReviewMappers.kt` and, for already-loaded rows, in
-`V8__recalculate_nomis_csra_results.sql`. **The two must stay in step** — if you change one, change the
-other.
+Implemented in `dto/migration/NomisCsraReviewMappers.kt`. `V8__recalculate_nomis_csra_results.sql`
+applied an earlier, wrong version of the rule to already-loaded rows; MAPA-468 corrected the rule, and
+those rows are put right by re-migrating (see below).
 
 ## Two different things both spelled "pending"
 
@@ -13,7 +13,7 @@ They are unrelated, and conflating them is the easiest mistake to make here.
 
 | | What it is | Where it lives |
 | --- | --- | --- |
-| `CsraLevel.PEND` | A *level* placeholder meaning "no level chosen yet". Not a rating. | `calculated_level`, `review_level`, `approved_level` |
+| `CsraLevel.PEND` | A *level* placeholder meaning "no level chosen yet". Not a rating. | `calculated_level`, `override_level`, `review_level`, `approved_level` |
 | `CsraStatus.P` | A *review status* meaning NOMIS itself still holds the review as provisional. | `status` |
 
 A review can carry `PEND` in one level slot and still resolve to a real rating from another. A review
@@ -22,23 +22,32 @@ provisional in this service.
 
 ## Choosing the level
 
-`resolveNomisLevel` mirrors prison-api's `OffenderAssessment.getClassificationSummary`:
+`resolveNomisLevel` mirrors prison-api's `OffenderAssessment.getClassificationSummary` exactly:
 
-1. An approved level that is not `PEND` wins outright.
-2. Otherwise, where both the reviewer's and the calculated level are set, the **stronger** wins
-   (`HI > STANDARD > MED > LOW`), the reviewer's taking precedence at equal rank.
-3. Otherwise the reviewer's level, if set — this is where NOMIS displays a bare "PEND".
+1. The review level (`REVIEW_SUP_LEVEL_TYPE`, what NOMIS displays as the approved result) wins
+   outright if it is not `PEND`.
+2. Otherwise, where both the override level (`OVERRIDED_SUP_LEVEL_TYPE`) and the calculated level
+   (`CALC_SUP_LEVEL_TYPE`) are set, the **stronger** wins (`HI > STANDARD > MED > LOW`), the override
+   taking precedence at equal rank.
+3. Otherwise the override level, if set — even `PEND`.
 4. Otherwise the calculated level, unless it is `PEND`.
 5. Otherwise no level at all, and the review carries no rating.
+
+Only the override and the calculated level are ever compared. A calculated level can beat an override,
+but never a review level. `approved_level` plays no part (see below).
 
 `PEND` is deliberately absent from `LEVEL_PRIORITY`: it can never win a head-to-head.
 
 The resolved *level* is kept as well as the resolved *result*, because legacy `LOW` and `MED` both
 collapse to `CsraResult.STANDARD` and the history screens need to show what NOMIS actually recorded.
 
-> **Known divergence.** Rule 2 takes the stronger of reviewer and calculated; NOMIS takes the
-> reviewer's level outright. For `calculated = HI, review = STANDARD` the legacy DPS screen shows
-> Standard and we show `HIGH`. Unresolved — measure before relying on it either way.
+> **Corrected by MAPA-468.** Until then the rule ran one column out: it let `approved_level` win
+> outright (always null, so never) and compared the *review* level with the calculated level. For
+> `calculated = HI, review = STANDARD` NOMIS and the legacy DPS screens show Standard and we showed
+> `HIGH`. The override level was also not received separately — the migration service sent
+> `overrideLevel ?: calculatedLevel` as `calculatedLevel` — so `override = STANDARD, calculated = HI`
+> showed Standard where NOMIS shows High. Rows loaded before the fix have no `override_level` and a
+> rating set by the old rule; they are corrected by re-migrating, not by SQL.
 
 ## Why a migrated rating is final, not provisional
 
@@ -65,8 +74,9 @@ hmpps-nomis-prisoner-api annotates it *"actually not used - all null for CSRA to
 displays as the approved result is `REVIEW_SUP_LEVEL_TYPE` — the reviewer's level — which is why
 `CsraLegacyReviewDetail.approvedResult` maps from `reviewLevel`.
 
-Measured: **zero rows in 5,107,546** across dev and preprod. Rule 1 of `resolveNomisLevel` is therefore
-dead in practice.
+Measured: **zero rows in 5,107,546** across dev and preprod. Since MAPA-468 `resolveNomisLevel` ignores
+it altogether, as prison-api does. It is still stored, and still feeds the approval badge
+(`CsraLegacyDetail.approvalStatus`).
 
 ### Status `P` never arrives either
 
@@ -87,7 +97,7 @@ group by final_result, interim_result;
 every row. The status-`P` path, the single remaining route by which a migrated review becomes
 provisional, has produced nothing.
 
-The 113,089 with neither result are reviews that reached rule 5 — no reviewer level, and a calculated
+The 113,089 with neither result are reviews that reached rule 5 — no review level, and a calculated
 level that was `PEND` or absent. They are still `COMPLETE`: migrated reviews are historical, never
 in-progress, result-less `PEND` rows included.
 
@@ -96,11 +106,12 @@ rating") and **zero** `PROVISIONAL` or `INTERIM` — every unconfirmed rating in
 DPS-authored. In dev, where the write journeys are exercised, the same query returns 533,321 `FINAL`,
 4 `PROVISIONAL`, 1 `INTERIM` and 82,193 null.
 
-### Do not delete either branch on this evidence
+### Do not delete the status-`P` branch on this evidence
 
 A snapshot showing zero rows is not proof the case cannot occur. NOMIS remains live and a sync arriving
-during switch-off could still deliver a status-`P` review or, less plausibly, an approved level. Both
-branches are correct as written and cost nothing to keep.
+during switch-off could still deliver a status-`P` review. The branch is correct as written and costs
+nothing to keep. (The approved-level branch was removed for a different reason: prison-api never used
+that column, so keeping it would have been a divergence, not a safeguard.)
 
 What the measurement *is* good for: knowing that **no environment can demonstrate the legacy
 provisional case**, so any test or design that depends on observing one in real data is unverifiable.

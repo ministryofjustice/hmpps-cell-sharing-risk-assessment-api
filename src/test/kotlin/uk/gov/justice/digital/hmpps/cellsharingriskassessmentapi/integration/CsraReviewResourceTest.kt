@@ -65,6 +65,7 @@ class CsraReviewResourceTest : SqsIntegrationTestBase() {
   private fun withNomis(
     review: CsraReviewEntity,
     calculatedLevel: CsraLevel? = CsraLevel.STANDARD,
+    overrideLevel: CsraLevel? = null,
     reviewLevel: CsraLevel? = CsraLevel.STANDARD,
     approvedLevel: CsraLevel? = null,
     committeeCode: CsraCommitteeCode? = CsraCommitteeCode.RECP,
@@ -81,6 +82,7 @@ class CsraReviewResourceTest : SqsIntegrationTestBase() {
       csraReview = review,
       status = CsraStatus.A,
       calculatedLevel = calculatedLevel,
+      overrideLevel = overrideLevel,
       reviewLevel = reviewLevel,
       approvedLevel = approvedLevel,
       committeeCode = committeeCode,
@@ -201,13 +203,14 @@ class CsraReviewResourceTest : SqsIntegrationTestBase() {
     // prison-api does not even map it, so reading approvedLevel here would blank the row on every record.
     prisonRegister.stubGetPrisons(mapOf("LEI" to "Leeds (HMP)"))
     val review = review("N3333NN")
-    withNomis(review, calculatedLevel = CsraLevel.STANDARD, reviewLevel = CsraLevel.HI, approvedLevel = null)
+    withNomis(review, calculatedLevel = CsraLevel.STANDARD, overrideLevel = CsraLevel.MED, reviewLevel = CsraLevel.HI, approvedLevel = null)
 
     get(review.id!!)
       .expectStatus().isOk
       .expectBody()
       .jsonPath("$.legacy.approvedResult").isEqualTo("HI")
       .jsonPath("$.legacy.calculatedResult").isEqualTo("STANDARD")
+      .jsonPath("$.legacy.overrideResult").isEqualTo("MED")
   }
 
   @Test

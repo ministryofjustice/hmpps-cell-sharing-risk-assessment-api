@@ -20,6 +20,7 @@ class NomisCsraReviewMappersTest {
   private fun review(
     assessmentType: CsraAssessmentType = CsraAssessmentType.CSR,
     calculatedLevel: CsraLevel? = null,
+    overrideLevel: CsraLevel? = null,
     reviewLevel: CsraLevel? = null,
     approvedLevel: CsraLevel? = null,
     evaluationDate: LocalDate? = null,
@@ -30,6 +31,7 @@ class NomisCsraReviewMappersTest {
     assessmentDate = LocalDate.parse("2025-11-22"),
     assessmentType = assessmentType,
     calculatedLevel = calculatedLevel,
+    overrideLevel = overrideLevel,
     reviewLevel = reviewLevel,
     approvedLevel = approvedLevel,
     evaluationDate = evaluationDate,
@@ -61,12 +63,21 @@ class NomisCsraReviewMappersTest {
   }
 
   @Test
-  fun `an approved level that is not PEND is the final rating`() {
-    val entity = review(approvedLevel = CsraLevel.HI, reviewLevel = CsraLevel.STANDARD, calculatedLevel = CsraLevel.STANDARD)
+  fun `a review level that is not PEND is the final rating, whatever the other levels`() {
+    // A review that lowered a high score: NOMIS and prison-api show STANDARD, not HIGH.
+    val entity = review(reviewLevel = CsraLevel.STANDARD, overrideLevel = CsraLevel.HI, calculatedLevel = CsraLevel.HI)
       .toNewCsraReview("A1234BC")
 
-    assertThat(entity.finalResult).isEqualTo(CsraResult.HIGH)
+    assertThat(entity.finalResult).isEqualTo(CsraResult.STANDARD)
     assertThat(entity.interimResult).isNull()
+  }
+
+  @Test
+  fun `the approved level plays no part in the rating`() {
+    // APPROVED_SUP_LEVEL_TYPE is null on every known CSRA row and prison-api does not map it.
+    val entity = review(approvedLevel = CsraLevel.HI, calculatedLevel = CsraLevel.STANDARD).toNewCsraReview("A1234BC")
+
+    assertThat(entity.finalResult).isEqualTo(CsraResult.STANDARD)
   }
 
   @Test
@@ -83,45 +94,54 @@ class NomisCsraReviewMappersTest {
 
   @Test
   fun `a review NOMIS still holds as provisional is the only provisional case`() {
-    val entity = review(approvedLevel = CsraLevel.HI, status = CsraStatus.P).toNewCsraReview("A1234BC")
+    val entity = review(reviewLevel = CsraLevel.HI, status = CsraStatus.P).toNewCsraReview("A1234BC")
 
     assertThat(entity.interimResult).isEqualTo(CsraResult.HIGH)
     assertThat(entity.finalResult).isNull()
   }
 
   @Test
-  fun `an unapproved review NOMIS holds as provisional is also provisional`() {
-    val entity = review(approvedLevel = null, reviewLevel = CsraLevel.HI, status = CsraStatus.P)
-      .toNewCsraReview("A1234BC")
+  fun `a provisional review with only a calculated level is also provisional`() {
+    val entity = review(calculatedLevel = CsraLevel.HI, status = CsraStatus.P).toNewCsraReview("A1234BC")
 
     assertThat(entity.interimResult).isEqualTo(CsraResult.HIGH)
     assertThat(entity.finalResult).isNull()
   }
 
   @Test
-  fun `a pending approved level no longer hides a rating on the other levels`() {
-    val entity = review(approvedLevel = CsraLevel.PEND, calculatedLevel = CsraLevel.HI).toNewCsraReview("A1234BC")
+  fun `a pending review level does not hide a rating on the other levels`() {
+    val entity = review(reviewLevel = CsraLevel.PEND, calculatedLevel = CsraLevel.HI).toNewCsraReview("A1234BC")
 
     assertThat(entity.finalResult).isEqualTo(CsraResult.HIGH)
   }
 
   @ParameterizedTest
   @CsvSource(
-    // the stronger of the reviewer's and the calculated level wins, whichever field it is on
-    "LOW,HI,HIGH",
-    "HI,LOW,HIGH",
-    "STANDARD,MED,STANDARD",
-    // PEND can never win a head-to-head
-    "PEND,HI,HIGH",
-    "HI,PEND,HIGH",
+    nullValues = ["null"],
+    value = [
+      // the review level wins outright — a calculated or override level never beats it
+      "STANDARD,HI,null,STANDARD",
+      "STANDARD,null,HI,STANDARD",
+      "LOW,HI,HI,STANDARD",
+      "HI,LOW,LOW,HIGH",
+      // with no review level, the stronger of the override and calculated levels wins
+      "null,STANDARD,HI,HIGH",
+      "null,HI,STANDARD,HIGH",
+      "PEND,STANDARD,HI,HIGH",
+      // PEND can never win a head-to-head
+      "null,PEND,HI,HIGH",
+      "null,HI,PEND,HIGH",
+    ],
   )
-  fun `the stronger of the review and calculated levels wins`(
-    reviewLevel: CsraLevel,
-    calculatedLevel: CsraLevel,
+  fun `resolves the rating the way prison-api does`(
+    reviewLevel: CsraLevel?,
+    calculatedLevel: CsraLevel?,
+    overrideLevel: CsraLevel?,
     expected: CsraResult,
   ) {
-    assertThat(review(reviewLevel = reviewLevel, calculatedLevel = calculatedLevel).toNewCsraReview("A1234BC").finalResult)
-      .isEqualTo(expected)
+    val review = review(reviewLevel = reviewLevel, calculatedLevel = calculatedLevel, overrideLevel = overrideLevel)
+
+    assertThat(review.toNewCsraReview("A1234BC").finalResult).isEqualTo(expected)
   }
 
   @ParameterizedTest
@@ -135,22 +155,28 @@ class NomisCsraReviewMappersTest {
       "MED,LOW,null,MED",
       "LOW,MED,null,MED",
       "HI,LOW,null,HI",
-      // an approved level that is not PEND wins outright
-      "LOW,null,STANDARD,STANDARD",
-      // PEND never wins a head-to-head, and an approved PEND does not hide the other levels
-      "HI,null,PEND,HI",
+      // a review level that is not PEND wins outright, even over a stronger level
+      "HI,null,LOW,LOW",
+      "HI,HI,MED,MED",
+      // an override alone is shown, even PEND; both PEND falls through to the override's PEND
+      "null,MED,null,MED",
       "null,PEND,null,PEND",
+      "PEND,PEND,null,PEND",
+      // a PEND review level does not hide the other levels, and alone is no level
+      "HI,null,PEND,HI",
+      "null,null,PEND,null",
       "PEND,null,null,null",
       "null,null,null,null",
     ],
   )
   fun `resolves which NOMIS level wins`(
     calculatedLevel: CsraLevel?,
+    overrideLevel: CsraLevel?,
     reviewLevel: CsraLevel?,
-    approvedLevel: CsraLevel?,
     expected: CsraLevel?,
   ) {
-    assertThat(resolveNomisLevel(calculatedLevel, reviewLevel, approvedLevel)).isEqualTo(expected)
+    assertThat(resolveNomisLevel(calculatedLevel = calculatedLevel, overrideLevel = overrideLevel, reviewLevel = reviewLevel))
+      .isEqualTo(expected)
   }
 
   @Test
@@ -169,7 +195,7 @@ class NomisCsraReviewMappersTest {
 
   @Test
   fun `maps core fields and leaves interim result unset for an approved review`() {
-    val entity = review(approvedLevel = CsraLevel.HI, evaluationDate = LocalDate.parse("2025-12-08")).toNewCsraReview("A1234BC")
+    val entity = review(reviewLevel = CsraLevel.HI, evaluationDate = LocalDate.parse("2025-12-08")).toNewCsraReview("A1234BC")
 
     assertThat(entity.prisonerNumber).isEqualTo("A1234BC")
     assertThat(entity.prisonId).isEqualTo("LEI")
@@ -187,22 +213,22 @@ class NomisCsraReviewMappersTest {
 
   @Test
   fun `final result date falls back to assessment date when no evaluation date`() {
-    val entity = review(approvedLevel = CsraLevel.STANDARD, evaluationDate = null).toNewCsraReview("A1234BC")
+    val entity = review(reviewLevel = CsraLevel.STANDARD, evaluationDate = null).toNewCsraReview("A1234BC")
     assertThat(entity.finalResultDate).isEqualTo(LocalDate.parse("2025-11-22"))
   }
 
   @Test
   fun `no result means no result date`() {
-    val entity = review(approvedLevel = CsraLevel.PEND).toNewCsraReview("A1234BC")
+    val entity = review(reviewLevel = CsraLevel.PEND).toNewCsraReview("A1234BC")
     assertThat(entity.finalResult).isNull()
     assertThat(entity.finalResultDate).isNull()
   }
 
   @Test
   fun `update from NOMIS overwrites core fields and stamps last modified`() {
-    val entity = review(approvedLevel = CsraLevel.STANDARD).toNewCsraReview("A1234BC")
+    val entity = review(reviewLevel = CsraLevel.STANDARD).toNewCsraReview("A1234BC")
 
-    entity.updateFromNomis("A1234BC", review(approvedLevel = CsraLevel.HI, assessmentPrisonId = "MDI"), clock)
+    entity.updateFromNomis("A1234BC", review(reviewLevel = CsraLevel.HI, assessmentPrisonId = "MDI"), clock)
 
     assertThat(entity.finalResult).isEqualTo(CsraResult.HIGH)
     assertThat(entity.prisonId).isEqualTo("MDI")
@@ -243,6 +269,7 @@ class NomisCsraReviewMappersTest {
     assessmentDate = LocalDate.parse("2025-11-22"),
     assessmentType = CsraAssessmentType.CSR,
     calculatedLevel = CsraLevel.MED,
+    overrideLevel = CsraLevel.LOW,
     score = BigDecimal("1000"),
     status = CsraStatus.A,
     committeeCode = CsraCommitteeCode.REVIEW,
@@ -275,6 +302,7 @@ class NomisCsraReviewMappersTest {
     assertThat(nomis.score).isEqualByComparingTo(BigDecimal("1000"))
     assertThat(nomis.status).isEqualTo(CsraStatus.A)
     assertThat(nomis.calculatedLevel).isEqualTo(CsraLevel.MED)
+    assertThat(nomis.overrideLevel).isEqualTo(CsraLevel.LOW)
     assertThat(nomis.reviewLevel).isEqualTo(CsraLevel.STANDARD)
     assertThat(nomis.approvedLevel).isEqualTo(CsraLevel.HI)
     assertThat(nomis.committeeCode).isEqualTo(CsraCommitteeCode.REVIEW)
@@ -300,6 +328,7 @@ class NomisCsraReviewMappersTest {
     nomis.updateFromNomis(
       fullReview().copy(
         approvedLevel = CsraLevel.STANDARD,
+        overrideLevel = CsraLevel.HI,
         status = CsraStatus.I,
         comment = "changed",
         reviewDetails = emptyList(),
@@ -312,6 +341,7 @@ class NomisCsraReviewMappersTest {
     assertThat(nomis.ingestedAt).isEqualTo(LocalDateTime.now(clock))
 
     assertThat(nomis.approvedLevel).isEqualTo(CsraLevel.STANDARD)
+    assertThat(nomis.overrideLevel).isEqualTo(CsraLevel.HI)
     assertThat(nomis.status).isEqualTo(CsraStatus.I)
     assertThat(nomis.comment).isEqualTo("changed")
     assertThat(nomis.reviewDetails).isEmpty()

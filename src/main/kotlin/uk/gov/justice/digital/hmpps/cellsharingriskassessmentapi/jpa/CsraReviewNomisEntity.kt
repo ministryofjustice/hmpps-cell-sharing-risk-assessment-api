@@ -47,6 +47,9 @@ class CsraReviewNomisEntity(
   var calculatedLevel: CsraLevel? = null,
 
   @Enumerated(EnumType.STRING)
+  var overrideLevel: CsraLevel? = null,
+
+  @Enumerated(EnumType.STRING)
   var reviewLevel: CsraLevel? = null,
 
   @Enumerated(EnumType.STRING)

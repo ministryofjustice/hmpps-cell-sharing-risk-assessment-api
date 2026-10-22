@@ -251,7 +251,7 @@ class ExportReferenceData {
     )
 
     rows += enumRows(
-      "csra_review_nomis.calculated_level / .review_level / .approved_level",
+      "csra_review_nomis.calculated_level / .override_level / .review_level / .approved_level",
       CsraLevel.entries,
       mapOf(
         CsraLevel.STANDARD to "Standard.",
@@ -260,7 +260,7 @@ class ExportReferenceData {
         CsraLevel.MED to "Medium. Unused in NOMIS for years; collapses to CsraResult.STANDARD in DPS and is display-only history.",
         CsraLevel.PEND to "Pending - no level decided.",
       ),
-      notes = { "raw NOMIS value. review_level is what NOMIS displays as the approved result and what the DPS rating derives from - approved_level is null on every known row" },
+      notes = { "raw NOMIS value. review_level is what NOMIS displays as the approved result and wins outright unless PEND; otherwise the stronger of override_level and calculated_level - approved_level is null on every known row" },
     )
 
     rows += enumRows(
