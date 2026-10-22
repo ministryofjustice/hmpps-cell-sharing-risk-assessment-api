@@ -209,7 +209,7 @@
                                         <table border='0' cellspacing='0' cellpadding='0'>
                                         </table>
                                     </td>
-                                    <td><p>The CSRA level NOMIS calculated from the answers, before any reviewer override. A risk judgement about the prisoner. <a href="./../null">Sensitivity: PERSONAL</a></p></td>
+                                    <td><p>NOMIS&rsquo;s CALC_SUP_LEVEL_TYPE - the CSRA level NOMIS calculated from the answers, before any override. A risk judgement about the prisoner. <a href="./../null">Sensitivity: PERSONAL</a></p></td>
                                 </tr>
                                 <tr>
                                     <td><span id="review_level">review_level</span></td>
@@ -226,7 +226,7 @@
                                         <table border='0' cellspacing='0' cellpadding='0'>
                                         </table>
                                     </td>
-                                    <td><p>The level the reviewer recorded - what NOMIS displays as the approved result, and what the DPS rating is derived from. Do not confuse with approved_level. A risk judgement about the prisoner. <a href="./../null">Sensitivity: PERSONAL</a></p></td>
+                                    <td><p>NOMIS&rsquo;s REVIEW_SUP_LEVEL_TYPE - what NOMIS displays as the approved result. Where set and not PEND it is the rating, whatever the calculated or override level. Do not confuse with approved_level. A risk judgement about the prisoner. <a href="./../null">Sensitivity: PERSONAL</a></p></td>
                                 </tr>
                                 <tr>
                                     <td><span id="approved_level">approved_level</span></td>
@@ -449,6 +449,23 @@
                                         </table>
                                     </td>
                                     <td><p>The next review date NOMIS recorded on this particular review, kept verbatim. Also copied to csra_review.next_review_date for reviews migrated or synchronised since that column was added; for earlier rows this is the only copy. Null for rows migrated before this column existed. <a href="./../null">Sensitivity: PERSONAL</a></p></td>
+                                </tr>
+                                <tr>
+                                    <td><span id="override_level">override_level</span></td>
+                                    <td>varchar</td>
+                                    <td>10</td>
+                                    <td title='nullable'>√</td>
+                                    <td title=''></td>
+                                    <td>null</td>
+                                    <td>
+                                        <table border='0' cellspacing='0' cellpadding='0'>
+                                        </table>
+                                    </td>
+                                    <td>
+                                        <table border='0' cellspacing='0' cellpadding='0'>
+                                        </table>
+                                    </td>
+                                    <td><p>NOMIS&rsquo;s OVERRIDED_SUP_LEVEL_TYPE - the level the assessor chose in place of the calculated level. Where there is no review level, the stronger of this and calculated_level is the rating. Null on rows migrated before it was stored. A risk judgement about the prisoner. <a href="./../null">Sensitivity: PERSONAL</a></p></td>
                                 </tr>
                                 </tbody>
                             </table>
