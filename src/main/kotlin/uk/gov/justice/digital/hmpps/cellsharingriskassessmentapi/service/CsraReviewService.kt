@@ -428,6 +428,7 @@ class CsraReviewService(
       CsraCurrentRating(
         prisonerNumber = prisonerNumber,
         status = CsraRatingStatus.NO_RATING,
+        reason = current?.setReason,
         rating = null,
         provisional = false,
         inheritedAfterTransfer = false,

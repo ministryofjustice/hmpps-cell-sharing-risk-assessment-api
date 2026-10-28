@@ -229,6 +229,7 @@ class CsraCurrentRatingResourceTest : SqsIntegrationTestBase() {
 
     get(prisoner)
       .jsonPath("$.status").isEqualTo("NO_RATING")
+      .jsonPath("$.reason").isEqualTo("RATING_SAVED")
       .jsonPath("$.rating").isEmpty
       .jsonPath("$.nextReviewDate").isEqualTo("2026-06-01")
   }
