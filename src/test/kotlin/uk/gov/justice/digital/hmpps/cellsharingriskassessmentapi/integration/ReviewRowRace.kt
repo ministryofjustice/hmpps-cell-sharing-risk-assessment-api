@@ -5,6 +5,7 @@ import org.awaitility.kotlin.await
 import org.awaitility.kotlin.matches
 import org.awaitility.kotlin.untilCallTo
 import org.springframework.jdbc.core.JdbcTemplate
+import org.springframework.jdbc.core.queryForObject
 import org.springframework.transaction.PlatformTransactionManager
 import org.springframework.transaction.support.TransactionTemplate
 
@@ -28,11 +29,11 @@ class ReviewRowRace(
   fun <R : Any> commitOnceBlocked(first: () -> Unit, startCompetingWrite: () -> R): R = TransactionTemplate(transactionManager).execute {
     first()
     entityManager.flush()
-    val holder = jdbcTemplate.queryForObject("SELECT pg_backend_pid()", Int::class.java)!!
+    val holder = jdbcTemplate.queryForObject<Int>("SELECT pg_backend_pid()")!!
     startCompetingWrite().also {
       await untilCallTo { blockedBehind(holder) } matches { it == 1 }
     }
-  }!!
+  }
 
   private fun blockedBehind(holder: Int) = jdbcTemplate.queryForObject(
     "SELECT COUNT(*) FROM pg_stat_activity " +
