@@ -51,6 +51,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toLegacyDet
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStage
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStageEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraClosureReason
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraRatingSetReason
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraResult
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewNomisEntity
@@ -419,11 +420,11 @@ class CsraReviewService(
 
     if (ratingReview != null) {
       val status = if (current.provisional) CsraRatingStatus.PROVISIONAL else CsraRatingStatus.COMPLETE
-      return buildCurrentRating(prisonerNumber, ratingReview, status, inProgress, prisonRegisterClient.getPrisonNames())
+      return buildCurrentRating(prisonerNumber, ratingReview, status, current.setReason, inProgress, prisonRegisterClient.getPrisonNames())
     }
 
     return if (inProgress != null) {
-      buildCurrentRating(prisonerNumber, inProgress, CsraRatingStatus.IN_PROGRESS, inProgress, prisonRegisterClient.getPrisonNames())
+      buildCurrentRating(prisonerNumber, inProgress, CsraRatingStatus.IN_PROGRESS, current?.setReason, inProgress, prisonRegisterClient.getPrisonNames())
     } else {
       CsraCurrentRating(
         prisonerNumber = prisonerNumber,
@@ -458,6 +459,7 @@ class CsraReviewService(
     prisonerNumber: String,
     review: CsraReviewEntity,
     status: CsraRatingStatus,
+    reason: CsraRatingSetReason?,
     inProgress: CsraReviewEntity?,
     prisonNames: Map<String, String>,
   ): CsraCurrentRating {
@@ -478,6 +480,7 @@ class CsraReviewService(
     return CsraCurrentRating(
       prisonerNumber = prisonerNumber,
       status = status,
+      reason = reason,
       rating = review.finalResult ?: review.interimResult,
       // Derived from the rating itself, not the status argument: an in-progress review carrying an interim
       // rating is provisional, but arrives here with status IN_PROGRESS.
