@@ -139,6 +139,7 @@ class CsraCurrentRatingResourceTest : SqsIntegrationTestBase() {
 
     get(prisoner)
       .jsonPath("$.status").isEqualTo("COMPLETE")
+      .jsonPath("$.reason").isEqualTo("RATING_SAVED")
       .jsonPath("$.rating").isEqualTo("STANDARD")
       .jsonPath("$.reviewId").isEqualTo(completed.id.toString())
       .jsonPath("$.type").isEqualTo("CSRA_INITIAL_ASSESSMENT")
@@ -229,6 +230,7 @@ class CsraCurrentRatingResourceTest : SqsIntegrationTestBase() {
 
     get(prisoner)
       .jsonPath("$.status").isEqualTo("NO_RATING")
+      .jsonPath("$.reason").isEqualTo("RATING_SAVED")
       .jsonPath("$.rating").isEmpty
       .jsonPath("$.nextReviewDate").isEqualTo("2026-06-01")
   }
@@ -249,7 +251,9 @@ class CsraCurrentRatingResourceTest : SqsIntegrationTestBase() {
       ),
     )
 
-    get(prisoner).jsonPath("$.status").isEqualTo("NO_RATING")
+    get(prisoner)
+      .jsonPath("$.status").isEqualTo("NO_RATING")
+      .jsonPath("$.reason").isEqualTo("RATING_SAVED")
   }
 
   @Test
@@ -275,6 +279,7 @@ class CsraCurrentRatingResourceTest : SqsIntegrationTestBase() {
       .expectStatus().isOk
       .expectBody()
       .jsonPath("$.status").isEqualTo("NO_RATING")
+      .jsonPath("$.reason").isEmpty
       .jsonPath("$.rating").isEmpty
       .jsonPath("$.reviewId").isEmpty
       .jsonPath("$.provisional").isEqualTo(false)
@@ -308,6 +313,7 @@ class CsraCurrentRatingResourceTest : SqsIntegrationTestBase() {
       .expectStatus().isOk
       .expectBody()
       .jsonPath("$.status").isEqualTo("COMPLETE")
+      .jsonPath("$.reason").isEqualTo("RATING_SAVED")
       .jsonPath("$.rating").isEqualTo("HIGH")
       .jsonPath("$.provisional").isEqualTo(false)
       .jsonPath("$.prisonId").isEqualTo("LEI")
@@ -364,6 +370,7 @@ class CsraCurrentRatingResourceTest : SqsIntegrationTestBase() {
       .expectStatus().isOk
       .expectBody()
       .jsonPath("$.status").isEqualTo("COMPLETE")
+      .jsonPath("$.reason").isEqualTo("RATING_SAVED")
       .jsonPath("$.rating").isEqualTo("STANDARD")
       .jsonPath("$.prisonId").isEqualTo("LEI")
       .jsonPath("$.prisonName").isEqualTo("Leeds (HMP)")
@@ -393,6 +400,7 @@ class CsraCurrentRatingResourceTest : SqsIntegrationTestBase() {
       .expectStatus().isOk
       .expectBody()
       .jsonPath("$.status").isEqualTo("COMPLETE")
+      .jsonPath("$.reason").isEqualTo("RATING_SAVED")
       .jsonPath("$.rating").isEqualTo("HIGH_SPECIFIC")
       .jsonPath("$.riskTo.length()").isEqualTo(1)
       .jsonPath("$.riskTo[0].category").isEqualTo("DIFFERENT_ETHNICITY")
@@ -417,6 +425,7 @@ class CsraCurrentRatingResourceTest : SqsIntegrationTestBase() {
       .expectStatus().isOk
       .expectBody()
       .jsonPath("$.status").isEqualTo("PROVISIONAL")
+      .jsonPath("$.reason").isEqualTo("RATING_SAVED")
       .jsonPath("$.rating").isEqualTo("HIGH_GENERAL")
       .jsonPath("$.provisional").isEqualTo(true)
       .jsonPath("$.inheritedAfterTransfer").isEqualTo(false)
@@ -441,6 +450,7 @@ class CsraCurrentRatingResourceTest : SqsIntegrationTestBase() {
 
     get("T4444TT")
       .jsonPath("$.status").isEqualTo("PROVISIONAL")
+      .jsonPath("$.reason").isEqualTo("RATING_SAVED")
       .jsonPath("$.rating").isEqualTo("HIGH_GENERAL")
       .jsonPath("$.provisional").isEqualTo(true)
       .jsonPath("$.inheritedAfterTransfer").isEqualTo(true)
@@ -463,6 +473,7 @@ class CsraCurrentRatingResourceTest : SqsIntegrationTestBase() {
 
     get("T5555TT")
       .jsonPath("$.status").isEqualTo("PROVISIONAL")
+      .jsonPath("$.reason").isEqualTo("RATING_SAVED")
       .jsonPath("$.rating").isEqualTo("HIGH_GENERAL")
       .jsonPath("$.provisional").isEqualTo(true)
       .jsonPath("$.inheritedAfterTransfer").isEqualTo(true)

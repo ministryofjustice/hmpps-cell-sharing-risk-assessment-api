@@ -1,6 +1,7 @@
 package uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto
 
 import io.swagger.v3.oas.annotations.media.Schema
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraRatingSetReason
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraResult
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraRiskToCategory
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraType
@@ -32,6 +33,9 @@ data class CsraCurrentRating(
 
   @param:Schema(description = "The state of the current rating")
   val status: CsraRatingStatus,
+
+  @param:Schema(description = "The reason the current rating was set, if any", example = "RATING_SAVED")
+  val reason: CsraRatingSetReason? = null,
 
   @param:Schema(description = "The current rating (final if complete, otherwise the provisional/interim rating). Absent when there is no rating yet.", example = "STANDARD")
   val rating: CsraResult?,
