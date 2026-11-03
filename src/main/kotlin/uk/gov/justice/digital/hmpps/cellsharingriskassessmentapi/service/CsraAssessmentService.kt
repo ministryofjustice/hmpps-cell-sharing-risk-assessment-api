@@ -11,7 +11,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessm
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentStageRequest
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentStartRequest
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentStarted
-import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraCurrentRating
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraDetailedRating
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraOffenceEvidence
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.isHigh
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toAssessmentDto
@@ -89,7 +89,7 @@ class CsraAssessmentService(
 
   fun submitFinal(prisonerNumber: String, assessmentId: UUID, request: CsraAssessmentFinalStageRequest) = submitStage(prisonerNumber, assessmentId, request, CsraAssessmentStage.FINAL, request.nextReviewDate)
 
-  fun cancel(prisonerNumber: String, assessmentId: UUID, prisonId: String): CsraCurrentRating {
+  fun cancel(prisonerNumber: String, assessmentId: UUID, prisonId: String): CsraDetailedRating {
     writeSupport.rejectIfPrisonNotActive(prisonId)
     val review = loadInitialReview(prisonerNumber, assessmentId)
     if (review.status == CsraReviewStatus.ARCHIVED && review.closureReason == CsraClosureReason.CANCELLED) {
@@ -176,7 +176,7 @@ class CsraAssessmentService(
     request: CsraAssessmentStageRequest,
     stage: CsraAssessmentStage,
     nextReviewDate: LocalDate? = null,
-  ): CsraCurrentRating {
+  ): CsraDetailedRating {
     // Rollout gate first: it is about the caller, not the record, so it must not depend on the id
     // existing or on what state the record is in.
     writeSupport.rejectIfPrisonNotActive(request.prisonId)

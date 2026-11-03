@@ -82,6 +82,39 @@ class CsraReviewResource(
   )
     ?: throw CsraReviewNotFoundException(id.toString())
 
+  @GetMapping("/{id}/detailed-rating")
+  @ResponseStatus(HttpStatus.OK)
+  @Operation(
+    summary = "Returns a detailed CSRA rating for this review ID",
+    description = "Returns the selected assessment or review's rating and supporting detail, even when " +
+      "it is no longer the prisoner's current rating. The next review date belongs to the selected " +
+      "record, and any in-progress block describes only that record. Archived records are not returned. " +
+      "Requires role ROLE_CSRA_REVIEW__R",
+    responses = [
+      ApiResponse(responseCode = "200", description = "Returns the detailed CSRA rating"),
+      ApiResponse(
+        responseCode = "401",
+        description = "Unauthorized to access this endpoint",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
+      ),
+      ApiResponse(
+        responseCode = "403",
+        description = "Missing required role. Requires the ROLE_CSRA_REVIEW__R role",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
+      ),
+      ApiResponse(
+        responseCode = "404",
+        description = "Data not found",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
+      ),
+    ],
+  )
+  fun getDetailedRating(
+    @Parameter(description = "CSRA Review ID", example = "de91dfa7-821f-4552-a427-bf2f32eafeb0", required = true)
+    @PathVariable
+    id: UUID,
+  ) = csraReviewService.getDetailedRatingById(id) ?: throw CsraReviewNotFoundException(id.toString())
+
   @GetMapping("/prisoner/{prisonerNumber}/history")
   @ResponseStatus(HttpStatus.OK)
   @Operation(

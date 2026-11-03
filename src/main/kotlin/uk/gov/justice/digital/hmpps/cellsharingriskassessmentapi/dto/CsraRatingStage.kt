@@ -5,7 +5,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraResult
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraType
 
 /**
- * Which stage of its journey the current rating came from — the discriminator [CsraCurrentRating.provisional]
+ * Which stage of its journey the current rating came from — the discriminator [CsraDetailedRating.provisional]
  * cannot supply on its own.
  *
  * Both journeys write their unfinished rating to the same `interim_result` column
