@@ -41,8 +41,8 @@ fun CsraLevel?.toCsraResult(): CsraResult? = when (this) {
  *
  * [settled] is *not* "went through the NOMIS approval step". Approval was a governance step rather than a
  * completion step: the level NOMIS displays is the prisoner's rating whether or not a committee signed it
- * off, and in practice almost nothing was ever signed off — no NOMIS review carries an approved level at
- * all. Treating unapproved as provisional therefore made every migrated review provisional, which is not
+ * off. No NOMIS review carries a level in `APPROVED_SUP_LEVEL_TYPE` (our `approvedLevel`), so treating an
+ * empty approved level as provisional made every migrated review provisional, which is not
  * what "provisional" means here: in this service it marks an incomplete Day 1 assessment with work still
  * outstanding, and a legacy NOMIS review has nothing left to complete.
  *

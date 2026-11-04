@@ -267,8 +267,8 @@ class CsraNomisSyncResourceTest : SqsIntegrationTestBase() {
 
     @Test
     fun `an unapproved NOMIS rating becomes the prisoner's final current rating`() {
-      // No approved level — which is true of every NOMIS review in practice, because approval was a
-      // governance step that was almost never used. The calculated level is the rating NOMIS shows, and
+      // No approved level — which is true of every NOMIS review, and approval was a governance step in
+      // any case. The calculated level is the rating NOMIS shows, and
       // it is settled: there is nothing left to complete, so it is final rather than provisional.
       val pendingJson = reviewJson()
         .replace("\"reviewLevel\": \"HI\",", "")

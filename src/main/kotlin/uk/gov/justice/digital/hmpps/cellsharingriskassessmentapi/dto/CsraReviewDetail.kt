@@ -96,8 +96,11 @@ data class CsraLegacyReviewDetail(
   @param:Schema(description = "The raw NOMIS level this review resolved to. Renders legacy 'Low risk'/'Medium risk' records, which both collapse to STANDARD in the review's result.", example = "LOW")
   val level: CsraLevel?,
 
-  @param:Schema(description = "What became of the review at approval. Absent when it never went through approval, which is the common case.", required = false)
+  @param:Schema(description = "What became of the review at approval. Absent when it never went through approval.", required = false)
   val approvalStatus: CsraApprovalStatus?,
+
+  @param:Schema(description = "Whether the approver changed the level the assessor put forward: the override where there is one, otherwise the calculated level. False where the review was not approved or there is nothing to compare.", example = "false")
+  val levelChangedAtApproval: Boolean,
 
   @param:Schema(description = "The level NOMIS calculated from the answers given", example = "STANDARD", required = false)
   val calculatedResult: CsraLevel?,
@@ -178,6 +181,7 @@ fun CsraReviewEntity.toDetail(nomis: CsraReviewNomisEntity?, prisonName: String?
 fun CsraReviewNomisEntity.toLegacyReviewDetail() = CsraLegacyReviewDetail(
   level = resolvedLevel(),
   approvalStatus = approvalStatus(),
+  levelChangedAtApproval = levelChangedAtApproval(),
   calculatedResult = calculatedLevel,
   overrideResult = overrideLevel,
   // NOMIS's reviewed level, NOT approvedLevel — see the class comment. approvedLevel is never populated.
