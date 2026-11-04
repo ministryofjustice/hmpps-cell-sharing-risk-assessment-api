@@ -16,7 +16,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraArrival
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentStartedRow
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentTypeBucket
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentsInProgress
-import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraCurrentRating
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraDetailedRating
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraEstablishment
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraHighRiskDueForReview
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraHighRiskReviewRow
@@ -56,6 +56,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewE
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewNomisEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewStatus
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraType
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.nextReviewDateOrNomis
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraAssessmentStageRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraCurrentRatingRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraNextReviewRepository
@@ -404,7 +405,7 @@ class CsraReviewService(
    * rating on readmission. When there is no saved rating, an in-progress assessment (if any) is surfaced
    * so the record still reads as "in progress"; otherwise "No rating".
    */
-  fun getCurrentRating(prisonerNumber: String): CsraCurrentRating {
+  fun getCurrentRating(prisonerNumber: String): CsraDetailedRating {
     // Looked up once, up front: in-progress work is reported alongside the rating whether or not it is the
     // record that produced it, so the caller can point "Continue"/"Cancel" at something (MAPA-237).
     val inProgress = csraReviewRepository
@@ -416,16 +417,17 @@ class CsraReviewService(
     val ratingReview = current?.takeIf { it.rating != null }
       ?.setByReviewId
       ?.let { csraReviewRepository.findByIdOrNull(it) }
+    val nextReviewDate = csraNextReviewRepository.findByPrisonerNumber(prisonerNumber)?.nextReviewDate
 
     if (ratingReview != null) {
       val status = if (current.provisional) CsraRatingStatus.PROVISIONAL else CsraRatingStatus.COMPLETE
-      return buildCurrentRating(prisonerNumber, ratingReview, status, inProgress, prisonRegisterClient.getPrisonNames())
+      return buildDetailedRating(prisonerNumber, ratingReview, status, inProgress, prisonRegisterClient.getPrisonNames(), nextReviewDate)
     }
 
     return if (inProgress != null) {
-      buildCurrentRating(prisonerNumber, inProgress, CsraRatingStatus.IN_PROGRESS, inProgress, prisonRegisterClient.getPrisonNames())
+      buildDetailedRating(prisonerNumber, inProgress, CsraRatingStatus.IN_PROGRESS, inProgress, prisonRegisterClient.getPrisonNames(), nextReviewDate)
     } else {
-      CsraCurrentRating(
+      CsraDetailedRating(
         prisonerNumber = prisonerNumber,
         status = CsraRatingStatus.NO_RATING,
         rating = null,
@@ -443,7 +445,7 @@ class CsraReviewService(
         provisionalDate = null,
         finalDate = null,
         // Consulted even with no rating: a next review date can outlive the rating that set it.
-        nextReviewDate = csraNextReviewRepository.findByPrisonerNumber(prisonerNumber)?.nextReviewDate,
+        nextReviewDate = nextReviewDate,
         startedBy = null,
         startedAt = null,
         type = null,
@@ -453,13 +455,33 @@ class CsraReviewService(
     }
   }
 
-  private fun buildCurrentRating(
+  fun getDetailedRatingById(id: UUID): CsraDetailedRating? {
+    val review = csraReviewRepository.findByIdOrNull(id) ?: return null
+    if (review.status == CsraReviewStatus.ARCHIVED) return null
+    val status = when {
+      review.finalResult != null -> CsraRatingStatus.COMPLETE
+      review.interimResult != null -> CsraRatingStatus.PROVISIONAL
+      review.status == CsraReviewStatus.IN_PROGRESS -> CsraRatingStatus.IN_PROGRESS
+      else -> CsraRatingStatus.NO_RATING
+    }
+    return buildDetailedRating(
+      prisonerNumber = review.prisonerNumber,
+      review = review,
+      status = status,
+      inProgress = review.takeIf { it.status == CsraReviewStatus.IN_PROGRESS },
+      prisonNames = prisonRegisterClient.getPrisonNames(),
+      nextReviewDate = review.nextReviewDateOrNomis { csraReviewNomisRepository.findByCsraReviewId(id) },
+    )
+  }
+
+  private fun buildDetailedRating(
     prisonerNumber: String,
     review: CsraReviewEntity,
     status: CsraRatingStatus,
     inProgress: CsraReviewEntity?,
     prisonNames: Map<String, String>,
-  ): CsraCurrentRating {
+    nextReviewDate: LocalDate?,
+  ): CsraDetailedRating {
     val stages = csraAssessmentStageRepository.findAllByCsraReviewId(review.id!!)
     val finalStage = stages.firstOrNull { it.stage == CsraAssessmentStage.FINAL }
     // A review's first stage is INTERIM where an assessment's is PROVISIONAL; a given review carries one or
@@ -467,14 +489,14 @@ class CsraReviewService(
     val provisionalStage = stages.firstOrNull {
       it.stage == CsraAssessmentStage.PROVISIONAL || it.stage == CsraAssessmentStage.INTERIM
     }
-    // The stage that produced the current rating: the final stage once complete, otherwise the first stage.
+    // The stage that produced the rating: the final stage once complete, otherwise the first stage.
     val ratingStage = finalStage ?: provisionalStage
     // Migrated legacy reviews have no stages; their comment lives on the adjacent NOMIS record.
     val nomis = if (stages.isEmpty()) csraReviewNomisRepository.findByCsraReviewId(review.id!!) else null
     // Held in a local so the id and its name can never be derived from different reviews.
     val prisonId = ratingStage?.prisonId ?: review.prisonId
 
-    return CsraCurrentRating(
+    return CsraDetailedRating(
       prisonerNumber = prisonerNumber,
       status = status,
       rating = review.finalResult ?: review.interimResult,
@@ -498,7 +520,11 @@ class CsraReviewService(
       vulnerabilities = ratingStage?.vulnerabilities?.map { CsraVulnerabilityDetail(it.category, it.details) }.orEmpty(),
       provisionalDate = provisionalStage?.completedAt?.toLocalDate() ?: review.interimResultDate,
       finalDate = finalStage?.completedAt?.toLocalDate() ?: review.finalResultDate,
-      nextReviewDate = csraNextReviewRepository.findByPrisonerNumber(prisonerNumber)?.nextReviewDate,
+      provisionalCompletedBy = provisionalStage?.completedBy,
+      finalCompletedBy = finalStage?.completedBy,
+      provisionalTime = provisionalStage?.completedAt?.toLocalTime(),
+      finalTime = finalStage?.completedAt?.toLocalTime(),
+      nextReviewDate = nextReviewDate,
       startedBy = review.createdBy,
       startedAt = review.createdAt,
       type = review.type,

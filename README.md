@@ -32,6 +32,7 @@ The API has four surfaces, each guarded by its own role.
 | Path | Purpose |
 | --- | --- |
 | `GET /csra-review/{id}` | A single CSRA review |
+| `GET /csra-review/{id}/detailed-rating` | A selected assessment/review's detailed rating, including historical records (404 for missing or archived records) |
 | `GET /csra-review/prisoner/{prisonerNumber}/history` | A prisoner's paged, filterable CSRA history |
 | `GET /csra-review/prisoner/{prisonerNumber}/current-rating` | A prisoner's current rating, and any in-progress work |
 | `GET /csra-review/prison/{prisonId}/rating-summary` | Rating counts across the prison's roll |

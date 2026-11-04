@@ -25,8 +25,9 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraReviewRepository
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.util.UUID
 
-class CsraCurrentRatingResourceTest : SqsIntegrationTestBase() {
+class CsraDetailedRatingResourceTest : SqsIntegrationTestBase() {
 
   @Autowired
   private lateinit var csraReviewRepository: CsraReviewRepository
@@ -114,6 +115,158 @@ class CsraCurrentRatingResourceTest : SqsIntegrationTestBase() {
     .exchange()
     .expectStatus().isOk
     .expectBody()
+
+  private fun getDetailed(id: UUID) = webTestClient.get().uri("/csra-review/$id/detailed-rating")
+    .headers(setAuthorisation(roles = readRole))
+    .exchange()
+    .expectStatus().isOk
+    .expectBody()
+
+  @Test
+  fun `returns a historical detailed rating without substituting current rating or review date`() {
+    val prisoner = "D1001DD"
+    prisonRegister.stubGetPrisons(mapOf("LEI" to "Leeds (HMP)"))
+    val historical = review(
+      prisonerNumber = prisoner,
+      assessmentDate = LocalDate.parse("2025-01-01"),
+      interimResult = CsraResult.HIGH_GENERAL,
+      interimResultDate = LocalDate.parse("2025-01-01"),
+      finalResult = CsraResult.HIGH_SPECIFIC,
+      finalResultDate = LocalDate.parse("2025-01-02"),
+      prisonId = "LEI",
+      status = CsraReviewStatus.COMPLETE,
+      nextReviewDate = LocalDate.parse("2026-01-02"),
+    )
+    stage(historical, CsraAssessmentStage.PROVISIONAL, LocalDateTime.parse("2025-01-01T10:00:00"), comment = "Provisional comment")
+    stage(historical, CsraAssessmentStage.FINAL, LocalDateTime.parse("2025-01-02T10:00:00"), comment = "Final comment") {
+      riskTo.add(CsraAssessmentStageRiskToEntity(stage = this, category = CsraRiskToCategory.DIFFERENT_ETHNICITY, details = "Risk detail"))
+      vulnerabilities.add(CsraAssessmentStageVulnerabilityEntity(stage = this, category = CsraVulnerabilityCategory.NEURODIVERSITY, details = "Vulnerability detail"))
+    }
+    val current = review(
+      prisonerNumber = prisoner,
+      assessmentDate = LocalDate.parse("2026-02-01"),
+      finalResult = CsraResult.STANDARD,
+      finalResultDate = LocalDate.parse("2026-02-01"),
+      status = CsraReviewStatus.COMPLETE,
+      nextReviewDate = LocalDate.parse("2027-02-01"),
+    )
+    review(prisoner, LocalDate.parse("2026-03-01"), type = CsraType.CSRA_REVIEW)
+
+    getDetailed(historical.id!!)
+      .jsonPath("$.prisonerNumber").isEqualTo(prisoner)
+      .jsonPath("$.reviewId").isEqualTo(historical.id.toString())
+      .jsonPath("$.status").isEqualTo("COMPLETE")
+      .jsonPath("$.rating").isEqualTo("HIGH_SPECIFIC")
+      .jsonPath("$.provisional").isEqualTo(false)
+      .jsonPath("$.ratingStage").isEqualTo("FINAL")
+      .jsonPath("$.prisonId").isEqualTo("LEI")
+      .jsonPath("$.prisonName").isEqualTo("Leeds (HMP)")
+      .jsonPath("$.assessmentComment").isEqualTo("Final comment")
+      .jsonPath("$.provisionalAssessmentComment").isEqualTo("Provisional comment")
+      .jsonPath("$.riskTo[0].category").isEqualTo("DIFFERENT_ETHNICITY")
+      .jsonPath("$.riskTo[0].details").isEqualTo("Risk detail")
+      .jsonPath("$.vulnerabilities[0].category").isEqualTo("NEURODIVERSITY")
+      .jsonPath("$.vulnerabilities[0].details").isEqualTo("Vulnerability detail")
+      .jsonPath("$.provisionalDate").isEqualTo("2025-01-01")
+      .jsonPath("$.finalDate").isEqualTo("2025-01-02")
+      .jsonPath("$.provisionalCompletedBy").isEqualTo("NQP56Y")
+      .jsonPath("$.finalCompletedBy").isEqualTo("NQP56Y")
+      .jsonPath("$.provisionalTime").isEqualTo("10:00:00")
+      .jsonPath("$.finalTime").isEqualTo("10:00:00")
+      .jsonPath("$.nextReviewDate").isEqualTo("2026-01-02")
+      .jsonPath("$.type").isEqualTo("CSRA_INITIAL_ASSESSMENT")
+      .jsonPath("$.assessmentType").isEqualTo("ASSESSMENT")
+      .jsonPath("$.inProgress").doesNotExist()
+
+    get(prisoner)
+      .jsonPath("$.reviewId").isEqualTo(current.id.toString())
+      .jsonPath("$.rating").isEqualTo("STANDARD")
+      .jsonPath("$.nextReviewDate").isEqualTo("2027-02-01")
+  }
+
+  @Test
+  fun `returns legacy detailed rating with its original comment and next review date`() {
+    val legacy = review(
+      prisonerNumber = "D1002DD",
+      assessmentDate = LocalDate.parse("2023-07-14"),
+      type = CsraType.NOMIS_REVIEW,
+      finalResult = CsraResult.HIGH,
+      finalResultDate = LocalDate.parse("2023-07-20"),
+      status = CsraReviewStatus.COMPLETE,
+    )
+    csraReviewNomisRepository.saveAndFlush(
+      CsraReviewNomisEntity(csraReview = legacy, reviewComment = "Legacy comment", nextReviewDate = LocalDate.parse("2024-01-14")),
+    )
+
+    getDetailed(legacy.id!!)
+      .jsonPath("$.rating").isEqualTo("HIGH")
+      .jsonPath("$.status").isEqualTo("COMPLETE")
+      .jsonPath("$.assessmentComment").isEqualTo("Legacy comment")
+      .jsonPath("$.nextReviewDate").isEqualTo("2024-01-14")
+      .jsonPath("$.type").isEqualTo("NOMIS_REVIEW")
+      .jsonPath("$.inProgress").doesNotExist()
+  }
+
+  @Test
+  fun `returns interim detailed rating and its own in-progress work`() {
+    val interim = review(
+      prisonerNumber = "D1003DD",
+      assessmentDate = LocalDate.parse("2026-02-01"),
+      type = CsraType.CSRA_REVIEW,
+      interimResult = CsraResult.HIGH_GENERAL,
+      interimResultDate = LocalDate.parse("2026-02-01"),
+    )
+    stage(interim, CsraAssessmentStage.INTERIM, LocalDateTime.parse("2026-02-01T10:00:00"), comment = "Interim comment")
+
+    getDetailed(interim.id!!)
+      .jsonPath("$.status").isEqualTo("PROVISIONAL")
+      .jsonPath("$.rating").isEqualTo("HIGH_GENERAL")
+      .jsonPath("$.provisional").isEqualTo(true)
+      .jsonPath("$.ratingStage").isEqualTo("INTERIM")
+      .jsonPath("$.provisionalAssessmentComment").isEqualTo("Interim comment")
+      .jsonPath("$.inProgress.reviewId").isEqualTo(interim.id.toString())
+  }
+
+  @Test
+  fun `returns an unrated detailed record without substituting the current rating`() {
+    val prisoner = "D1004DD"
+    review(prisoner, LocalDate.parse("2026-01-01"), finalResult = CsraResult.STANDARD, status = CsraReviewStatus.COMPLETE)
+    val unrated = review(prisoner, LocalDate.parse("2026-02-01"))
+
+    getDetailed(unrated.id!!)
+      .jsonPath("$.reviewId").isEqualTo(unrated.id.toString())
+      .jsonPath("$.status").isEqualTo("IN_PROGRESS")
+      .jsonPath("$.rating").isEmpty
+      .jsonPath("$.provisional").isEqualTo(false)
+      .jsonPath("$.ratingStage").isEmpty
+      .jsonPath("$.nextReviewDate").isEmpty
+      .jsonPath("$.inProgress.reviewId").isEqualTo(unrated.id.toString())
+  }
+
+  @Test
+  fun `returns 404 for missing or archived detailed rating`() {
+    val archived = review("D1005DD", LocalDate.parse("2026-01-01"), status = CsraReviewStatus.ARCHIVED)
+
+    listOf(UUID.randomUUID(), archived.id!!).forEach { id ->
+      webTestClient.get().uri("/csra-review/$id/detailed-rating")
+        .headers(setAuthorisation(roles = readRole))
+        .exchange()
+        .expectStatus().isNotFound
+    }
+  }
+
+  @Test
+  fun `detailed rating requires authentication and the read role`() {
+    val uri = "/csra-review/${UUID.randomUUID()}/detailed-rating"
+    webTestClient.get().uri(uri)
+      .exchange()
+      .expectStatus().isUnauthorized
+
+    webTestClient.get().uri(uri)
+      .headers(setAuthorisation(roles = listOf("ROLE_SOMETHING_ELSE")))
+      .exchange()
+      .expectStatus().isForbidden
+  }
 
   @Test
   fun `reports an unrated review in progress alongside the rating an earlier review produced`() {
@@ -371,6 +524,10 @@ class CsraCurrentRatingResourceTest : SqsIntegrationTestBase() {
       .jsonPath("$.provisionalAssessmentComment").isEqualTo("pnc not checked on day 1. No evidence of increased risk.")
       .jsonPath("$.provisionalDate").isEqualTo("2026-06-30")
       .jsonPath("$.finalDate").isEqualTo("2026-07-01")
+      .jsonPath("$.provisionalCompletedBy").isEqualTo("NQP56Y")
+      .jsonPath("$.finalCompletedBy").isEqualTo("NQP56Y")
+      .jsonPath("$.provisionalTime").isEqualTo("10:00:00")
+      .jsonPath("$.finalTime").isEqualTo("11:00:00")
   }
 
   @Test

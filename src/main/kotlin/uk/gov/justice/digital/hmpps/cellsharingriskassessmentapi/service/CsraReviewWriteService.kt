@@ -4,7 +4,7 @@ import org.springframework.data.repository.findByIdOrNull
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.SYSTEM_USERNAME
-import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraCurrentRating
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraDetailedRating
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraReviewStageRequest
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraReviewStartRequest
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraReviewStarted
@@ -99,7 +99,7 @@ class CsraReviewWriteService(
     reviewId: UUID,
     request: CsraReviewStageRequest,
     stage: CsraAssessmentStage,
-  ): CsraCurrentRating {
+  ): CsraDetailedRating {
     // Rollout gate first: it is about the caller, not the record, so it must not depend on the id
     // existing or on what state the record is in.
     writeSupport.rejectIfPrisonNotActive(request.prisonId)
