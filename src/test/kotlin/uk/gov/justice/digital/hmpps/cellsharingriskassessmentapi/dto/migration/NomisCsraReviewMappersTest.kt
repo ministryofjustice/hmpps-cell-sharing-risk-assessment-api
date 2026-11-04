@@ -82,8 +82,8 @@ class NomisCsraReviewMappersTest {
 
   @Test
   fun `a level that was never approved is still a final rating`() {
-    // Approval was a governance step, not a completion step, and in practice almost no NOMIS review
-    // carries an approved level — treating those as provisional made every migrated review provisional.
+    // Approval was a governance step, not a completion step, and no NOMIS review carries an approved
+    // level — treating those as provisional made every migrated review provisional.
     val entity = review(approvedLevel = null, reviewLevel = CsraLevel.HI).toNewCsraReview("A1234BC")
 
     assertThat(entity.finalResult).isEqualTo(CsraResult.HIGH)

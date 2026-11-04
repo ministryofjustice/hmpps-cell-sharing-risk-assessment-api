@@ -211,6 +211,7 @@ class CsraReviewResourceTest : SqsIntegrationTestBase() {
       .jsonPath("$.legacy.approvedResult").isEqualTo("HI")
       .jsonPath("$.legacy.calculatedResult").isEqualTo("STANDARD")
       .jsonPath("$.legacy.overrideResult").isEqualTo("MED")
+      .jsonPath("$.legacy.levelChangedAtApproval").isEqualTo(true)
   }
 
   @Test

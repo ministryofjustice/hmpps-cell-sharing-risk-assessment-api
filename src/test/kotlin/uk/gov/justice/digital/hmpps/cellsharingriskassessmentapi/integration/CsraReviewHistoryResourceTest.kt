@@ -528,6 +528,7 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
       .expectStatus().isOk
       .expectBody()
       .jsonPath("$.content[0].legacy.approvalStatus").isEqualTo("APPROVED")
+      .jsonPath("$.content[0].legacy.levelChangedAtApproval").isEqualTo(true)
       .jsonPath("$.content[0].legacy.level").isEqualTo("HI")
       // The design shows the assessment and approval dates on separate lines, so they must not collapse.
       .jsonPath("$.content[0].legacy.assessmentDate").isEqualTo("2012-05-23")
@@ -553,7 +554,7 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
 
   @Test
   fun `a legacy review that never went through approval carries no approval status`() {
-    // The prod-typical row: no NOMIS review carries approval data, so the screen shows no badge.
+    // About a third of migrated reviews have no approval data, so the screen shows no badge.
     val plain = review("N1111NN", LocalDate.parse("2011-10-24"), CsraResult.STANDARD, "LEI")
     withNomis(plain, calculatedLevel = CsraLevel.STANDARD, comment = "Assessment comment")
 
