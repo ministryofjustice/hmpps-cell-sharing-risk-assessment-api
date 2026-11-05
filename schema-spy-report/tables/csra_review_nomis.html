@@ -467,6 +467,23 @@
                                     </td>
                                     <td><p>NOMIS&rsquo;s OVERRIDED_SUP_LEVEL_TYPE - the level the assessor chose in place of the calculated level. Where there is no review level, the stronger of this and calculated_level is the rating. Null on rows migrated before it was stored. A risk judgement about the prisoner. <a href="./../null">Sensitivity: PERSONAL</a></p></td>
                                 </tr>
+                                <tr>
+                                    <td><span id="override_reason_code">override_reason_code</span></td>
+                                    <td>varchar</td>
+                                    <td>12</td>
+                                    <td title='nullable'>√</td>
+                                    <td title=''></td>
+                                    <td>null</td>
+                                    <td>
+                                        <table border='0' cellspacing='0' cellpadding='0'>
+                                        </table>
+                                    </td>
+                                    <td>
+                                        <table border='0' cellspacing='0' cellpadding='0'>
+                                        </table>
+                                    </td>
+                                    <td><p>NOMIS&rsquo;s OVERRIDE_REASON (domain OVERRIDE_RSN) - the kind of information that led the assessor to override the calculated level: PREVIOUS or SECURITY. Null on rows migrated before it was stored, and where no reason was entered. A few NOMIS rows have a reason with no override; these are stored but not returned. <a href="./../null">Sensitivity: PERSONAL</a></p></td>
+                                </tr>
                                 </tbody>
                             </table>
                         </div>
