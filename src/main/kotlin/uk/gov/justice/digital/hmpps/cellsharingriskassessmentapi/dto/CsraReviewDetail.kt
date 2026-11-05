@@ -3,6 +3,7 @@ package uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto
 import io.swagger.v3.oas.annotations.media.Schema
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraCommitteeCode
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraLevel
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraOverrideReasonCode
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraReviewDetailDto
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.resolvedLevel
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraResult
@@ -108,6 +109,9 @@ data class CsraLegacyReviewDetail(
   @param:Schema(description = "The level the assessor chose in place of the calculated level, where they overrode it", example = "STANDARD", required = false)
   val overrideResult: CsraLevel?,
 
+  @param:Schema(description = "Why the assessor overrode the calculated level. Absent where there is no override or no reason was entered.", required = false)
+  val overrideReason: CsraOverrideReason?,
+
   @param:Schema(description = "The level approved for this review — NOMIS's reviewed level, which is what it displays as the approved result", example = "STANDARD", required = false)
   val approvedResult: CsraLevel?,
 
@@ -142,6 +146,15 @@ data class CsraCommittee(
   val code: CsraCommitteeCode,
 
   @param:Schema(description = "The committee's display name", example = "Review Board")
+  val name: String,
+)
+
+@Schema(description = "The reason an assessor gave for overriding the calculated level")
+data class CsraOverrideReason(
+  @param:Schema(description = "The NOMIS override reason code", example = "SECURITY", enumAsRef = true)
+  val code: CsraOverrideReasonCode,
+
+  @param:Schema(description = "The reason as worded in NOMIS", example = "Security/Intelligence Information")
   val name: String,
 )
 
@@ -184,6 +197,8 @@ fun CsraReviewNomisEntity.toLegacyReviewDetail() = CsraLegacyReviewDetail(
   levelChangedAtApproval = levelChangedAtApproval(),
   calculatedResult = calculatedLevel,
   overrideResult = overrideLevel,
+  // A few NOMIS rows have a reason with no override. The live prisoner profile shows nothing for these.
+  overrideReason = overrideReasonCode?.takeIf { overrideLevel != null }?.toOverrideReason(),
   // NOMIS's reviewed level, NOT approvedLevel — see the class comment. approvedLevel is never populated.
   approvedResult = reviewLevel,
   assessmentComment = comment,
@@ -197,6 +212,8 @@ fun CsraReviewNomisEntity.toLegacyReviewDetail() = CsraLegacyReviewDetail(
 )
 
 fun CsraCommitteeCode.toCommittee() = CsraCommittee(code = this, name = displayName)
+
+fun CsraOverrideReasonCode.toOverrideReason() = CsraOverrideReason(code = this, name = displayName)
 
 /**
  * Flattens the stored section → question → response tree into the flat question/answer list the legacy

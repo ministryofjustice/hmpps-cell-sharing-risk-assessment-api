@@ -156,6 +156,7 @@ fun NomisCsraReview.toNomisEntity(core: CsraReviewEntity, clock: Clock): CsraRev
   status = status,
   calculatedLevel = calculatedLevel,
   overrideLevel = overrideLevel,
+  overrideReasonCode = overrideReasonCode,
   reviewLevel = reviewLevel,
   approvedLevel = approvedLevel,
   committeeCode = committeeCode,
@@ -180,6 +181,7 @@ fun CsraReviewNomisEntity.updateFromNomis(review: NomisCsraReview, clock: Clock)
   this.status = review.status
   this.calculatedLevel = review.calculatedLevel
   this.overrideLevel = review.overrideLevel
+  this.overrideReasonCode = review.overrideReasonCode
   this.reviewLevel = review.reviewLevel
   this.approvedLevel = review.approvedLevel
   this.committeeCode = review.committeeCode

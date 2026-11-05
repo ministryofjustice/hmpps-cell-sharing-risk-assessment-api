@@ -270,6 +270,7 @@ class NomisCsraReviewMappersTest {
     assessmentType = CsraAssessmentType.CSR,
     calculatedLevel = CsraLevel.MED,
     overrideLevel = CsraLevel.LOW,
+    overrideReasonCode = CsraOverrideReasonCode.PREVIOUS,
     score = BigDecimal("1000"),
     status = CsraStatus.A,
     committeeCode = CsraCommitteeCode.REVIEW,
@@ -303,6 +304,7 @@ class NomisCsraReviewMappersTest {
     assertThat(nomis.status).isEqualTo(CsraStatus.A)
     assertThat(nomis.calculatedLevel).isEqualTo(CsraLevel.MED)
     assertThat(nomis.overrideLevel).isEqualTo(CsraLevel.LOW)
+    assertThat(nomis.overrideReasonCode).isEqualTo(CsraOverrideReasonCode.PREVIOUS)
     assertThat(nomis.reviewLevel).isEqualTo(CsraLevel.STANDARD)
     assertThat(nomis.approvedLevel).isEqualTo(CsraLevel.HI)
     assertThat(nomis.committeeCode).isEqualTo(CsraCommitteeCode.REVIEW)
@@ -329,6 +331,7 @@ class NomisCsraReviewMappersTest {
       fullReview().copy(
         approvedLevel = CsraLevel.STANDARD,
         overrideLevel = CsraLevel.HI,
+        overrideReasonCode = CsraOverrideReasonCode.SECURITY,
         status = CsraStatus.I,
         comment = "changed",
         reviewDetails = emptyList(),
@@ -342,6 +345,7 @@ class NomisCsraReviewMappersTest {
 
     assertThat(nomis.approvedLevel).isEqualTo(CsraLevel.STANDARD)
     assertThat(nomis.overrideLevel).isEqualTo(CsraLevel.HI)
+    assertThat(nomis.overrideReasonCode).isEqualTo(CsraOverrideReasonCode.SECURITY)
     assertThat(nomis.status).isEqualTo(CsraStatus.I)
     assertThat(nomis.comment).isEqualTo("changed")
     assertThat(nomis.reviewDetails).isEmpty()

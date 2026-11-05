@@ -7,6 +7,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraRatingS
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraCommitteeCode
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraEvaluationResultCode
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraLevel
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraOverrideReasonCode
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraStatus
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStage
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraClosureReason
@@ -261,6 +262,16 @@ class ExportReferenceData {
         CsraLevel.PEND to "Pending - no level decided.",
       ),
       notes = { "raw NOMIS value. review_level is what NOMIS displays as the approved result and wins outright unless PEND; otherwise the stronger of override_level and calculated_level - approved_level is null on every known row" },
+    )
+
+    rows += enumRows(
+      "csra_review_nomis.override_reason_code",
+      CsraOverrideReasonCode.entries,
+      mapOf(
+        CsraOverrideReasonCode.PREVIOUS to "Previous History.",
+        CsraOverrideReasonCode.SECURITY to "Security/Intelligence Information.",
+      ),
+      notes = { "raw NOMIS value, shown alongside the override" },
     )
 
     rows += enumRows(
