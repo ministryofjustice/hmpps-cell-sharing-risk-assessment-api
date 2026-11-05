@@ -7,6 +7,7 @@ import org.springframework.jdbc.core.JdbcTemplate
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraCommitteeCode
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraEvaluationResultCode
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraLevel
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraOverrideReasonCode
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraQuestionDto
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraResponseDto
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraReviewDetailDto
@@ -66,6 +67,7 @@ class CsraReviewResourceTest : SqsIntegrationTestBase() {
     review: CsraReviewEntity,
     calculatedLevel: CsraLevel? = CsraLevel.STANDARD,
     overrideLevel: CsraLevel? = null,
+    overrideReasonCode: CsraOverrideReasonCode? = null,
     reviewLevel: CsraLevel? = CsraLevel.STANDARD,
     approvedLevel: CsraLevel? = null,
     committeeCode: CsraCommitteeCode? = CsraCommitteeCode.RECP,
@@ -83,6 +85,7 @@ class CsraReviewResourceTest : SqsIntegrationTestBase() {
       status = CsraStatus.A,
       calculatedLevel = calculatedLevel,
       overrideLevel = overrideLevel,
+      overrideReasonCode = overrideReasonCode,
       reviewLevel = reviewLevel,
       approvedLevel = approvedLevel,
       committeeCode = committeeCode,
@@ -212,6 +215,44 @@ class CsraReviewResourceTest : SqsIntegrationTestBase() {
       .jsonPath("$.legacy.calculatedResult").isEqualTo("STANDARD")
       .jsonPath("$.legacy.overrideResult").isEqualTo("MED")
       .jsonPath("$.legacy.levelChangedAtApproval").isEqualTo(true)
+  }
+
+  @Test
+  fun `returns the override reason with the wording NOMIS uses`() {
+    prisonRegister.stubGetPrisons(mapOf("LEI" to "Leeds (HMP)"))
+    val review = review("N5551NN")
+    withNomis(review, overrideLevel = CsraLevel.HI, overrideReasonCode = CsraOverrideReasonCode.SECURITY)
+
+    get(review.id!!)
+      .expectStatus().isOk
+      .expectBody()
+      .jsonPath("$.legacy.overrideReason.code").isEqualTo("SECURITY")
+      .jsonPath("$.legacy.overrideReason.name").isEqualTo("Security/Intelligence Information")
+  }
+
+  @Test
+  fun `leaves the override reason out where an override has no reason`() {
+    prisonRegister.stubGetPrisons(mapOf("LEI" to "Leeds (HMP)"))
+    val review = review("N5552NN")
+    withNomis(review, overrideLevel = CsraLevel.HI, overrideReasonCode = null)
+
+    get(review.id!!)
+      .expectStatus().isOk
+      .expectBody()
+      .jsonPath("$.legacy.overrideResult").isEqualTo("HI")
+      .jsonPath("$.legacy.overrideReason").doesNotExist()
+  }
+
+  @Test
+  fun `leaves the override reason out where a reason has no override`() {
+    prisonRegister.stubGetPrisons(mapOf("LEI" to "Leeds (HMP)"))
+    val review = review("N5553NN")
+    withNomis(review, overrideLevel = null, overrideReasonCode = CsraOverrideReasonCode.PREVIOUS)
+
+    get(review.id!!)
+      .expectStatus().isOk
+      .expectBody()
+      .jsonPath("$.legacy.overrideReason").doesNotExist()
   }
 
   @Test
