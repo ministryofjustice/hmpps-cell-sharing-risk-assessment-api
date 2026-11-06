@@ -12,7 +12,7 @@ import java.util.UUID
 /**
  * A snapshot of an in-progress or complete initial CSRA assessment sufficient to resume it: the
  * review's status and results, plus the full answer set for each stage that has been saved so far.
- * The UI derives task-list section state (Completed / Not yet started) from the answers.
+ * The UI derives task-list section state (Complete / Incomplete / Not yet started) from the answers.
  */
 @Schema(description = "An initial CSRA assessment with the saved answers for each stage")
 data class CsraAssessmentDto(
@@ -63,6 +63,9 @@ data class CsraAssessmentStageAnswersDto(
 
   @param:Schema(description = "When this stage was last partially saved, if ever")
   val lastSavedAt: LocalDateTime?,
+
+  @param:Schema(description = "FINAL stage only: whether the provisional assessment has been reviewed. null = Not yet started, false = Incomplete, true = Complete")
+  val provisionalReviewed: Boolean?,
 
   // Evidence sources checked (null = not answered)
   val dpsChecked: Boolean?,
@@ -122,6 +125,7 @@ fun CsraAssessmentStageEntity.toStageAnswersDto() = CsraAssessmentStageAnswersDt
   prisonId = prisonId,
   lastSavedBy = lastSavedBy,
   lastSavedAt = lastSavedAt,
+  provisionalReviewed = provisionalReviewed,
   dpsChecked = dpsChecked,
   perChecked = perChecked,
   warrantChecked = warrantChecked,

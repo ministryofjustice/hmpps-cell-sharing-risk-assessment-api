@@ -51,6 +51,14 @@ The API has four surfaces, each guarded by its own role.
 | `PUT /csra-review/prisoner/{prisonerNumber}/assessment/{assessmentId}/provisional` | Submit the provisional (Day 1) stage |
 | `PUT /csra-review/prisoner/{prisonerNumber}/assessment/{assessmentId}/final` | Submit the final (Day 2) stage |
 
+The assessment answers endpoint (`PUT /csra-review/prisoner/{prisonerNumber}/assessment/{assessmentId}/stage/FINAL/answers`)
+accepts nullable `provisionalReviewed`: `null` = Not yet started, `false` = Incomplete, `true` = Complete.
+It is separate from the evidence-source `*Checked` fields and is returned in the assessment's saved stage
+answers. A non-null value is rejected on the provisional stage. Like other answers, omitting it on an
+answer save clears it to null. Stage submission requests do not include it: submitting the final rating
+preserves the value already saved through the answers endpoint. The UI enforces completion before final
+submission; the API does not introduce a new submission requirement.
+
 Cancellation archives the draft with closure reason `CANCELLED`, retaining its answers but hiding it from
 reads and freeing the prisoner for a new assessment. It records the closing user and time, sends a
 `CSRA_CANCELLED` audit, and publishes no domain event to NOMIS. After commit, `csra-assessment-cancelled`

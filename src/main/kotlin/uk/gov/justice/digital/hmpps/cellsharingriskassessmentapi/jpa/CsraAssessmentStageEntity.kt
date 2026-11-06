@@ -54,6 +54,9 @@ class CsraAssessmentStageEntity(
   var assessmentComment: String? = null,
   var questionSetVersion: Int? = null,
 
+  // Initial assessment FINAL stage only: null = not yet started, false = incomplete, true = complete.
+  var provisionalReviewed: Boolean? = null,
+
   // Evidence sources checked (null = not answered)
   var dpsChecked: Boolean? = null,
   var perChecked: Boolean? = null,

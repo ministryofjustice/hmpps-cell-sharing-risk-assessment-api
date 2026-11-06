@@ -20,6 +20,9 @@ data class CsraAssessmentAnswersRequest(
   @field:NotBlank
   val prisonId: String,
 
+  @param:Schema(description = "FINAL stage only: whether the provisional assessment has been reviewed. null = Not yet started, false = Incomplete, true = Complete")
+  val provisionalReviewed: Boolean? = null,
+
   // Evidence sources checked (null = not answered)
   @param:Schema(description = "Whether DPS adjudications were checked")
   val dpsChecked: Boolean? = null,
