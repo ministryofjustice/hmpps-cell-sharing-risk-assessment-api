@@ -51,6 +51,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toLegacyDet
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStage
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStageEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraClosureReason
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraRatingSetReason
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraResult
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewNomisEntity
@@ -421,15 +422,16 @@ class CsraReviewService(
 
     if (ratingReview != null) {
       val status = if (current.provisional) CsraRatingStatus.PROVISIONAL else CsraRatingStatus.COMPLETE
-      return buildDetailedRating(prisonerNumber, ratingReview, status, inProgress, prisonRegisterClient.getPrisonNames(), nextReviewDate)
+      return buildDetailedRating(prisonerNumber, ratingReview, status, current.setReason, inProgress, prisonRegisterClient.getPrisonNames(), nextReviewDate)
     }
 
     return if (inProgress != null) {
-      buildDetailedRating(prisonerNumber, inProgress, CsraRatingStatus.IN_PROGRESS, inProgress, prisonRegisterClient.getPrisonNames(), nextReviewDate)
+      buildDetailedRating(prisonerNumber, inProgress, CsraRatingStatus.IN_PROGRESS, current?.setReason, inProgress, prisonRegisterClient.getPrisonNames(), nextReviewDate)
     } else {
       CsraDetailedRating(
         prisonerNumber = prisonerNumber,
         status = CsraRatingStatus.NO_RATING,
+        reason = current?.setReason,
         rating = null,
         provisional = false,
         inheritedAfterTransfer = false,
@@ -468,6 +470,7 @@ class CsraReviewService(
       prisonerNumber = review.prisonerNumber,
       review = review,
       status = status,
+      reason = null, // only relevant for current rating
       inProgress = review.takeIf { it.status == CsraReviewStatus.IN_PROGRESS },
       prisonNames = prisonRegisterClient.getPrisonNames(),
       nextReviewDate = review.nextReviewDateOrNomis { csraReviewNomisRepository.findByCsraReviewId(id) },
@@ -478,6 +481,7 @@ class CsraReviewService(
     prisonerNumber: String,
     review: CsraReviewEntity,
     status: CsraRatingStatus,
+    reason: CsraRatingSetReason?,
     inProgress: CsraReviewEntity?,
     prisonNames: Map<String, String>,
     nextReviewDate: LocalDate?,
@@ -499,6 +503,7 @@ class CsraReviewService(
     return CsraDetailedRating(
       prisonerNumber = prisonerNumber,
       status = status,
+      reason = reason,
       rating = review.finalResult ?: review.interimResult,
       // Derived from the rating itself, not the status argument: an in-progress review carrying an interim
       // rating is provisional, but arrives here with status IN_PROGRESS.
