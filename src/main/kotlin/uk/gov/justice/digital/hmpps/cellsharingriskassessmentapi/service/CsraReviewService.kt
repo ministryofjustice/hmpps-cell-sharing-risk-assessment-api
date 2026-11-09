@@ -470,6 +470,7 @@ class CsraReviewService(
       prisonerNumber = review.prisonerNumber,
       review = review,
       status = status,
+      reason = null, // only relevant for current rating
       inProgress = review.takeIf { it.status == CsraReviewStatus.IN_PROGRESS },
       prisonNames = prisonRegisterClient.getPrisonNames(),
       nextReviewDate = review.nextReviewDateOrNomis { csraReviewNomisRepository.findByCsraReviewId(id) },
