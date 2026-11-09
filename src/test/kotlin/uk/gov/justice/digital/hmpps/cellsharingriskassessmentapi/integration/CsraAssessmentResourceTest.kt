@@ -10,6 +10,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.CsvSource
+import org.junit.jupiter.params.provider.NullSource
 import org.junit.jupiter.params.provider.ValueSource
 import org.mockito.kotlin.any
 import org.mockito.kotlin.eq
@@ -1035,6 +1036,85 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
   }
 
   // ── Partial save (saveAnswers) ────────────────────────────────────────────────────────────────────
+
+  @ParameterizedTest
+  @NullSource
+  @ValueSource(booleans = [false, true])
+  fun `provisionalReviewed is saved and returned for the final stage and survives final submission`(reviewed: Boolean?) {
+    val prisoner = "PR001AA"
+    val assessmentId = start(prisoner).assessmentId
+    submitProvisional(prisoner, assessmentId, stageBody("STANDARD", "Provisional assessment")).expectStatus().isOk
+
+    val saved = saveAnswers(
+      prisoner,
+      assessmentId,
+      """{ "prisonId": "LEI", "version": 1, "provisionalReviewed": $reviewed }""",
+      stage = "FINAL",
+    )
+      .expectStatus().isOk
+      .expectBody<CsraAssessmentDto>()
+      .returnResult().responseBody!!
+
+    assertThat(saved.stages.single { it.stage == CsraAssessmentStage.FINAL }.provisionalReviewed).isEqualTo(reviewed)
+    assertThat(saved.stages.single { it.stage == CsraAssessmentStage.PROVISIONAL }.provisionalReviewed).isNull()
+    assertThat(csraAssessmentStageRepository.findByCsraReviewIdAndStage(assessmentId, CsraAssessmentStage.FINAL)!!.provisionalReviewed).isEqualTo(reviewed)
+
+    webTestClient.put().uri("/csra-review/prisoner/$prisoner/assessment/$assessmentId/final")
+      .headers(setAuthorisation(roles = writeRole))
+      .contentType(MediaType.APPLICATION_JSON)
+      .bodyValue(stageBody("STANDARD", "Final assessment"))
+      .exchange()
+      .expectStatus().isOk
+
+    assertThat(csraAssessmentStageRepository.findByCsraReviewIdAndStage(assessmentId, CsraAssessmentStage.FINAL)!!.provisionalReviewed).isEqualTo(reviewed)
+    webTestClient.get().uri("/csra-review/prisoner/$prisoner/assessment/$assessmentId")
+      .headers(setAuthorisation(roles = readRole))
+      .exchange()
+      .expectStatus().isOk
+      .expectBody<CsraAssessmentDto>()
+      .consumeWith { result ->
+        assertThat(result.responseBody!!.stages.single { it.stage == CsraAssessmentStage.FINAL }.provisionalReviewed).isEqualTo(reviewed)
+      }
+  }
+
+  @Test
+  fun `provisionalReviewed can be changed to incomplete and then cleared by omitting it`() {
+    val prisoner = "PR002AA"
+    val assessmentId = start(prisoner).assessmentId
+    submitProvisional(prisoner, assessmentId, stageBody("STANDARD", "Provisional assessment")).expectStatus().isOk
+
+    var version = 1
+    listOf(true, false, null).forEach { reviewed ->
+      val body = if (reviewed == null) {
+        answersBody("LEI", version = version)
+      } else {
+        """{ "prisonId": "LEI", "version": $version, "provisionalReviewed": $reviewed }"""
+      }
+      val saved = saveAnswers(prisoner, assessmentId, body, stage = "FINAL")
+        .expectStatus().isOk
+        .expectBody<CsraAssessmentDto>()
+        .returnResult().responseBody!!
+        .stages.single { it.stage == CsraAssessmentStage.FINAL }
+
+      assertThat(saved.provisionalReviewed).isEqualTo(reviewed)
+      assertThat(csraAssessmentStageRepository.findByCsraReviewIdAndStage(assessmentId, CsraAssessmentStage.FINAL)!!.provisionalReviewed).isEqualTo(reviewed)
+      version = saved.version
+    }
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = [false, true])
+  fun `provisionalReviewed is rejected on provisional answer saves`(reviewed: Boolean) {
+    val prisoner = "PR003AA"
+    val assessmentId = start(prisoner).assessmentId
+
+    saveAnswers(prisoner, assessmentId, """{ "prisonId": "LEI", "version": 1, "provisionalReviewed": $reviewed }""")
+      .expectStatus().isBadRequest
+      .expectBody()
+      .jsonPath("$.userMessage").isEqualTo("Validation failure: provisionalReviewed can only be saved for the final stage")
+
+    assertThat(csraAssessmentStageRepository.findByCsraReviewIdAndStage(assessmentId, CsraAssessmentStage.PROVISIONAL)).isNull()
+  }
 
   @Test
   fun `partial save stores answers without a rating and leaves the review IN_PROGRESS`() {
