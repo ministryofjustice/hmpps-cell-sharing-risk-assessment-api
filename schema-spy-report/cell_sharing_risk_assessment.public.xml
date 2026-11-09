@@ -65,6 +65,7 @@
          <column autoUpdated="false" defaultValue="null" digits="0" id="40" name="last_saved_by" nullable="true" remarks="Username that last saved the stage without confirming a rating. Identifies a member of staff. [Sensitivity: STAFF]" size="255" type="varchar" typeCode="12"/>
          <column autoUpdated="false" defaultValue="null" digits="6" id="41" name="last_saved_at" nullable="true" remarks="When the stage was last saved without confirming a rating. [Sensitivity: NONE]" size="29" type="timestamp" typeCode="93"/>
          <column autoUpdated="false" defaultValue="1" digits="0" id="42" name="version" nullable="false" remarks="Optimistic locking version for concurrent updates [Sensitivity: NONE]" size="10" type="int4" typeCode="4"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="43" name="provisional_reviewed" nullable="true" remarks="Initial assessment FINAL stage only: whether the provisional assessment has been reviewed. NULL = Not yet started, FALSE = Incomplete, TRUE = Complete. [Sensitivity: NONE]" size="1" type="bool" typeCode="-7"/>
          <primaryKey column="id" sequenceNumberInPK="1"/>
          <index name="csra_assessment_stage_pk" unique="true">
             <column ascending="true" name="id"/>
