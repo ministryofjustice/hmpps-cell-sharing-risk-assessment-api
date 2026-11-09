@@ -393,7 +393,7 @@ class CsraConcurrentWriteTest : SqsIntegrationTestBase() {
     assertThat(synced.finalResult).isEqualTo(CsraResult.STANDARD)
     assertThat(synced.supersededAt).isNotNull()
 
-    with (csraCurrentRatingRepository.findByPrisonerNumber(prisoner)!!) {
+    with(csraCurrentRatingRepository.findByPrisonerNumber(prisoner)!!) {
       assertThat(rating).isNull()
       assertThat(setReason).isEqualTo(CsraRatingSetReason.NO_RATING_ON_READMISSION)
     }
