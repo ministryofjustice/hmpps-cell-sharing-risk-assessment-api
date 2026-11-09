@@ -15,6 +15,7 @@ import org.hibernate.type.SqlTypes
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraCommitteeCode
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraEvaluationResultCode
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraLevel
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraOverrideReasonCode
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraReviewDetailDto
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraStatus
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.helper.GeneratedUuidV7
@@ -48,6 +49,9 @@ class CsraReviewNomisEntity(
 
   @Enumerated(EnumType.STRING)
   var overrideLevel: CsraLevel? = null,
+
+  @Enumerated(EnumType.STRING)
+  var overrideReasonCode: CsraOverrideReasonCode? = null,
 
   @Enumerated(EnumType.STRING)
   var reviewLevel: CsraLevel? = null,

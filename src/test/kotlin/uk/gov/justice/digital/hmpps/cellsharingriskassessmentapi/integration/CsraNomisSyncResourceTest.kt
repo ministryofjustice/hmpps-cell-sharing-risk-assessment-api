@@ -11,6 +11,7 @@ import org.springframework.web.reactive.function.BodyInserters
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraCommitteeCode
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraLevel
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraMigrationResponse
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraOverrideReasonCode
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraStatus
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.SyncResult
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraNextReviewRepository
@@ -48,6 +49,7 @@ class CsraNomisSyncResourceTest : SqsIntegrationTestBase() {
       "assessmentType": "CSR",
       "calculatedLevel": "STANDARD",
       "overrideLevel": "STANDARD",
+      "overrideReasonCode": "SECURITY",
       "score": 1000,
       "status": "A",
       "committeeCode": "REVIEW",
@@ -129,6 +131,7 @@ class CsraNomisSyncResourceTest : SqsIntegrationTestBase() {
       assertThat(nomis.status).isEqualTo(CsraStatus.A)
       assertThat(nomis.calculatedLevel).isEqualTo(CsraLevel.STANDARD)
       assertThat(nomis.overrideLevel).isEqualTo(CsraLevel.STANDARD)
+      assertThat(nomis.overrideReasonCode).isEqualTo(CsraOverrideReasonCode.SECURITY)
       assertThat(nomis.reviewLevel).isEqualTo(CsraLevel.HI)
       assertThat(nomis.committeeCode).isEqualTo(CsraCommitteeCode.REVIEW)
       assertThat(nomis.comment).isEqualTo("All good")
@@ -267,8 +270,8 @@ class CsraNomisSyncResourceTest : SqsIntegrationTestBase() {
 
     @Test
     fun `an unapproved NOMIS rating becomes the prisoner's final current rating`() {
-      // No approved level — which is true of every NOMIS review in practice, because approval was a
-      // governance step that was almost never used. The calculated level is the rating NOMIS shows, and
+      // No approved level — which is true of every NOMIS review, and approval was a governance step in
+      // any case. The calculated level is the rating NOMIS shows, and
       // it is settled: there is nothing left to complete, so it is final rather than provisional.
       val pendingJson = reviewJson()
         .replace("\"reviewLevel\": \"HI\",", "")

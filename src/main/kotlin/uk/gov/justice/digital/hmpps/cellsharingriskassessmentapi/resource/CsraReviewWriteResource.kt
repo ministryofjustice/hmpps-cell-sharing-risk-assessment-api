@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
-import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraCurrentRating
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraDetailedRating
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraReviewStageRequest
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraReviewStartRequest
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraReviewStarted
@@ -101,7 +101,7 @@ class CsraReviewWriteResource(
       ApiResponse(
         responseCode = "200",
         description = "The interim stage was recorded",
-        content = [Content(mediaType = "application/json", schema = Schema(implementation = CsraCurrentRating::class))],
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = CsraDetailedRating::class))],
       ),
       ApiResponse(
         responseCode = "400",
@@ -155,7 +155,7 @@ class CsraReviewWriteResource(
       ApiResponse(
         responseCode = "200",
         description = "The review was completed",
-        content = [Content(mediaType = "application/json", schema = Schema(implementation = CsraCurrentRating::class))],
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = CsraDetailedRating::class))],
       ),
       ApiResponse(
         responseCode = "400",
