@@ -386,6 +386,9 @@ class CsraDetailedRatingResourceTest : SqsIntegrationTestBase() {
       .jsonPath("$.reason").isEqualTo("RATING_SAVED")
       .jsonPath("$.rating").isEmpty
       .jsonPath("$.nextReviewDate").isEqualTo("2026-06-01")
+      // The profile must not show a review date beside "No rating".
+      .jsonPath("$.ratingDescription").isEqualTo("No rating")
+      .jsonPath("$.reviewDueDate").isEmpty
   }
 
   @Test
@@ -440,6 +443,9 @@ class CsraDetailedRatingResourceTest : SqsIntegrationTestBase() {
       .jsonPath("$.ratingStage").isEmpty
       .jsonPath("$.prisonId").isEmpty
       .jsonPath("$.prisonName").isEmpty
+      .jsonPath("$.ratingDescription").isEqualTo("No rating")
+      .jsonPath("$.ratingShortDescription").isEqualTo("No rating")
+      .jsonPath("$.reviewDueDate").isEmpty
   }
 
   @Test
@@ -476,6 +482,9 @@ class CsraDetailedRatingResourceTest : SqsIntegrationTestBase() {
       .jsonPath("$.riskTo").isEmpty
       .jsonPath("$.finalDate").isEqualTo("2023-07-20")
       .jsonPath("$.nextReviewDate").isEqualTo("2024-01-14")
+      .jsonPath("$.ratingDescription").isEqualTo("High risk")
+      .jsonPath("$.ratingShortDescription").isEqualTo("High")
+      .jsonPath("$.reviewDueDate").isEqualTo("2024-01-14")
   }
 
   @Test
@@ -525,6 +534,9 @@ class CsraDetailedRatingResourceTest : SqsIntegrationTestBase() {
       .jsonPath("$.status").isEqualTo("COMPLETE")
       .jsonPath("$.reason").isEqualTo("RATING_SAVED")
       .jsonPath("$.rating").isEqualTo("STANDARD")
+      .jsonPath("$.ratingDescription").isEqualTo("Standard risk")
+      .jsonPath("$.ratingShortDescription").isEqualTo("Standard")
+      .jsonPath("$.reviewDueDate").isEmpty
       .jsonPath("$.prisonId").isEqualTo("LEI")
       .jsonPath("$.prisonName").isEqualTo("Leeds (HMP)")
       .jsonPath("$.assessmentComment").isEqualTo("PNC checked. No issues found.")
@@ -564,6 +576,9 @@ class CsraDetailedRatingResourceTest : SqsIntegrationTestBase() {
       .jsonPath("$.riskTo[0].details").isEqualTo("Racist towards other ethnicities.")
       .jsonPath("$.vulnerabilities[0].category").isEqualTo("NEURODIVERSITY")
       .jsonPath("$.nextReviewDate").isEqualTo("2027-05-06")
+      .jsonPath("$.ratingDescription").isEqualTo("High risk – specific")
+      .jsonPath("$.ratingShortDescription").isEqualTo("High – specific")
+      .jsonPath("$.reviewDueDate").isEqualTo("2027-05-06")
   }
 
   @Test
@@ -591,6 +606,9 @@ class CsraDetailedRatingResourceTest : SqsIntegrationTestBase() {
       .jsonPath("$.assessmentComment").isEmpty
       .jsonPath("$.provisionalDate").isEqualTo("2026-05-07")
       .jsonPath("$.finalDate").isEmpty
+      .jsonPath("$.ratingDescription").isEqualTo("High risk – general (provisional)")
+      .jsonPath("$.ratingShortDescription").isEqualTo("High – general")
+      .jsonPath("$.reviewDueDate").isEmpty
   }
 
   @Test
@@ -636,6 +654,8 @@ class CsraDetailedRatingResourceTest : SqsIntegrationTestBase() {
       .jsonPath("$.inheritedAfterTransfer").isEqualTo(true)
       .jsonPath("$.ratingStage").isEqualTo("INTERIM")
       .jsonPath("$.reviewId").isEqualTo(inherited.id.toString())
+      .jsonPath("$.ratingDescription").isEqualTo("High risk – general (interim)")
+      .jsonPath("$.ratingShortDescription").isEqualTo("High – general")
   }
 
   @Test
