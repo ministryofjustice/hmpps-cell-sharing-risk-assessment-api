@@ -15,8 +15,8 @@ interface CsraReviewRepository :
   JpaSpecificationExecutor<CsraReviewEntity> {
   fun findAllByPrisonerNumberOrderByAssessmentDateDesc(prisonerNumber: String): List<CsraReviewEntity>
 
-  /** The prisoner's most recent review of any status (latest assessment date, then newest id), or null. */
-  fun findFirstByPrisonerNumberOrderByAssessmentDateDescIdDesc(prisonerNumber: String): CsraReviewEntity?
+  /** Whether the prisoner has any review in the given lifecycle state - the one-CSRA-in-progress rule. */
+  fun existsByPrisonerNumberAndStatus(prisonerNumber: String, status: CsraReviewStatus): Boolean
 
   /** A prisoner's reviews in a given lifecycle state (e.g. the IN_PROGRESS one to close on admission). */
   fun findAllByPrisonerNumberAndStatus(prisonerNumber: String, status: CsraReviewStatus): List<CsraReviewEntity>
