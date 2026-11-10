@@ -326,18 +326,23 @@ class CsraReviewService(
   }
 
   /**
-   * Keeps only the reviews whose prisoner is currently in [prisonId], per prisoner-search.
+   * Keeps only the reviews whose prisoner is still [prisonId]'s to work on, per prisoner-search: those in
+   * the establishment, and those in transit out of it.
    *
    * Our own `prison_id` records where the work was started, and the tidy-up that closes or archives
    * in-progress work only runs on the prisoner's *next admission* (R-01/R-02). Someone released and never
-   * readmitted would otherwise sit on the worklist for ever with nothing anyone could do about them.
-   * prisoner-search reports the released as `OUT` and those in transit as `TRN`, so plain equality drops
-   * both, along with anyone missing from the response entirely.
+   * readmitted would otherwise sit on the worklist for ever with nothing anyone could do about them, so the
+   * released (`OUT`) drop off, as does anyone now at another establishment or missing from the response.
+   *
+   * In transit (`TRN`) is different (MAPA-514): until the prisoner is admitted at the receiving
+   * establishment the sending prison may still edit the CSRA (MAPA-337, "remains editable before
+   * admission"), so it has to be able to find it. The review is still IN_PROGRESS and still at this prison,
+   * so this prison is the one they are travelling from; the admission then closes or archives it.
    */
   private fun List<CsraReviewEntity>.stillAt(
     prisonId: String,
     members: Map<String, PrisonRollMember>,
-  ) = filter { members[it.prisonerNumber]?.prisonId == prisonId }
+  ) = filter { members[it.prisonerNumber]?.prisonId in setOf(prisonId, IN_TRANSIT) }
 
   /**
    * Prisoners who arrived at [prisonId] in the last [days] days and are still in the establishment (the
@@ -773,6 +778,9 @@ class CsraReviewService(
   )
 
   private companion object {
+    /** prisoner-search's `prisonId` for a prisoner between establishments. */
+    private const val IN_TRANSIT = "TRN"
+
     /** Chunk the roll when querying so the `IN (...)` list stays a sane size for large prisons. */
     private const val RATING_COUNT_BATCH_SIZE = 1000
 
