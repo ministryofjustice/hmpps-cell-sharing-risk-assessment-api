@@ -215,6 +215,9 @@ class ActivePrisonGateTest : SqsIntegrationTestBase() {
       // The rollout switch itself. Gating it on rollout state would be circular — no prison could ever
       // be switched on.
       "PUT /active-agencies/{agencyId}",
+      // A read, not a write: a POST only so a list of prisoner numbers can go in the body. Other services
+      // (Prisoner Search, cell move) need every prisoner's current rating, at every prison (MAPA-516).
+      "POST /csra-review/prisoners/current-rating-summary",
       // hmpps-sqs queue administration, nothing to do with CSRA data.
       "PUT /queue-admin/retry-dlq/{dlqName}",
       "PUT /queue-admin/retry-all-dlqs",
