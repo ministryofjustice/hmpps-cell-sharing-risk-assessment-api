@@ -501,7 +501,8 @@ class CsraReviewService(
     // The stage that produced the rating: the final stage once complete, otherwise the first stage.
     val ratingStage = finalStage ?: provisionalStage
     // Migrated legacy reviews have no stages; their comment lives on the adjacent NOMIS record.
-    val nomis = if (stages.isEmpty()) csraReviewNomisRepository.findByCsraReviewId(review.id!!) else null
+    val nomis = csraReviewNomisRepository.findByCsraReviewId(review.id!!)
+    val legacyComment = nomis.takeIf { stages.isEmpty() }
     // Held in a local so the id and its name can never be derived from different reviews.
     val prisonId = ratingStage?.prisonId ?: review.prisonId
 
@@ -524,7 +525,7 @@ class CsraReviewService(
       reviewId = review.id,
       prisonId = prisonId,
       prisonName = prisonId?.let { prisonNames[it] ?: it },
-      assessmentComment = finalStage?.assessmentComment ?: nomis?.reviewComment ?: nomis?.comment,
+      assessmentComment = finalStage?.assessmentComment ?: legacyComment?.let { it.reviewComment ?: it.comment },
       provisionalAssessmentComment = provisionalStage?.assessmentComment,
       riskTo = ratingStage?.riskTo?.map { CsraRiskToDetail(it.category, it.details) }.orEmpty(),
       vulnerabilities = ratingStage?.vulnerabilities?.map { CsraVulnerabilityDetail(it.category, it.details) }.orEmpty(),
@@ -550,6 +551,7 @@ class CsraReviewService(
           prisonName = it.prisonId?.let { id -> prisonNames[id] ?: id },
         )
       },
+      legacy = nomis?.toLegacyDetail(review.assessmentDate),
     )
   }
 
