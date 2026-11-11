@@ -326,18 +326,23 @@ class CsraReviewService(
   }
 
   /**
-   * Keeps only the reviews whose prisoner is currently in [prisonId], per prisoner-search.
+   * Keeps only the reviews whose prisoner is still [prisonId]'s to work on, per prisoner-search: those in
+   * the establishment, and those in transit out of it.
    *
    * Our own `prison_id` records where the work was started, and the tidy-up that closes or archives
    * in-progress work only runs on the prisoner's *next admission* (R-01/R-02). Someone released and never
-   * readmitted would otherwise sit on the worklist for ever with nothing anyone could do about them.
-   * prisoner-search reports the released as `OUT` and those in transit as `TRN`, so plain equality drops
-   * both, along with anyone missing from the response entirely.
+   * readmitted would otherwise sit on the worklist for ever with nothing anyone could do about them, so the
+   * released (`OUT`) drop off, as does anyone now at another establishment or missing from the response.
+   *
+   * In transit (`TRN`) is different (MAPA-514): until the prisoner is admitted at the receiving
+   * establishment the sending prison may still edit the CSRA (MAPA-337, "remains editable before
+   * admission"), so it has to be able to find it. The review is still IN_PROGRESS and still at this prison,
+   * so this prison is the one they are travelling from; the admission then closes or archives it.
    */
   private fun List<CsraReviewEntity>.stillAt(
     prisonId: String,
     members: Map<String, PrisonRollMember>,
-  ) = filter { members[it.prisonerNumber]?.prisonId == prisonId }
+  ) = filter { members[it.prisonerNumber]?.prisonId in setOf(prisonId, IN_TRANSIT) }
 
   /**
    * Prisoners who arrived at [prisonId] in the last [days] days and are still in the establishment (the
@@ -496,7 +501,8 @@ class CsraReviewService(
     // The stage that produced the rating: the final stage once complete, otherwise the first stage.
     val ratingStage = finalStage ?: provisionalStage
     // Migrated legacy reviews have no stages; their comment lives on the adjacent NOMIS record.
-    val nomis = if (stages.isEmpty()) csraReviewNomisRepository.findByCsraReviewId(review.id!!) else null
+    val nomis = csraReviewNomisRepository.findByCsraReviewId(review.id!!)
+    val legacyComment = nomis.takeIf { stages.isEmpty() }
     // Held in a local so the id and its name can never be derived from different reviews.
     val prisonId = ratingStage?.prisonId ?: review.prisonId
 
@@ -519,7 +525,7 @@ class CsraReviewService(
       reviewId = review.id,
       prisonId = prisonId,
       prisonName = prisonId?.let { prisonNames[it] ?: it },
-      assessmentComment = finalStage?.assessmentComment ?: nomis?.reviewComment ?: nomis?.comment,
+      assessmentComment = finalStage?.assessmentComment ?: legacyComment?.let { it.reviewComment ?: it.comment },
       provisionalAssessmentComment = provisionalStage?.assessmentComment,
       riskTo = ratingStage?.riskTo?.map { CsraRiskToDetail(it.category, it.details) }.orEmpty(),
       vulnerabilities = ratingStage?.vulnerabilities?.map { CsraVulnerabilityDetail(it.category, it.details) }.orEmpty(),
@@ -545,6 +551,7 @@ class CsraReviewService(
           prisonName = it.prisonId?.let { id -> prisonNames[id] ?: id },
         )
       },
+      legacy = nomis?.toLegacyDetail(review.assessmentDate),
     )
   }
 
@@ -652,6 +659,8 @@ class CsraReviewService(
 
   private fun legacyLevelFilter(nomis: CsraReviewNomisEntity?): CsraRatingFilter? = when (nomis?.resolvedLevel()) {
     CsraLevel.HI -> CsraRatingFilter.HIGH
+    CsraLevel.HI_GEN -> CsraRatingFilter.HIGH_GENERAL
+    CsraLevel.HI_SPFC -> CsraRatingFilter.HIGH_SPECIFIC
     CsraLevel.STANDARD -> CsraRatingFilter.STANDARD_LEGACY
     CsraLevel.LOW -> CsraRatingFilter.LOW
     CsraLevel.MED -> CsraRatingFilter.MED
@@ -666,6 +675,10 @@ class CsraReviewService(
       CsraRatingFilter.STANDARD_LEGACY -> rating == CsraResult.STANDARD && legacyLevel == CsraLevel.STANDARD
       CsraRatingFilter.LOW -> rating == CsraResult.STANDARD && legacyLevel == CsraLevel.LOW
       CsraRatingFilter.MED -> rating == CsraResult.STANDARD && legacyLevel == CsraLevel.MED
+      // A NOMIS review has no rating stage, so a High General or High Specific recorded in NOMIS matches on
+      // the result alone.
+      CsraRatingFilter.HIGH_GENERAL, CsraRatingFilter.HIGH_SPECIFIC ->
+        if (nomis != null && review.finalResult != null) rating == toResult() else matches(rating, stage)
       else -> matches(rating, stage)
     }
   }
@@ -773,6 +786,9 @@ class CsraReviewService(
   )
 
   private companion object {
+    /** prisoner-search's `prisonId` for a prisoner between establishments. */
+    private const val IN_TRANSIT = "TRN"
+
     /** Chunk the roll when querying so the `IN (...)` list stays a sane size for large prisons. */
     private const val RATING_COUNT_BATCH_SIZE = 1000
 

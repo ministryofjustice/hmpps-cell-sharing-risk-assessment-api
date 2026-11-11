@@ -57,14 +57,24 @@ class CsraWriteSupport(
 
   /**
    * A prisoner may have only one CSRA in progress at a time, assessment or review. Deliberately
-   * type-agnostic: an unrated assessment blocks starting a review just as it blocks starting a second
+   * type-agnostic: an in-progress assessment blocks starting a review just as it blocks starting a second
    * assessment, because both would then compete to set the same current rating.
+   *
+   * "In progress" means status IN_PROGRESS, the same test the prisoner overview uses to offer Continue
+   * rather than Start (`CsraReviewService.getCurrentRating`), so the two cannot disagree. Two earlier
+   * approximations did (MAPA-514, MAPA-332):
+   * - Judging by the absence of a rating treated a migrated NOMIS PEND row - COMPLETE, but with no
+   *   result - as in progress, so the overview offered Start and this refused it. It also let a second
+   *   CSRA start once a provisional or interim rating had been saved, where R-08 allows Continue only.
+   * - Inspecting only the latest review let a later-dated record, such as one synced from NOMIS, hide a
+   *   genuine draft.
+   *
+   * CLOSED and ARCHIVED reviews, ended by a movement or a cancel, are no longer in progress and do not block.
    */
   fun rejectIfInProgress(prisonerNumber: String) {
-    csraReviewRepository.findFirstByPrisonerNumberOrderByAssessmentDateDescIdDesc(prisonerNumber)
-      // A review closed/archived on a move is no longer in progress and does not block a new one.
-      ?.takeIf { it.finalResult == null && it.interimResult == null && it.status != CsraReviewStatus.ARCHIVED }
-      ?.let { throw CsraAssessmentInProgressException(prisonerNumber) }
+    if (csraReviewRepository.existsByPrisonerNumberAndStatus(prisonerNumber, CsraReviewStatus.IN_PROGRESS)) {
+      throw CsraAssessmentInProgressException(prisonerNumber)
+    }
   }
 
   /**
