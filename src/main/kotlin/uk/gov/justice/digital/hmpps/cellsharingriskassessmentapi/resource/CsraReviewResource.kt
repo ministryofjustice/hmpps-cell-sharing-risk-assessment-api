@@ -14,6 +14,8 @@ import org.springframework.security.access.prepost.PreAuthorize
 import org.springframework.validation.annotation.Validated
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
+import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.ResponseStatus
@@ -24,7 +26,9 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraHighRis
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraHighRiskType
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraPrisonerSortField
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraRatingFilter
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraRatingSummary
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraSortDirection
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.service.CsraRatingSummaryService
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.service.CsraReviewService
 import uk.gov.justice.hmpps.kotlin.common.ErrorResponse
 import java.time.LocalDate
@@ -40,6 +44,7 @@ import java.util.UUID
 @PreAuthorize("hasRole('ROLE_CSRA_REVIEW__R')")
 class CsraReviewResource(
   private val csraReviewService: CsraReviewService,
+  private val csraRatingSummaryService: CsraRatingSummaryService,
 ) {
 
   @GetMapping("/{id}")
@@ -210,6 +215,67 @@ class CsraReviewResource(
     @PathVariable
     prisonerNumber: String,
   ) = csraReviewService.getCurrentRating(prisonerNumber = prisonerNumber)
+
+  @GetMapping("/prisoner/{prisonerNumber}/current-rating-summary")
+  @ResponseStatus(HttpStatus.OK)
+  @Operation(
+    summary = "Returns a prisoner's current CSRA rating in brief, for other services",
+    description = "The rating, its state and the text to show for it, without comments, risk-to, " +
+      "vulnerability or in-progress detail. This is the endpoint other services (for example Prisoner Search " +
+      "and cell move) should use for a prisoner's current CSRA. Show ratingShortDescription and " +
+      "ratingDescription as given. Returns NO_RATING rather than a 404 when the prisoner has no CSRA. " +
+      "Requires role ROLE_CSRA_REVIEW__R",
+    responses = [
+      ApiResponse(responseCode = "200", description = "Returns the prisoner's current CSRA rating in brief"),
+      ApiResponse(
+        responseCode = "401",
+        description = "Unauthorized to access this endpoint",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
+      ),
+      ApiResponse(
+        responseCode = "403",
+        description = "Missing required role. Requires the ROLE_CSRA_REVIEW__R role",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
+      ),
+    ],
+  )
+  fun getCurrentRatingSummary(
+    @Parameter(description = "The prisoner number", example = "A1234BC", required = true)
+    @PathVariable
+    prisonerNumber: String,
+  ): CsraRatingSummary = csraRatingSummaryService.getRatingSummary(prisonerNumber)
+
+  @PostMapping("/prisoners/current-rating-summary", consumes = [MediaType.APPLICATION_JSON_VALUE])
+  @ResponseStatus(HttpStatus.OK)
+  @Operation(
+    summary = "Returns the current CSRA rating in brief for a list of prisoners, for other services",
+    description = "The same as current-rating-summary for each prisoner number given, in one call, in the order " +
+      "given (duplicates removed). Prisoners with no CSRA are returned as NO_RATING. At most " +
+      "${CsraRatingSummaryService.MAX_PRISONERS} prisoner numbers per call. Requires role ROLE_CSRA_REVIEW__R",
+    responses = [
+      ApiResponse(responseCode = "200", description = "Returns the current CSRA rating in brief for each prisoner"),
+      ApiResponse(
+        responseCode = "400",
+        description = "More than ${CsraRatingSummaryService.MAX_PRISONERS} prisoner numbers were given",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
+      ),
+      ApiResponse(
+        responseCode = "401",
+        description = "Unauthorized to access this endpoint",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
+      ),
+      ApiResponse(
+        responseCode = "403",
+        description = "Missing required role. Requires the ROLE_CSRA_REVIEW__R role",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
+      ),
+    ],
+  )
+  fun getCurrentRatingSummaries(
+    @RequestBody
+    @io.swagger.v3.oas.annotations.parameters.RequestBody(description = "The prisoner numbers", required = true)
+    prisonerNumbers: List<String>,
+  ): List<CsraRatingSummary> = csraRatingSummaryService.getRatingSummaries(prisonerNumbers)
 
   @GetMapping("/prison/{prisonId}/rating-summary")
   @ResponseStatus(HttpStatus.OK)
