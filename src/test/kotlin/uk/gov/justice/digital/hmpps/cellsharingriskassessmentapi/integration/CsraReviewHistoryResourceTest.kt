@@ -250,6 +250,39 @@ class CsraReviewHistoryResourceTest : SqsIntegrationTestBase() {
   }
 
   @Test
+  fun `a High Specific or High General recorded in NOMIS is offered and found under its own filter`() {
+    val legacyHigh = review("H1111HH", LocalDate.parse("2024-01-01"), CsraResult.HIGH, "LEI")
+    withNomis(legacyHigh, reviewLevel = CsraLevel.HI)
+    val highGeneral = review("H1111HH", LocalDate.parse("2024-02-01"), CsraResult.HIGH_GENERAL, "LEI")
+    withNomis(highGeneral, calculatedLevel = CsraLevel.HI, reviewLevel = CsraLevel.HI_GEN)
+    val highSpecific = review("H1111HH", LocalDate.parse("2024-03-01"), CsraResult.HIGH_SPECIFIC, "LEI")
+    withNomis(highSpecific, calculatedLevel = CsraLevel.HI, reviewLevel = CsraLevel.HI_SPFC)
+
+    webTestClient.get().uri("/csra-review/prisoner/H1111HH/history?ratings=HIGH_SPECIFIC")
+      .headers(setAuthorisation(roles = readRole))
+      .exchange()
+      .expectStatus().isOk
+      .expectBody()
+      .jsonPath("$.totalElements").isEqualTo(1)
+      .jsonPath("$.content[0].legacy.level").isEqualTo("HI_SPFC")
+      .jsonPath("$.content[0].rating").isEqualTo("HIGH_SPECIFIC")
+      // the filters offered cover all three High results, in UI order
+      .jsonPath("$.summary.ratings.length()").isEqualTo(3)
+      .jsonPath("$.summary.ratings[0]").isEqualTo("HIGH")
+      .jsonPath("$.summary.ratings[1]").isEqualTo("HIGH_GENERAL")
+      .jsonPath("$.summary.ratings[2]").isEqualTo("HIGH_SPECIFIC")
+
+    webTestClient.get().uri("/csra-review/prisoner/H1111HH/history?ratings=HIGH_GENERAL")
+      .headers(setAuthorisation(roles = readRole))
+      .exchange()
+      .expectStatus().isOk
+      .expectBody()
+      .jsonPath("$.totalElements").isEqualTo(1)
+      .jsonPath("$.content[0].legacy.level").isEqualTo("HI_GEN")
+      .jsonPath("$.content[0].rating").isEqualTo("HIGH_GENERAL")
+  }
+
+  @Test
   fun `filters history by the exact legacy LOW variant, not by the broader standard bucket`() {
     val standard = review("Q1111QQ", LocalDate.parse("2024-01-01"), CsraResult.STANDARD, "LEI")
     withNomis(standard, calculatedLevel = CsraLevel.STANDARD)

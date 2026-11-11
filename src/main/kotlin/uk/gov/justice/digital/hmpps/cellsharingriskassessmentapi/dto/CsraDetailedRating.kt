@@ -106,6 +106,9 @@ data class CsraDetailedRating(
 
   @param:Schema(description = "The time the final rating was completed, if recorded", example = "11:20:00")
   val finalTime: LocalTime? = null,
+
+  @param:Schema(description = "Legacy NOMIS detail for the rating's review. Present only where the review was migrated from NOMIS; when present, prefer its comments over assessmentComment.", required = false)
+  val legacy: CsraLegacyDetail? = null,
 ) {
   // Worked out from the fields above rather than passed in, so every path that builds this response
   // (including the no-rating one) carries them and they can never disagree with `rating` / `ratingStage`.
