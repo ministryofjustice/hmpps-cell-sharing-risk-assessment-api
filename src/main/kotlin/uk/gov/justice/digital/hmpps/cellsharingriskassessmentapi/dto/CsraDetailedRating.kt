@@ -106,7 +106,36 @@ data class CsraDetailedRating(
 
   @param:Schema(description = "The time the final rating was completed, if recorded", example = "11:20:00")
   val finalTime: LocalTime? = null,
-)
+) {
+  // Worked out from the fields above rather than passed in, so every path that builds this response
+  // (including the no-rating one) carries them and they can never disagree with `rating` / `ratingStage`.
+
+  @get:Schema(
+    description = "The rating in full, to show as given, for example on the prisoner profile Overview card. " +
+      "Includes the provisional or interim stage. \"No rating\" when there is no rating.",
+    example = "High risk – general (interim)",
+    requiredMode = Schema.RequiredMode.REQUIRED,
+  )
+  val ratingDescription: String
+    get() = describeRating(rating, ratingStage)
+
+  @get:Schema(
+    description = "The rating in short, to show as given, for example in the prisoner profile header. " +
+      "Never includes the stage. \"No rating\" when there is no rating.",
+    example = "High – general",
+    requiredMode = Schema.RequiredMode.REQUIRED,
+  )
+  val ratingShortDescription: String
+    get() = describeRatingShort(rating)
+
+  @get:Schema(
+    description = "The review due date to show beside the rating, or null where none should be shown " +
+      "(Standard, No rating and provisional ratings). Unlike nextReviewDate, show it whenever it is present.",
+    example = "2027-05-06",
+  )
+  val reviewDueDate: LocalDate?
+    get() = reviewDueDateToShow(rating, ratingStage, nextReviewDate)
+}
 
 /**
  * An assessment or review that is started but not yet complete, reported alongside — not instead of — the
