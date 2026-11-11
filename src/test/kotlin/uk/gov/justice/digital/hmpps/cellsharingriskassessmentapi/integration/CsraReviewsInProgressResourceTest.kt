@@ -59,6 +59,9 @@ class CsraReviewsInProgressResourceTest : SqsIntegrationTestBase() {
     review("RVOTHER", LocalDateTime.parse("2026-07-06T09:00:00"), prisonId = "BXI") // in progress at another prison
     review("RVOUT", LocalDateTime.parse("2026-07-04T09:00:00")) // started here, since released
     review("RVGONE", LocalDateTime.parse("2026-07-05T09:00:00")) // started here, unknown to prisoner-search
+    review("RVMOVED", LocalDateTime.parse("2026-07-05T09:00:00")) // started here, now admitted elsewhere
+    // Started here, now in transit to another establishment and not yet admitted there (MAPA-514)
+    review("RVTRN", LocalDateTime.parse("2026-07-07T10:00:00"), createdBy = "JBLOGGS")
 
     prisonerSearch.stubGetPrisonerNames(
       listOf(
@@ -67,6 +70,9 @@ class CsraReviewsInProgressResourceTest : SqsIntegrationTestBase() {
         // Released: prisoner-search reports the released as OUT.
         RollMemberStub("RVOUT", "Mubashir", "Khan", prisonId = "OUT"),
         // RVGONE is absent from the response entirely.
+        RollMemberStub("RVMOVED", "Peter", "Ashworth", prisonId = "BXI"),
+        // In transit: prisoner-search reports those between establishments as TRN.
+        RollMemberStub("RVTRN", "Liam", "Docherty", prisonId = "TRN"),
       ),
     )
   }
@@ -93,14 +99,15 @@ class CsraReviewsInProgressResourceTest : SqsIntegrationTestBase() {
       .exchange()
       .expectStatus().isOk
       .expectBody()
-      .jsonPath("$.totalResults").isEqualTo(2)
-      // ordered by started date: RV01 (07-03) then RV02 (07-06)
+      .jsonPath("$.totalResults").isEqualTo(3)
+      // ordered by started date: RV01 (07-03), RV02 (07-06) then RVTRN (07-07)
       .jsonPath("$.content[0].prisonerNumber").isEqualTo("RV01")
       .jsonPath("$.content[0].firstName").isEqualTo("Simon")
       .jsonPath("$.content[0].lastName").isEqualTo("Kettleby")
       .jsonPath("$.content[0].startedBy").isEqualTo("SCARTER")
       .jsonPath("$.content[0].reviewId").isNotEmpty
       .jsonPath("$.content[1].prisonerNumber").isEqualTo("RV02")
+      .jsonPath("$.content[2].prisonerNumber").isEqualTo("RVTRN")
   }
 
   @Test
@@ -125,6 +132,19 @@ class CsraReviewsInProgressResourceTest : SqsIntegrationTestBase() {
       .expectBody()
       .jsonPath("$.content[?(@.prisonerNumber == 'RVOUT')]").doesNotExist()
       .jsonPath("$.content[?(@.prisonerNumber == 'RVGONE')]").doesNotExist()
+      .jsonPath("$.content[?(@.prisonerNumber == 'RVMOVED')]").doesNotExist()
+  }
+
+  @Test
+  fun `keeps a prisoner in transit from this establishment`() {
+    // MAPA-337: until the prisoner is admitted at the receiving establishment, the sending prison may still
+    // edit the review, so it has to stay on the sending prison's worklist.
+    webTestClient.get().uri("/csra-review/prison/LEI/reviews-in-progress")
+      .headers(setAuthorisation(roles = readRole))
+      .exchange()
+      .expectStatus().isOk
+      .expectBody()
+      .jsonPath("$.content[?(@.prisonerNumber == 'RVTRN')].firstName").isEqualTo("Liam")
   }
 
   @Test
