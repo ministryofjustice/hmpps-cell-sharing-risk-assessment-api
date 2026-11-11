@@ -87,5 +87,8 @@ interface CsraReviewRepository :
   )
   fun findSummaryRows(prisonerNumber: String): List<CsraSummaryRow>
 
+  @Query("select distinct r.prisonerNumber from CsraReviewEntity r where r.prisonerNumber in :prisonerNumbers and r.status = :status")
+  fun findPrisonerNumbersWithStatus(prisonerNumbers: Collection<String>, status: CsraReviewStatus): List<String>
+
   fun deleteByPrisonerNumber(prisonerNumber: String)
 }
