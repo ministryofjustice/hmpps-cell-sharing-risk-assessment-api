@@ -738,14 +738,55 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
 
   @Test
   fun `rejects starting a second assessment while one is in progress`() {
-    // Deliberately not P4444PP: CsraCurrentRatingResourceTest seeds that number with a rated review
-    // dated 2026, and csra_review is not cleared between test classes. rejectIfInProgress only
-    // inspects the *latest* review, so whichever class ran first decided whether this saw its own
-    // unrated draft or the other one's rated row — and with the rated row it returned 201, not 409.
-    // The production weakness that makes the ordering matter at all is MAPA-332.
     val prisoner = "P4455PP"
     start(prisoner)
 
+    expectStartRejectedAsInProgress(prisoner)
+  }
+
+  @Test
+  fun `a migrated NOMIS review with no rating does not block starting an assessment`() {
+    // MAPA-514, seen in pre-prod: a NOMIS PEND review migrates as COMPLETE with no result. The
+    // overview reads it as finished and offers Start, so starting must not then refuse it as in progress.
+    val prisoner = "M5141MM"
+    seedReview(prisoner, CsraReviewStatus.COMPLETE, assessmentDate = LocalDate.parse("2026-11-01"))
+
+    val started = start(prisoner)
+
+    assertThat(csraReviewRepository.findById(started.assessmentId).orElseThrow().status)
+      .isEqualTo(CsraReviewStatus.IN_PROGRESS)
+  }
+
+  @Test
+  fun `an in-progress assessment with a provisional rating blocks starting another`() {
+    // MAPA-332: R-08 offers Continue only, not Start, once a provisional rating is saved.
+    val prisoner = "M5142MM"
+    seedReview(prisoner, CsraReviewStatus.IN_PROGRESS, interimResult = CsraResult.STANDARD)
+
+    expectStartRejectedAsInProgress(prisoner)
+  }
+
+  @Test
+  fun `an in-progress assessment blocks starting another even when a later-dated review exists`() {
+    // MAPA-332: the check once looked only at the latest review, so a later-dated rated record - such as
+    // one synced from NOMIS - hid the draft and let a second CSRA start.
+    val prisoner = "M5143MM"
+    seedReview(prisoner, CsraReviewStatus.IN_PROGRESS, assessmentDate = LocalDate.parse("2026-10-01"))
+    seedReview(prisoner, CsraReviewStatus.COMPLETE, finalResult = CsraResult.STANDARD, assessmentDate = LocalDate.parse("2026-11-01"))
+
+    expectStartRejectedAsInProgress(prisoner)
+  }
+
+  @ParameterizedTest
+  @CsvSource("CLOSED", "ARCHIVED")
+  fun `a review ended by a movement does not block starting an assessment`(status: CsraReviewStatus) {
+    val prisoner = "M514" + status.name.first() + "MM"
+    seedReview(prisoner, status, interimResult = CsraResult.STANDARD.takeIf { status == CsraReviewStatus.CLOSED })
+
+    start(prisoner)
+  }
+
+  private fun expectStartRejectedAsInProgress(prisoner: String) {
     webTestClient.post().uri("/csra-review/prisoner/$prisoner/assessment")
       .headers(setAuthorisation(roles = writeRole))
       .contentType(MediaType.APPLICATION_JSON)
@@ -755,6 +796,26 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
       .expectBody()
       .jsonPath("$.errorCode").isEqualTo("AssessmentInProgress")
   }
+
+  private fun seedReview(
+    prisonerNumber: String,
+    status: CsraReviewStatus,
+    assessmentDate: LocalDate = LocalDate.parse("2026-10-15"),
+    interimResult: CsraResult? = null,
+    finalResult: CsraResult? = null,
+  ) = csraReviewRepository.saveAndFlush(
+    CsraReviewEntity(
+      prisonerNumber = prisonerNumber,
+      prisonId = "LEI",
+      assessmentDate = assessmentDate,
+      type = CsraType.CSRA_INITIAL_ASSESSMENT,
+      status = status,
+      interimResult = interimResult,
+      finalResult = finalResult,
+      createdAt = assessmentDate.atTime(9, 0),
+      createdBy = "SCARTER",
+    ),
+  )
 
   @Test
   fun `start records the prison the assessment was started at`() {
