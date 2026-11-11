@@ -51,7 +51,7 @@ class NomisCsraReviewMappersTest {
   }
 
   @ParameterizedTest
-  @CsvSource("HI,HIGH", "STANDARD,STANDARD", "LOW,STANDARD", "MED,STANDARD")
+  @CsvSource("HI,HIGH", "HI_GEN,HIGH_GENERAL", "HI_SPFC,HIGH_SPECIFIC", "STANDARD,STANDARD", "LOW,STANDARD", "MED,STANDARD")
   fun `maps NOMIS levels to results`(level: CsraLevel, expected: CsraResult) {
     assertThat(level.toCsraResult()).isEqualTo(expected)
   }
@@ -131,6 +131,12 @@ class NomisCsraReviewMappersTest {
       // PEND can never win a head-to-head
       "null,PEND,HI,HIGH",
       "null,HI,PEND,HIGH",
+      // the new High levels: a review level still wins outright, and they outrank a calculated High
+      "HI_SPFC,HI,null,HIGH_SPECIFIC",
+      "HI_GEN,STANDARD,HI_SPFC,HIGH_GENERAL",
+      "null,HI,HI_GEN,HIGH_GENERAL",
+      "null,HI,HI_SPFC,HIGH_SPECIFIC",
+      "null,HI_GEN,HI_SPFC,HIGH_SPECIFIC",
     ],
   )
   fun `resolves the rating the way prison-api does`(
@@ -167,6 +173,12 @@ class NomisCsraReviewMappersTest {
       "null,null,PEND,null",
       "PEND,null,null,null",
       "null,null,null,null",
+      // the new High levels outrank the legacy HI, and High Specific outranks High General
+      "HI,HI_GEN,null,HI_GEN",
+      "HI_GEN,HI,null,HI_GEN",
+      "HI,HI_SPFC,null,HI_SPFC",
+      "HI_GEN,HI_SPFC,null,HI_SPFC",
+      "HI,null,HI_SPFC,HI_SPFC",
     ],
   )
   fun `resolves which NOMIS level wins`(

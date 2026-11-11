@@ -145,13 +145,15 @@ enum class CsraAssessmentType {
   CSRREV,
 }
 
-@Schema(description = "A CSRA level (used for calculated, review and approved levels)")
+@Schema(description = "A CSRA level (used for calculated, review and approved levels). HI_GEN (High General) and HI_SPFC (High Specific) are the new policy's results; HI is the legacy High.")
 enum class CsraLevel {
   STANDARD,
   PEND,
   LOW,
   MED,
   HI,
+  HI_GEN,
+  HI_SPFC,
 }
 
 @Schema(description = "CSRA status: I = inactive, A = active, P = provisional")

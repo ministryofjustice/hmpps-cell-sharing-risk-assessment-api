@@ -26,12 +26,16 @@ fun CsraAssessmentType.toCsraType(): CsraType = when (this) {
 }
 
 /**
- * Maps a legacy NOMIS level to the new result model. NOMIS has no "high specific" level, so that
- * result is never produced by migration. PEND is a placeholder rather than a level, so it carries no
- * result — see [nomisOutcome] for how a pending review can still yield a rating from another level.
+ * Maps a NOMIS level to the new result model. HI is the legacy High; HI_GEN and HI_SPFC are the new
+ * policy's High General and High Specific, which prisons still on NOMIS record there too. A High Specific
+ * from NOMIS carries no "risk to" or vulnerability details, which only DPS records. PEND is a placeholder
+ * rather than a level, so it carries no result — see [nomisOutcome] for how a pending review can still
+ * yield a rating from another level.
  */
 fun CsraLevel?.toCsraResult(): CsraResult? = when (this) {
   CsraLevel.HI -> CsraResult.HIGH
+  CsraLevel.HI_GEN -> CsraResult.HIGH_GENERAL
+  CsraLevel.HI_SPFC -> CsraResult.HIGH_SPECIFIC
   CsraLevel.STANDARD, CsraLevel.LOW, CsraLevel.MED -> CsraResult.STANDARD
   CsraLevel.PEND, null -> null
 }
@@ -51,8 +55,10 @@ fun CsraLevel?.toCsraResult(): CsraResult? = when (this) {
  */
 data class NomisCsraOutcome(val result: CsraResult?, val settled: Boolean)
 
-// Ranked strongest first. PEND is absent deliberately: it can never win a head-to-head.
-private val LEVEL_PRIORITY = listOf(CsraLevel.HI, CsraLevel.STANDARD, CsraLevel.MED, CsraLevel.LOW)
+// Ranked strongest first. PEND is absent deliberately: it can never win a head-to-head. The new High levels
+// rank above the legacy HI, so a High General or High Specific override is not hidden by a calculated High.
+// Prison API (MAPA-511) and the to-NOMIS reconciliation use the same order.
+private val LEVEL_PRIORITY = listOf(CsraLevel.HI_SPFC, CsraLevel.HI_GEN, CsraLevel.HI, CsraLevel.STANDARD, CsraLevel.MED, CsraLevel.LOW)
 
 /**
  * Which of a NOMIS review's levels is the one NOMIS itself would display, mirroring prison-api
@@ -61,7 +67,7 @@ private val LEVEL_PRIORITY = listOf(CsraLevel.HI, CsraLevel.STANDARD, CsraLevel.
  *  1. the review level (`REVIEW_SUP_LEVEL_TYPE`, which NOMIS displays as the approved level) wins outright
  *     if it is not PEND;
  *  2. otherwise, where both the override level and the calculated level are set, the stronger of the two
- *     wins (HI > STANDARD > MED > LOW), the override taking precedence at equal rank;
+ *     wins (HI_SPFC > HI_GEN > HI > STANDARD > MED > LOW), the override taking precedence at equal rank;
  *  3. otherwise the override level, if set, even where it is PEND;
  *  4. otherwise the calculated level, if it is not PEND;
  *  5. otherwise no level at all.

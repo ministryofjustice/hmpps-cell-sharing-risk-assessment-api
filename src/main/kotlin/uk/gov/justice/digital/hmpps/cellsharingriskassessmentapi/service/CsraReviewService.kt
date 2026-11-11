@@ -657,6 +657,8 @@ class CsraReviewService(
 
   private fun legacyLevelFilter(nomis: CsraReviewNomisEntity?): CsraRatingFilter? = when (nomis?.resolvedLevel()) {
     CsraLevel.HI -> CsraRatingFilter.HIGH
+    CsraLevel.HI_GEN -> CsraRatingFilter.HIGH_GENERAL
+    CsraLevel.HI_SPFC -> CsraRatingFilter.HIGH_SPECIFIC
     CsraLevel.STANDARD -> CsraRatingFilter.STANDARD_LEGACY
     CsraLevel.LOW -> CsraRatingFilter.LOW
     CsraLevel.MED -> CsraRatingFilter.MED
@@ -671,6 +673,10 @@ class CsraReviewService(
       CsraRatingFilter.STANDARD_LEGACY -> rating == CsraResult.STANDARD && legacyLevel == CsraLevel.STANDARD
       CsraRatingFilter.LOW -> rating == CsraResult.STANDARD && legacyLevel == CsraLevel.LOW
       CsraRatingFilter.MED -> rating == CsraResult.STANDARD && legacyLevel == CsraLevel.MED
+      // A NOMIS review has no rating stage, so a High General or High Specific recorded in NOMIS matches on
+      // the result alone.
+      CsraRatingFilter.HIGH_GENERAL, CsraRatingFilter.HIGH_SPECIFIC ->
+        if (nomis != null && review.finalResult != null) rating == toResult() else matches(rating, stage)
       else -> matches(rating, stage)
     }
   }

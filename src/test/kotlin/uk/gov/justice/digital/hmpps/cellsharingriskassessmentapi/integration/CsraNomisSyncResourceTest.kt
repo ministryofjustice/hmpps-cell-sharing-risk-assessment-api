@@ -14,6 +14,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.C
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraOverrideReasonCode
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraStatus
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.SyncResult
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraResult
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraNextReviewRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraReviewNomisRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraReviewRepository
@@ -425,6 +426,52 @@ class CsraNomisSyncResourceTest : SqsIntegrationTestBase() {
         .body(BodyInserters.fromValue("""{ "review": ${reviewJson()} }"""))
         .exchange()
         .expectStatus().isForbidden
+    }
+
+    @Test
+    fun `a High Specific recorded in NOMIS becomes the current rating without risk-to or vulnerability details`() {
+      val json = reviewJson().replace("\"reviewLevel\": \"HI\"", "\"reviewLevel\": \"HI_SPFC\"")
+
+      webTestClient.post().uri("/nomis-sync/sync/S1111SS")
+        .headers(setAuthorisation(roles = syncRole))
+        .contentType(MediaType.APPLICATION_JSON)
+        .body(BodyInserters.fromValue("""{ "review": $json }"""))
+        .exchange()
+        .expectStatus().isCreated
+
+      val review = csraReviewRepository.findAllByPrisonerNumber("S1111SS").single()
+      assertThat(review.finalResult).isEqualTo(CsraResult.HIGH_SPECIFIC)
+      assertThat(csraReviewNomisRepository.findByCsraReviewId(review.id!!)!!.reviewLevel).isEqualTo(CsraLevel.HI_SPFC)
+
+      webTestClient.get().uri("/csra-review/prisoner/S1111SS/current-rating")
+        .headers(setAuthorisation(roles = listOf("ROLE_CSRA_REVIEW__R")))
+        .exchange()
+        .expectStatus().isOk
+        .expectBody()
+        .jsonPath("$.rating").isEqualTo("HIGH_SPECIFIC")
+        .jsonPath("$.provisional").isEqualTo(false)
+    }
+
+    @Test
+    fun `a High General override recorded in NOMIS outranks a calculated High`() {
+      val json = reviewJson()
+        .replace("\"reviewLevel\": \"HI\",", "")
+        .replace("\"calculatedLevel\": \"STANDARD\"", "\"calculatedLevel\": \"HI\"")
+        .replace("\"overrideLevel\": \"STANDARD\"", "\"overrideLevel\": \"HI_GEN\"")
+
+      webTestClient.post().uri("/nomis-sync/sync/S2222SS")
+        .headers(setAuthorisation(roles = syncRole))
+        .contentType(MediaType.APPLICATION_JSON)
+        .body(BodyInserters.fromValue("""{ "review": $json }"""))
+        .exchange()
+        .expectStatus().isCreated
+
+      webTestClient.get().uri("/csra-review/prisoner/S2222SS/current-rating")
+        .headers(setAuthorisation(roles = listOf("ROLE_CSRA_REVIEW__R")))
+        .exchange()
+        .expectStatus().isOk
+        .expectBody()
+        .jsonPath("$.rating").isEqualTo("HIGH_GENERAL")
     }
   }
 }
