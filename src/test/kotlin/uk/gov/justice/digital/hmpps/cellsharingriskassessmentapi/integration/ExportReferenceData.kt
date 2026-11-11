@@ -64,9 +64,9 @@ class ExportReferenceData {
       CsraResult.entries,
       mapOf(
         CsraResult.STANDARD to "Can share a cell. Legacy NOMIS LOW and MED both collapse to this value.",
-        CsraResult.HIGH to "Legacy NOMIS High - cannot share a cell. NOMIS had no general/specific split, so migrated reviews use this and it is kept distinct from HIGH_GENERAL.",
-        CsraResult.HIGH_GENERAL to "New DPS \"High risk - general\" - cannot share a cell with anyone.",
-        CsraResult.HIGH_SPECIFIC to "New DPS \"High risk - specific\" - can share only with specific types of prisoner.",
+        CsraResult.HIGH to "Legacy High - cannot share a cell. The single High result used before the new policy; NOMIS reviews recorded as HI use this, and it is kept distinct from HIGH_GENERAL.",
+        CsraResult.HIGH_GENERAL to "\"High risk - general\" - cannot share a cell with anyone. Recorded in DPS, or in NOMIS as HI_GEN.",
+        CsraResult.HIGH_SPECIFIC to "\"High risk - specific\" - can share only with specific types of prisoner. Recorded in DPS, or in NOMIS as HI_SPFC (NOMIS holds no risk-to or vulnerability details).",
       ),
     )
 
@@ -256,7 +256,9 @@ class ExportReferenceData {
       CsraLevel.entries,
       mapOf(
         CsraLevel.STANDARD to "Standard.",
-        CsraLevel.HI to "High.",
+        CsraLevel.HI to "High. The legacy single High result; maps to CsraResult.HIGH.",
+        CsraLevel.HI_GEN to "High - general. The new policy's result; maps to CsraResult.HIGH_GENERAL.",
+        CsraLevel.HI_SPFC to "High - specific. The new policy's result; maps to CsraResult.HIGH_SPECIFIC.",
         CsraLevel.LOW to "Low. Unused in NOMIS for years; collapses to CsraResult.STANDARD in DPS and is display-only history.",
         CsraLevel.MED to "Medium. Unused in NOMIS for years; collapses to CsraResult.STANDARD in DPS and is display-only history.",
         CsraLevel.PEND to "Pending - no level decided.",
