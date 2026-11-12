@@ -66,6 +66,7 @@
          <column autoUpdated="false" defaultValue="null" digits="6" id="41" name="last_saved_at" nullable="true" remarks="When the stage was last saved without confirming a rating. [Sensitivity: NONE]" size="29" type="timestamp" typeCode="93"/>
          <column autoUpdated="false" defaultValue="1" digits="0" id="42" name="version" nullable="false" remarks="Optimistic locking version for concurrent updates [Sensitivity: NONE]" size="10" type="int4" typeCode="4"/>
          <column autoUpdated="false" defaultValue="null" digits="0" id="43" name="provisional_reviewed" nullable="true" remarks="Initial assessment FINAL stage only: whether the provisional assessment has been reviewed. NULL = Not yet started, FALSE = Incomplete, TRUE = Complete. [Sensitivity: NONE]" size="1" type="bool" typeCode="-7"/>
+         <column autoUpdated="false" defaultValue="null" digits="0" id="44" name="offence_evidence_reviewed" nullable="true" remarks="Initial assessment FINAL stage only: whether all evidence questions have been answered for all selected offences. NULL = Not yet started, FALSE = Incomplete (user has added/removed evidence sources without answering questions), TRUE = Complete (all offence evidence details provided). Set to FALSE when evidence sources change, TRUE when the last evidence detail is submitted. [Sensitivity: NONE]" size="1" type="bool" typeCode="-7"/>
          <primaryKey column="id" sequenceNumberInPK="1"/>
          <index name="csra_assessment_stage_pk" unique="true">
             <column ascending="true" name="id"/>
