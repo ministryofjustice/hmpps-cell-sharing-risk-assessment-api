@@ -35,8 +35,15 @@ data class CsraDetailedRating(
   @param:Schema(description = "The state of the rating")
   val status: CsraRatingStatus,
 
+  @Deprecated("Use provisionalRating and finalRating instead")
   @param:Schema(description = "The rating (final if complete, otherwise the provisional/interim rating). Absent when there is no rating yet.", example = "STANDARD")
   val rating: CsraResult?,
+
+  @param:Schema(description = "The provisional (interim) rating, if any", example = "STANDARD")
+  val provisionalRating: CsraResult?,
+
+  @param:Schema(description = "The final rating, if any", example = "STANDARD")
+  val finalRating: CsraResult?,
 
   @param:Schema(description = "The reason the current rating was set, if any", example = "RATING_SAVED")
   val reason: CsraRatingSetReason? = null,
@@ -108,7 +115,10 @@ data class CsraDetailedRating(
   val finalTime: LocalTime? = null,
 
   @param:Schema(description = "Legacy NOMIS detail for the rating's review. Present only where the review was migrated from NOMIS; when present, prefer its comments over assessmentComment.", required = false)
-  val legacy: CsraLegacyDetail? = null,
+  val legacy: CsraLegacyReviewDetail? = null,
+
+  @param:Schema(description = "The saved answer sets, one per assessment stage written to. Empty for a migrated legacy review, a review with no stages, or no rating.")
+  val stages: List<CsraAssessmentStageAnswersDto> = emptyList(),
 ) {
   // Worked out from the fields above rather than passed in, so every path that builds this response
   // (including the no-rating one) carries them and they can never disagree with `rating` / `ratingStage`.
@@ -120,7 +130,7 @@ data class CsraDetailedRating(
     requiredMode = Schema.RequiredMode.REQUIRED,
   )
   val ratingDescription: String
-    get() = describeRating(rating, ratingStage)
+    get() = describeRating(finalRating ?: provisionalRating, ratingStage)
 
   @get:Schema(
     description = "The rating in short, to show as given, for example in the prisoner profile header. " +
@@ -129,7 +139,7 @@ data class CsraDetailedRating(
     requiredMode = Schema.RequiredMode.REQUIRED,
   )
   val ratingShortDescription: String
-    get() = describeRatingShort(rating)
+    get() = describeRatingShort(finalRating ?: provisionalRating)
 
   @get:Schema(
     description = "The review due date to show beside the rating, or null where none should be shown " +
@@ -137,7 +147,7 @@ data class CsraDetailedRating(
     example = "2027-05-06",
   )
   val reviewDueDate: LocalDate?
-    get() = reviewDueDateToShow(rating, ratingStage, nextReviewDate)
+    get() = reviewDueDateToShow(finalRating ?: provisionalRating, ratingStage, nextReviewDate)
 }
 
 /**
