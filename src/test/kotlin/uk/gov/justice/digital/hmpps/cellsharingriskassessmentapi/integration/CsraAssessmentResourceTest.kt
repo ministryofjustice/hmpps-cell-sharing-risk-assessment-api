@@ -1101,7 +1101,7 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
   @ParameterizedTest
   @NullSource
   @ValueSource(booleans = [false, true])
-  fun `provisionalReviewed is saved and returned for the final stage and survives final submission`(reviewed: Boolean?) {
+  fun `provisionalReviewed and offenceEvidenceReviewed are saved and returned for the final stage and survive final submission`(reviewed: Boolean?) {
     val prisoner = "PR001AA"
     val assessmentId = start(prisoner).assessmentId
     submitProvisional(prisoner, assessmentId, stageBody("STANDARD", "Provisional assessment")).expectStatus().isOk
@@ -1109,7 +1109,7 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
     val saved = saveAnswers(
       prisoner,
       assessmentId,
-      """{ "prisonId": "LEI", "version": 1, "provisionalReviewed": $reviewed }""",
+      """{ "prisonId": "LEI", "version": 1, "provisionalReviewed": $reviewed, "offenceEvidenceReviewed": $reviewed }""",
       stage = "FINAL",
     )
       .expectStatus().isOk
@@ -1119,6 +1119,9 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
     assertThat(saved.stages.single { it.stage == CsraAssessmentStage.FINAL }.provisionalReviewed).isEqualTo(reviewed)
     assertThat(saved.stages.single { it.stage == CsraAssessmentStage.PROVISIONAL }.provisionalReviewed).isNull()
     assertThat(csraAssessmentStageRepository.findByCsraReviewIdAndStage(assessmentId, CsraAssessmentStage.FINAL)!!.provisionalReviewed).isEqualTo(reviewed)
+    assertThat(saved.stages.single { it.stage == CsraAssessmentStage.FINAL }.offenceEvidenceReviewed).isEqualTo(reviewed)
+    assertThat(saved.stages.single { it.stage == CsraAssessmentStage.PROVISIONAL }.offenceEvidenceReviewed).isNull()
+    assertThat(csraAssessmentStageRepository.findByCsraReviewIdAndStage(assessmentId, CsraAssessmentStage.FINAL)!!.offenceEvidenceReviewed).isEqualTo(reviewed)
 
     webTestClient.put().uri("/csra-review/prisoner/$prisoner/assessment/$assessmentId/final")
       .headers(setAuthorisation(roles = writeRole))
@@ -1128,6 +1131,7 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
       .expectStatus().isOk
 
     assertThat(csraAssessmentStageRepository.findByCsraReviewIdAndStage(assessmentId, CsraAssessmentStage.FINAL)!!.provisionalReviewed).isEqualTo(reviewed)
+    assertThat(csraAssessmentStageRepository.findByCsraReviewIdAndStage(assessmentId, CsraAssessmentStage.FINAL)!!.offenceEvidenceReviewed).isEqualTo(reviewed)
     webTestClient.get().uri("/csra-review/prisoner/$prisoner/assessment/$assessmentId")
       .headers(setAuthorisation(roles = readRole))
       .exchange()
@@ -1135,11 +1139,12 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
       .expectBody<CsraAssessmentDto>()
       .consumeWith { result ->
         assertThat(result.responseBody!!.stages.single { it.stage == CsraAssessmentStage.FINAL }.provisionalReviewed).isEqualTo(reviewed)
+        assertThat(result.responseBody!!.stages.single { it.stage == CsraAssessmentStage.FINAL }.offenceEvidenceReviewed).isEqualTo(reviewed)
       }
   }
 
   @Test
-  fun `provisionalReviewed can be changed to incomplete and then cleared by omitting it`() {
+  fun `provisionalReviewed and offenceEvidenceReviewed can be changed to incomplete and then cleared by omitting them`() {
     val prisoner = "PR002AA"
     val assessmentId = start(prisoner).assessmentId
     submitProvisional(prisoner, assessmentId, stageBody("STANDARD", "Provisional assessment")).expectStatus().isOk
@@ -1149,7 +1154,7 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
       val body = if (reviewed == null) {
         answersBody("LEI", version = version)
       } else {
-        """{ "prisonId": "LEI", "version": $version, "provisionalReviewed": $reviewed }"""
+        """{ "prisonId": "LEI", "version": $version, "provisionalReviewed": $reviewed, "offenceEvidenceReviewed": $reviewed }"""
       }
       val saved = saveAnswers(prisoner, assessmentId, body, stage = "FINAL")
         .expectStatus().isOk
@@ -1159,20 +1164,22 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
 
       assertThat(saved.provisionalReviewed).isEqualTo(reviewed)
       assertThat(csraAssessmentStageRepository.findByCsraReviewIdAndStage(assessmentId, CsraAssessmentStage.FINAL)!!.provisionalReviewed).isEqualTo(reviewed)
+      assertThat(saved.offenceEvidenceReviewed).isEqualTo(reviewed)
+      assertThat(csraAssessmentStageRepository.findByCsraReviewIdAndStage(assessmentId, CsraAssessmentStage.FINAL)!!.offenceEvidenceReviewed).isEqualTo(reviewed)
       version = saved.version
     }
   }
 
   @ParameterizedTest
-  @ValueSource(booleans = [false, true])
-  fun `provisionalReviewed is rejected on provisional answer saves`(reviewed: Boolean) {
+  @CsvSource("provisionalReviewed,false", "provisionalReviewed,true", "offenceEvidenceReviewed,false", "offenceEvidenceReviewed,true")
+  fun `final stage review flags are rejected on provisional answer saves`(field: String, reviewed: Boolean) {
     val prisoner = "PR003AA"
     val assessmentId = start(prisoner).assessmentId
 
-    saveAnswers(prisoner, assessmentId, """{ "prisonId": "LEI", "version": 1, "provisionalReviewed": $reviewed }""")
+    saveAnswers(prisoner, assessmentId, """{ "prisonId": "LEI", "version": 1, "$field": $reviewed }""")
       .expectStatus().isBadRequest
       .expectBody()
-      .jsonPath("$.userMessage").isEqualTo("Validation failure: provisionalReviewed can only be saved for the final stage")
+      .jsonPath("$.userMessage").isEqualTo("Validation failure: $field can only be saved for the final stage")
 
     assertThat(csraAssessmentStageRepository.findByCsraReviewIdAndStage(assessmentId, CsraAssessmentStage.PROVISIONAL)).isNull()
   }

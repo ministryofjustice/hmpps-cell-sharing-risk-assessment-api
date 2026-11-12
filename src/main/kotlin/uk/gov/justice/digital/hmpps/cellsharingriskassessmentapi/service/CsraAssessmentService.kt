@@ -145,6 +145,9 @@ class CsraAssessmentService(
     if (stage != CsraAssessmentStage.FINAL && request.provisionalReviewed != null) {
       throw ValidationException("provisionalReviewed can only be saved for the final stage")
     }
+    if (stage != CsraAssessmentStage.FINAL && request.offenceEvidenceReviewed != null) {
+      throw ValidationException("offenceEvidenceReviewed can only be saved for the final stage")
+    }
 
     validateOffenceEvidence(request.offenceEvidence)
     val now = LocalDateTime.now(clock)
@@ -338,6 +341,7 @@ class CsraAssessmentService(
       lastSavedAt = now
       prisonId = request.prisonId
       provisionalReviewed = request.provisionalReviewed
+      offenceEvidenceReviewed = request.offenceEvidenceReviewed
       dpsChecked = request.dpsChecked
       perChecked = request.perChecked
       warrantChecked = request.warrantChecked

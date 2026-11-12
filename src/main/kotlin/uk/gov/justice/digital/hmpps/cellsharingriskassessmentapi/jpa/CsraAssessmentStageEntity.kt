@@ -57,6 +57,10 @@ class CsraAssessmentStageEntity(
   // Initial assessment FINAL stage only: null = not yet started, false = incomplete, true = complete.
   var provisionalReviewed: Boolean? = null,
 
+  // Initial assessment FINAL stage only: null = not yet started, false = incomplete (sources added without answering questions),
+  // true = complete (all offence evidence details answered). Set to false when evidence sources change.
+  var offenceEvidenceReviewed: Boolean? = null,
+
   // Evidence sources checked (null = not answered)
   var dpsChecked: Boolean? = null,
   var perChecked: Boolean? = null,

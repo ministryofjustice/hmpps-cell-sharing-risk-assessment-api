@@ -52,11 +52,13 @@ The API has four surfaces, each guarded by its own role.
 | `PUT /csra-review/prisoner/{prisonerNumber}/assessment/{assessmentId}/final` | Submit the final (Day 2) stage |
 
 The assessment answers endpoint (`PUT /csra-review/prisoner/{prisonerNumber}/assessment/{assessmentId}/stage/FINAL/answers`)
-accepts nullable `provisionalReviewed`: `null` = Not yet started, `false` = Incomplete, `true` = Complete.
-It is separate from the evidence-source `*Checked` fields and is returned in the assessment's saved stage
-answers. A non-null value is rejected on the provisional stage. Like other answers, omitting it on an
-answer save clears it to null. Stage submission requests do not include it: submitting the final rating
-preserves the value already saved through the answers endpoint. The UI enforces completion before final
+accepts nullable `provisionalReviewed` and `offenceEvidenceReviewed`: `null` = Not yet started,
+`false` = Incomplete, `true` = Complete. `offenceEvidenceReviewed` tracks whether all evidence questions
+have been answered for all selected offences; callers set it to `false` when evidence sources change.
+These are separate from the evidence-source `*Checked` fields and are returned in the assessment's saved
+stage answers. A non-null value for either is rejected on the provisional stage. Like other answers,
+omitting either on an answer save clears it to null. Stage submission requests do not include them:
+submitting the final rating preserves the values already saved through the answers endpoint. The UI enforces completion before final
 submission; the API does not introduce a new submission requirement.
 
 Cancellation archives the draft with closure reason `CANCELLED`, retaining its answers but hiding it from
