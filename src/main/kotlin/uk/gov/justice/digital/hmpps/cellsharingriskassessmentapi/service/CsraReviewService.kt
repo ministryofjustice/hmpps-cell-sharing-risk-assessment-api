@@ -48,6 +48,8 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.ratingStage
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toAssessmentBucket
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toDetail
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toLegacyDetail
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toLegacyReviewDetail
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.toStageAnswersDto
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStage
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStageEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraClosureReason
@@ -441,6 +443,8 @@ class CsraReviewService(
         provisional = false,
         inheritedAfterTransfer = false,
         ratingStage = null,
+        provisionalRating = null,
+        finalRating = null,
         reviewId = null,
         prisonId = null,
         // No review, so no prison to name; the prison-register lookup is skipped entirely on this path.
@@ -511,6 +515,8 @@ class CsraReviewService(
       status = status,
       reason = reason,
       rating = review.finalResult ?: review.interimResult,
+      provisionalRating = review.interimResult,
+      finalRating = review.finalResult,
       // Derived from the rating itself, not the status argument: an in-progress review carrying an interim
       // rating is provisional, but arrives here with status IN_PROGRESS.
       provisional = review.finalResult == null && review.interimResult != null,
@@ -551,7 +557,8 @@ class CsraReviewService(
           prisonName = it.prisonId?.let { id -> prisonNames[id] ?: id },
         )
       },
-      legacy = nomis?.toLegacyDetail(review.assessmentDate),
+      legacy = nomis?.toLegacyReviewDetail(),
+      stages = stages.map { it.toStageAnswersDto() },
     )
   }
 
