@@ -67,6 +67,9 @@ data class CsraAssessmentStageAnswersDto(
   @param:Schema(description = "FINAL stage only: whether the provisional assessment has been reviewed. null = Not yet started, false = Incomplete, true = Complete")
   val provisionalReviewed: Boolean?,
 
+  @param:Schema(description = "FINAL stage only: whether all evidence questions have been answered for all selected offences. null = Not yet started, false = Incomplete (sources added without answering questions), true = Complete (all offence evidence details provided). Set to false when evidence sources change.")
+  val offenceEvidenceReviewed: Boolean?,
+
   // Evidence sources checked (null = not answered)
   val dpsChecked: Boolean?,
   val perChecked: Boolean?,
@@ -126,6 +129,7 @@ fun CsraAssessmentStageEntity.toStageAnswersDto() = CsraAssessmentStageAnswersDt
   lastSavedBy = lastSavedBy,
   lastSavedAt = lastSavedAt,
   provisionalReviewed = provisionalReviewed,
+  offenceEvidenceReviewed = offenceEvidenceReviewed,
   dpsChecked = dpsChecked,
   perChecked = perChecked,
   warrantChecked = warrantChecked,
