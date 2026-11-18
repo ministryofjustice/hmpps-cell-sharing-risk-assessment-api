@@ -87,4 +87,10 @@ enum class AuditType {
    * [CSRA_AMENDED], similar to PRISONER_NUMBER_MERGE.
    */
   CSRAS_MOVED,
+
+  /**
+   * A prisoner's current rating or next review date was recalculated because the review that set it had been
+   * rejected at approval in NOMIS (MAPA-526). Not a [CSRA_AMENDED], similar to PRISONER_NUMBER_MERGE.
+   */
+  CSRA_RATING_RECALCULATED,
 }
