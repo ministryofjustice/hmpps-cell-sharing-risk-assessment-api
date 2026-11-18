@@ -13,8 +13,6 @@ generic-service:
     PRISON_REGISTER_URL: "https://prison-register-dev.hmpps.service.justice.gov.uk"
     PRISONER_SEARCH_URL: "https://prisoner-search-dev.prison.service.justice.gov.uk"
     PRISON_API_URL: "https://prison-api-dev.prison.service.justice.gov.uk"
-    # MAPA-526 one-off repair: remove once it has run in prod
-    CSRA_REPAIR_REJECTED_NOMIS_REVIEWS: "true"
     HMPPS_SQS_USE_WEB_TOKEN: "true"
     SPRING_PROFILES_ACTIVE: "logstash"
     SPRINGDOC_API-DOCS_ENABLED: "true"
