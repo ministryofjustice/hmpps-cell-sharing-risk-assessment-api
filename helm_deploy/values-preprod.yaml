@@ -13,8 +13,6 @@ generic-service:
     PRISON_REGISTER_URL: "https://prison-register-preprod.hmpps.service.justice.gov.uk"
     PRISONER_SEARCH_URL: "https://prisoner-search-preprod.prison.service.justice.gov.uk"
     PRISON_API_URL: "https://prison-api-preprod.prison.service.justice.gov.uk"
-    # MAPA-526 one-off repair: remove once it has run in prod
-    CSRA_REPAIR_REJECTED_NOMIS_REVIEWS: "true"
 
   namespace_secrets:
     hmpps-domain-events-topic:
