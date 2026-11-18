@@ -4,6 +4,7 @@ import com.microsoft.applicationinsights.TelemetryClient
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.SYSTEM_USERNAME
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraReview
 import java.time.Clock
 import java.time.LocalDateTime
@@ -157,6 +158,35 @@ class EventPublishAndAuditService(
     )
   }
 
+  /**
+   * Announces that a prisoner's current rating was recalculated from their existing reviews, with nothing new
+   * recorded (MAPA-526: a NOMIS review rejected at approval no longer sets the rating).
+   *
+   * Only called when something a consumer can see changed, and audited only then, so running the
+   * recalculation again does nothing. [InformationSource.NOMIS] because the rating is derived from NOMIS
+   * reviews: the NOMIS sync service must not push it back.
+   */
+  fun publishRatingRecalculated(prisonerNumber: String, auditData: Any) = afterCommit {
+    snsService.publishDomainEvent(
+      eventType = CSRADomainEventType.CSRA_AMENDED,
+      description = CSRADomainEventType.CSRA_AMENDED.description,
+      occurredAt = LocalDateTime.now(clock),
+      additionalInformation = AdditionalInformation(
+        // No single review produced this: the consumer re-reads `current-rating` rather than following an id.
+        id = null,
+        nomsNumber = prisonerNumber,
+        source = InformationSource.NOMIS,
+      ),
+    )
+    auditEvent(
+      auditType = AuditType.CSRA_RATING_RECALCULATED,
+      id = prisonerNumber,
+      auditData = auditData,
+      // Run at startup with no signed-in user, so the user cannot be read from the request.
+      username = SYSTEM_USERNAME,
+    )
+  }
+
   private fun doPublishEvent(
     eventType: CSRADomainEventType,
     csraReview: CsraReview,
@@ -217,11 +247,13 @@ class EventPublishAndAuditService(
     id: String,
     auditData: Any,
     source: InformationSource = InformationSource.DPS,
+    username: String? = null,
   ) {
     auditService.sendMessage(
       auditType = auditType,
       id = id,
       details = auditData,
+      username = username,
     )
   }
 
