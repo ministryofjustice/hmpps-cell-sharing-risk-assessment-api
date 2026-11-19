@@ -14,6 +14,7 @@ import org.mockito.kotlin.never
 import org.mockito.kotlin.verify
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.test.context.bean.override.mockito.MockitoBean
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.SYSTEM_USERNAME
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraResult
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewStatus
@@ -124,6 +125,20 @@ class PrisonerMergeListenerTest : SqsIntegrationTestBase() {
     awaitReviewsUnder("A1111AA", 3)
     assertThat(csraReviewRepository.findAllByPrisonerNumber("A2222BB")).isEmpty()
     assertThat(currentRating("A2222BB")).isNull()
+  }
+
+  @Test
+  fun `a merge that moves reviews is audited once as the system user, and the message is handled first time`() {
+    ratedReview("A2222BB", CsraResult.STANDARD, LocalDate.parse("2023-01-10"))
+    refreshCurrentRating("A2222BB")
+
+    sendMerge(retained = "A1111AA", removed = "A2222BB")
+
+    awaitReviewsUnder("A1111AA", 1)
+    val audit = getAuditMessages().single()
+    assertThat(audit.path("what").asText()).isEqualTo("PRISONER_NUMBER_MERGE")
+    assertThat(audit.path("who").asText()).isEqualTo(SYSTEM_USERNAME)
+    awaitCsraQueueHandledFirstTime()
   }
 
   @Test
