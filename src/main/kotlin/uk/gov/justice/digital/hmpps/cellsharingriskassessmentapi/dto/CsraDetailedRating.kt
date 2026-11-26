@@ -1,57 +1,69 @@
 package uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto
 
 import io.swagger.v3.oas.annotations.media.Schema
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraRatingSetReason
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraResult
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraRiskToCategory
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraType
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraVulnerabilityCategory
 import java.time.LocalDate
 import java.time.LocalDateTime
+import java.time.LocalTime
 import java.util.UUID
 
-/** The state of a prisoner's current CSRA rating. */
-@Schema(description = "The state of a prisoner's current CSRA rating")
+/** The state of a CSRA rating. */
+@Schema(description = "The state of a CSRA rating")
 enum class CsraRatingStatus {
-  @Schema(description = "The prisoner has no CSRA and requires an assessment")
+  @Schema(description = "There is no rating and no assessment/review in progress")
   NO_RATING,
 
-  @Schema(description = "An assessment has been started but no rating (not even a provisional one) has been given yet")
+  @Schema(description = "An assessment/review has been started but no rating has been given yet")
   IN_PROGRESS,
 
-  @Schema(description = "A provisional (Day 1) rating has been given; the assessment is not yet complete")
+  @Schema(description = "A provisional/interim rating has been given but no final rating has been confirmed")
   PROVISIONAL,
 
-  @Schema(description = "The assessment is complete with a final rating")
+  @Schema(description = "The assessment/review has a final rating")
   COMPLETE,
 }
 
-@Schema(description = "A prisoner's current CSRA rating and its supporting detail")
-data class CsraCurrentRating(
+@Schema(description = "A CSRA rating and its supporting detail, returned for the prisoner's current rating or a selected assessment/review")
+data class CsraDetailedRating(
   @param:Schema(description = "The prisoner number", example = "A1234BC")
   val prisonerNumber: String,
 
-  @param:Schema(description = "The state of the current rating")
+  @param:Schema(description = "The state of the rating")
   val status: CsraRatingStatus,
 
-  @param:Schema(description = "The current rating (final if complete, otherwise the provisional/interim rating). Absent when there is no rating yet.", example = "STANDARD")
+  @Deprecated("Use provisionalRating and finalRating instead")
+  @param:Schema(description = "The rating (final if complete, otherwise the provisional/interim rating). Absent when there is no rating yet.", example = "STANDARD")
   val rating: CsraResult?,
 
-  @param:Schema(description = "Whether the current rating is provisional (a final rating has not yet been confirmed)", example = "false")
+  @param:Schema(description = "The provisional (interim) rating, if any", example = "STANDARD")
+  val provisionalRating: CsraResult?,
+
+  @param:Schema(description = "The final rating, if any", example = "STANDARD")
+  val finalRating: CsraResult?,
+
+  @param:Schema(description = "The reason the current rating was set, if any", example = "RATING_SAVED")
+  val reason: CsraRatingSetReason? = null,
+
+  @param:Schema(description = "Whether the rating is provisional (a final rating has not yet been confirmed)", example = "false")
   val provisional: Boolean,
 
-  @param:Schema(description = "Whether the current provisional or interim rating was inherited because the prisoner transferred before it was completed. Use ratingStage to decide which copy to show.", example = "false")
+  @param:Schema(description = "Whether the provisional or interim rating was inherited because the prisoner transferred before it was completed. Use ratingStage to decide which copy to show.", example = "false")
   val inheritedAfterTransfer: Boolean,
 
-  @param:Schema(description = "Which stage the current rating came from. Distinguishes an assessment's provisional rating from a review's interim one, which the provisional flag cannot. Null when there is no rating.", example = "FINAL")
+  @param:Schema(description = "Which stage the rating came from. Distinguishes an assessment's provisional rating from a review's interim one, which the provisional flag cannot. Null when there is no rating.", example = "FINAL")
   val ratingStage: CsraRatingStage?,
 
-  @param:Schema(description = "The id of the review that produced the current rating, if any", example = "de91dfa7-821f-4552-a427-bf2f32eafeb0")
+  @param:Schema(description = "The id of the assessment/review the rating belongs to, if any", example = "de91dfa7-821f-4552-a427-bf2f32eafeb0")
   val reviewId: UUID?,
 
-  @param:Schema(description = "The prison the current assessment/review took place at", example = "LEI")
+  @param:Schema(description = "The prison the assessment/review took place at", example = "LEI")
   val prisonId: String?,
 
-  @param:Schema(description = "The name of the prison the current assessment/review took place at, falling back to the id if it cannot be resolved", example = "Leeds (HMP)")
+  @param:Schema(description = "The name of the prison the assessment/review took place at, falling back to the id if it cannot be resolved", example = "Leeds (HMP)")
   val prisonName: String?,
 
   @param:Schema(description = "The final assessment comment (or, for a migrated legacy review, its review comment)", example = "PNC checked. No issues found.")
@@ -72,13 +84,13 @@ data class CsraCurrentRating(
   @param:Schema(description = "The date the final rating was given, if any", example = "2026-07-01")
   val finalDate: LocalDate?,
 
-  @param:Schema(description = "The date the prisoner's next review is due, if any", example = "2027-05-06")
+  @param:Schema(description = "The prisoner's next review date for current-rating, or the selected record's next review date for detailed-rating, if any", example = "2027-05-06")
   val nextReviewDate: LocalDate?,
 
-  @param:Schema(description = "The username that started the current assessment", example = "BPONDS")
+  @param:Schema(description = "The username that started the assessment/review", example = "BPONDS")
   val startedBy: String?,
 
-  @param:Schema(description = "When the current assessment was started", example = "2026-06-26T11:20:00")
+  @param:Schema(description = "When the assessment/review was started", example = "2026-06-26T11:20:00")
   val startedAt: LocalDateTime?,
 
   @param:Schema(description = "The exact kind of record the rating came from, legacy NOMIS types included. Absent when there is no rating. Note CSRA_INITIAL_ASSESSMENT is an assessment — use `assessmentType` unless you need the precise type.", example = "CSRA_INITIAL_ASSESSMENT")
@@ -87,16 +99,63 @@ data class CsraCurrentRating(
   @param:Schema(description = "Whether the rating came from an assessment or a review. Absent when there is no rating.", example = "ASSESSMENT")
   val assessmentType: CsraAssessmentTypeBucket? = null,
 
-  @param:Schema(description = "The assessment or review currently in progress, if any. Absent when nothing is in progress.")
+  @param:Schema(description = "For current-rating, the prisoner's assessment or review currently in progress. For detailed-rating, the selected record if it is in progress. Absent otherwise.")
   val inProgress: CsraInProgressReview? = null,
-)
+
+  @param:Schema(description = "The username that completed the provisional or interim rating, if recorded", example = "BPONDS")
+  val provisionalCompletedBy: String? = null,
+
+  @param:Schema(description = "The username that completed the final rating, if recorded", example = "NQP56Y")
+  val finalCompletedBy: String? = null,
+
+  @param:Schema(description = "The time the provisional or interim rating was completed, if recorded", example = "10:30:00")
+  val provisionalTime: LocalTime? = null,
+
+  @param:Schema(description = "The time the final rating was completed, if recorded", example = "11:20:00")
+  val finalTime: LocalTime? = null,
+
+  @param:Schema(description = "Legacy NOMIS detail for the rating's review. Present only where the review was migrated from NOMIS; when present, prefer its comments over assessmentComment.", required = false)
+  val legacy: CsraLegacyReviewDetail? = null,
+
+  @param:Schema(description = "The saved answer sets, one per assessment stage written to. Empty for a migrated legacy review, a review with no stages, or no rating.")
+  val stages: List<CsraAssessmentStageAnswersDto> = emptyList(),
+) {
+  // Worked out from the fields above rather than passed in, so every path that builds this response
+  // (including the no-rating one) carries them and they can never disagree with `rating` / `ratingStage`.
+
+  @get:Schema(
+    description = "The rating in full, to show as given, for example on the prisoner profile Overview card. " +
+      "Includes the provisional or interim stage. \"No rating\" when there is no rating.",
+    example = "High risk – general (interim)",
+    requiredMode = Schema.RequiredMode.REQUIRED,
+  )
+  val ratingDescription: String
+    get() = describeRating(finalRating ?: provisionalRating, ratingStage)
+
+  @get:Schema(
+    description = "The rating in short, to show as given, for example in the prisoner profile header. " +
+      "Never includes the stage. \"No rating\" when there is no rating.",
+    example = "High – general",
+    requiredMode = Schema.RequiredMode.REQUIRED,
+  )
+  val ratingShortDescription: String
+    get() = describeRatingShort(finalRating ?: provisionalRating)
+
+  @get:Schema(
+    description = "The review due date to show beside the rating, or null where none should be shown " +
+      "(Standard, No rating and provisional ratings). Unlike nextReviewDate, show it whenever it is present.",
+    example = "2027-05-06",
+  )
+  val reviewDueDate: LocalDate?
+    get() = reviewDueDateToShow(finalRating ?: provisionalRating, ratingStage, nextReviewDate)
+}
 
 /**
  * An assessment or review that is started but not yet complete, reported alongside — not instead of — the
  * prisoner's current rating.
  *
  * The two can be the same record or different ones, and a consumer tells them apart by comparing this
- * [reviewId] with [CsraCurrentRating.reviewId]:
+ * [reviewId] with [CsraDetailedRating.reviewId]:
  *
  * - **Equal** — the in-progress record is the one showing the current rating, i.e. it has saved an
  *   interim/provisional rating that now stands. The screen reads "an interim rating has been entered,

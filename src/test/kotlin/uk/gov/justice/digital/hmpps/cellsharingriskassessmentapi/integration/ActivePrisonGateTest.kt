@@ -137,6 +137,8 @@ class ActivePrisonGateTest : SqsIntegrationTestBase() {
     private const val ANSWERS_BODY = """{"prisonId":"$PRISON","version":0}"""
     private const val ASSESSMENT_STAGE_BODY =
       """{"rating":"STANDARD","prisonId":"$PRISON","assessmentComment":"comment"}"""
+    private const val REVIEW_ANSWERS_BODY =
+      """{"prisonId":"$PRISON","version":1,"answers":{"reviewReason":"SHORT_TERM_HIGH_RISK_REVIEW"}}"""
     private const val REVIEW_STAGE_BODY =
       """{"rating":"STANDARD","prisonId":"$PRISON","reviewComment":"comment",""" +
         """"reviewReason":"SCHEDULED_LONG_TERM_HIGH_RISK_REVIEW","mdtChairName":"A Chair"}"""
@@ -181,6 +183,12 @@ class ActivePrisonGateTest : SqsIntegrationTestBase() {
       ),
       GatedRequest(
         HttpMethod.PUT,
+        "/csra-review/prisoner/{prisonerNumber}/review/{reviewId}/answers",
+        "/csra-review/prisoner/$PRISONER/review/${UUID.randomUUID()}/answers",
+        REVIEW_ANSWERS_BODY,
+      ),
+      GatedRequest(
+        HttpMethod.PUT,
         "/csra-review/prisoner/{prisonerNumber}/review/{reviewId}/interim",
         "/csra-review/prisoner/$PRISONER/review/${UUID.randomUUID()}/interim",
         REVIEW_STAGE_BODY,
@@ -201,6 +209,7 @@ class ActivePrisonGateTest : SqsIntegrationTestBase() {
       "PUT /csra-review/prisoner/{prisonerNumber}/assessment/{assessmentId}/final",
       "PUT /csra-review/prisoner/{prisonerNumber}/assessment/{assessmentId}/stage/{stage}/answers",
       "POST /csra-review/prisoner/{prisonerNumber}/review",
+      "PUT /csra-review/prisoner/{prisonerNumber}/review/{reviewId}/answers",
       "PUT /csra-review/prisoner/{prisonerNumber}/review/{reviewId}/interim",
       "PUT /csra-review/prisoner/{prisonerNumber}/review/{reviewId}/final",
     )
@@ -215,6 +224,9 @@ class ActivePrisonGateTest : SqsIntegrationTestBase() {
       // The rollout switch itself. Gating it on rollout state would be circular — no prison could ever
       // be switched on.
       "PUT /active-agencies/{agencyId}",
+      // A read, not a write: a POST only so a list of prisoner numbers can go in the body. Other services
+      // (Prisoner Search, cell move) need every prisoner's current rating, at every prison (MAPA-516).
+      "POST /csra-review/prisoners/current-rating-summary",
       // hmpps-sqs queue administration, nothing to do with CSRA data.
       "PUT /queue-admin/retry-dlq/{dlqName}",
       "PUT /queue-admin/retry-all-dlqs",

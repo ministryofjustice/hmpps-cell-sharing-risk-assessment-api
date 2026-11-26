@@ -15,8 +15,8 @@ interface CsraReviewRepository :
   JpaSpecificationExecutor<CsraReviewEntity> {
   fun findAllByPrisonerNumberOrderByAssessmentDateDesc(prisonerNumber: String): List<CsraReviewEntity>
 
-  /** The prisoner's most recent review of any status (latest assessment date, then newest id), or null. */
-  fun findFirstByPrisonerNumberOrderByAssessmentDateDescIdDesc(prisonerNumber: String): CsraReviewEntity?
+  /** Whether the prisoner has any review in the given lifecycle state - the one-CSRA-in-progress rule. */
+  fun existsByPrisonerNumberAndStatus(prisonerNumber: String, status: CsraReviewStatus): Boolean
 
   /** A prisoner's reviews in a given lifecycle state (e.g. the IN_PROGRESS one to close on admission). */
   fun findAllByPrisonerNumberAndStatus(prisonerNumber: String, status: CsraReviewStatus): List<CsraReviewEntity>
@@ -35,6 +35,11 @@ interface CsraReviewRepository :
    *
    * Superseded reviews are excluded: a readmission after release resets the rating to "No rating" (R-01),
    * and without this the very next refresh would re-derive the pre-release rating and undo it.
+   *
+   * NOMIS reviews rejected at approval are excluded too (MAPA-526). NOMIS leaves a rejected CSRA active, so
+   * without this a rejected review recorded after the approved one would set the prisoner's rating and next
+   * review date. The approved review stands instead, or "No rating" if every review was rejected. Rejected
+   * reviews stay in the prisoner's history, marked "Not approved". Prison API does the same (MAPA-527).
    */
   @Query(
     """
@@ -43,6 +48,11 @@ interface CsraReviewRepository :
       AND (r.finalResult IS NOT NULL OR r.interimResult IS NOT NULL)
       AND r.status <> :excludedStatus
       AND r.supersededAt IS NULL
+      AND NOT EXISTS (
+        SELECT n FROM CsraReviewNomisEntity n
+        WHERE n.csraReview = r
+          AND n.evaluationResultCode = uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.CsraEvaluationResultCode.REJ
+      )
     ORDER BY r.assessmentDate DESC, r.id DESC
     """,
   )
@@ -86,6 +96,9 @@ interface CsraReviewRepository :
     """,
   )
   fun findSummaryRows(prisonerNumber: String): List<CsraSummaryRow>
+
+  @Query("select distinct r.prisonerNumber from CsraReviewEntity r where r.prisonerNumber in :prisonerNumbers and r.status = :status")
+  fun findPrisonerNumbersWithStatus(prisonerNumbers: Collection<String>, status: CsraReviewStatus): List<String>
 
   fun deleteByPrisonerNumber(prisonerNumber: String)
 }

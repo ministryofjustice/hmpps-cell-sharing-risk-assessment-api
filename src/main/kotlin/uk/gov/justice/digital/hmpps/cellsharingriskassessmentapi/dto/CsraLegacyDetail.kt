@@ -40,8 +40,11 @@ data class CsraLegacyDetail(
   @param:Schema(description = "Date the assessment was recorded in NOMIS", example = "2013-07-14")
   val assessmentDate: LocalDate,
 
-  @param:Schema(description = "What became of the review at approval. Absent when it never went through approval, which is the common case.", required = false)
+  @param:Schema(description = "What became of the review at approval. Absent when it never went through approval.", required = false)
   val approvalStatus: CsraApprovalStatus?,
+
+  @param:Schema(description = "Whether the approver changed the level the assessor put forward: the override where there is one, otherwise the calculated level. False where the review was not approved or there is nothing to compare.", example = "false")
+  val levelChangedAtApproval: Boolean,
 
   @param:Schema(description = "The approval comment recorded in NOMIS", required = false)
   val approvalComment: String?,
@@ -61,6 +64,7 @@ fun CsraReviewNomisEntity.toLegacyDetail(assessmentDate: LocalDate) = CsraLegacy
   assessmentComment = comment,
   assessmentDate = assessmentDate,
   approvalStatus = approvalStatus(),
+  levelChangedAtApproval = levelChangedAtApproval(),
   approvalComment = reviewComment,
   approvalCommitteeComment = reviewCommitteeComment,
   approvalDate = evaluationDate,
@@ -83,3 +87,23 @@ internal fun CsraReviewNomisEntity.approvalStatus(): CsraApprovalStatus? = when 
   approvedLevel != null && approvedLevel != CsraLevel.PEND -> CsraApprovalStatus.APPROVED
   else -> null
 }
+
+/**
+ * Whether the approver changed the level the assessor put forward.
+ *
+ * The level put forward is the override where there is one, otherwise the calculated level. Do not use
+ * `resolveNomisLevel` for this: it picks the stronger of the two, so an approver restoring a calculated High
+ * over an assessor's Standard would read as no change.
+ *
+ * PEND is not a level anyone chose, so it counts as not set. Where nothing was put forward there is nothing
+ * to have changed. This compares the level put forward, not the prisoner's previous rating: an approver can
+ * change the former while the rating stays as it was.
+ */
+internal fun CsraReviewNomisEntity.levelChangedAtApproval(): Boolean {
+  if (approvalStatus() != CsraApprovalStatus.APPROVED) return false
+  val approved = reviewLevel.unlessPending() ?: return false
+  val putForward = overrideLevel.unlessPending() ?: calculatedLevel.unlessPending() ?: return false
+  return approved != putForward
+}
+
+private fun CsraLevel?.unlessPending() = takeUnless { it == CsraLevel.PEND }

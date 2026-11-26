@@ -29,6 +29,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.migration.S
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.integration.wiremock.HmppsAuthApiExtension.Companion.hmppsAuth
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStage
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraClosureReason
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraRatingSetReason
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraResult
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewStatus
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraAssessmentStageRepository
@@ -391,7 +392,12 @@ class CsraConcurrentWriteTest : SqsIntegrationTestBase() {
     val synced = review(reviewId)
     assertThat(synced.finalResult).isEqualTo(CsraResult.STANDARD)
     assertThat(synced.supersededAt).isNotNull()
-    assertThat(csraCurrentRatingRepository.findByPrisonerNumber(prisoner)?.rating).isNull()
+
+    with(csraCurrentRatingRepository.findByPrisonerNumber(prisoner)!!) {
+      assertThat(rating).isNull()
+      assertThat(setReason).isEqualTo(CsraRatingSetReason.NO_RATING_ON_READMISSION)
+    }
+
     // Created on the first sync, cleared by the readmission, amended by the retried sync.
     getDomainEvents(3)
   }

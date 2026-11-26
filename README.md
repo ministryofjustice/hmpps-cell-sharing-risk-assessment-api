@@ -32,6 +32,7 @@ The API has four surfaces, each guarded by its own role.
 | Path | Purpose |
 | --- | --- |
 | `GET /csra-review/{id}` | A single CSRA review |
+| `GET /csra-review/{id}/detailed-rating` | A selected assessment/review's detailed rating, including historical records (404 for missing or archived records) |
 | `GET /csra-review/prisoner/{prisonerNumber}/history` | A prisoner's paged, filterable CSRA history |
 | `GET /csra-review/prisoner/{prisonerNumber}/current-rating` | A prisoner's current rating, and any in-progress work |
 | `GET /csra-review/prison/{prisonId}/rating-summary` | Rating counts across the prison's roll |
@@ -49,6 +50,16 @@ The API has four surfaces, each guarded by its own role.
 | `POST /csra-review/prisoner/{prisonerNumber}/assessment/{assessmentId}/cancel` | Cancel an in-progress initial assessment before a provisional rating is submitted. Requires `{"prisonId": "LEI"}` for the rollout check; returns the current rating. Repeating cancellation succeeds. Rated or completed assessments return 409 `CsraAssessmentNotCancellable`; movement-closed assessments return 409 `CsraReviewNotWritable` |
 | `PUT /csra-review/prisoner/{prisonerNumber}/assessment/{assessmentId}/provisional` | Submit the provisional (Day 1) stage |
 | `PUT /csra-review/prisoner/{prisonerNumber}/assessment/{assessmentId}/final` | Submit the final (Day 2) stage |
+
+The assessment answers endpoint (`PUT /csra-review/prisoner/{prisonerNumber}/assessment/{assessmentId}/stage/FINAL/answers`)
+accepts nullable `provisionalReviewed` and `offenceEvidenceReviewed`: `null` = Not yet started,
+`false` = Incomplete, `true` = Complete. `offenceEvidenceReviewed` tracks whether all evidence questions
+have been answered for all selected offences; callers set it to `false` when evidence sources change.
+These are separate from the evidence-source `*Checked` fields and are returned in the assessment's saved
+stage answers. A non-null value for either is rejected on the provisional stage. Like other answers,
+omitting either on an answer save clears it to null. Stage submission requests do not include them:
+submitting the final rating preserves the values already saved through the answers endpoint. The UI enforces completion before final
+submission; the API does not introduce a new submission requirement.
 
 Cancellation archives the draft with closure reason `CANCELLED`, retaining its answers but hiding it from
 reads and freeing the prisoner for a new assessment. It records the closing user and time, sends a

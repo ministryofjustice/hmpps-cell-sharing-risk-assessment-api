@@ -26,7 +26,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessm
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentStageRequest
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentStartRequest
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraAssessmentStarted
-import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraCurrentRating
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraDetailedRating
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStage
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.service.CsraAssessmentService
 import uk.gov.justice.hmpps.kotlin.common.ErrorResponse
@@ -105,7 +105,7 @@ class CsraAssessmentResource(
       ApiResponse(
         responseCode = "200",
         description = "The assessment is cancelled; returns the current rating",
-        content = [Content(mediaType = "application/json", schema = Schema(implementation = CsraCurrentRating::class))],
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = CsraDetailedRating::class))],
       ),
       ApiResponse(responseCode = "400", description = "Invalid request - no prison supplied"),
       ApiResponse(responseCode = "401", description = "Unauthorized to access this endpoint"),

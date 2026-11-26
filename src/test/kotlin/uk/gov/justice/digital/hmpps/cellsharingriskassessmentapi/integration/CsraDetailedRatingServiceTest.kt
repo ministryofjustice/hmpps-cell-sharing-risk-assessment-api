@@ -15,7 +15,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.service.CsraCur
 import java.time.LocalDate
 import java.time.LocalDateTime
 
-class CsraCurrentRatingServiceTest : SqsIntegrationTestBase() {
+class CsraDetailedRatingServiceTest : SqsIntegrationTestBase() {
 
   private val service: CsraCurrentRatingService get() = csraCurrentRatingService
 

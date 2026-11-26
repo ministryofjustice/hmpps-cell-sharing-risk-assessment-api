@@ -37,6 +37,9 @@ data class NomisCsraReview(
   @param:Schema(description = "The override CSRA level (NOMIS OVERRIDED_SUP_LEVEL_TYPE)", example = "STANDARD", required = false, enumAsRef = true)
   val overrideLevel: CsraLevel? = null,
 
+  @param:Schema(description = "The reason for the override (NOMIS OVERRIDE_REASON)", example = "SECURITY", required = false, enumAsRef = true)
+  val overrideReasonCode: CsraOverrideReasonCode? = null,
+
   @param:Schema(description = "Score", example = "1000", required = true)
   val score: BigDecimal,
 
@@ -142,13 +145,15 @@ enum class CsraAssessmentType {
   CSRREV,
 }
 
-@Schema(description = "A CSRA level (used for calculated, review and approved levels)")
+@Schema(description = "A CSRA level (used for calculated, review and approved levels). HI_GEN (High General) and HI_SPFC (High Specific) are the new policy's results; HI is the legacy High.")
 enum class CsraLevel {
   STANDARD,
   PEND,
   LOW,
   MED,
   HI,
+  HI_GEN,
+  HI_SPFC,
 }
 
 @Schema(description = "CSRA status: I = inactive, A = active, P = provisional")
@@ -178,6 +183,13 @@ enum class CsraCommitteeCode(val displayName: String) {
   REVIEW("Review Board"),
   SECSTATE("Secretary of State"),
   SECUR("Security"),
+}
+
+/** The wording matches the NOMIS reference data, which is what the live prisoner profile shows. */
+@Schema(description = "Override reason code (NOMIS reference domain OVERRIDE_RSN)")
+enum class CsraOverrideReasonCode(val displayName: String) {
+  PREVIOUS("Previous History"),
+  SECURITY("Security/Intelligence Information"),
 }
 
 @Schema(description = "Approved or rejected indicator")

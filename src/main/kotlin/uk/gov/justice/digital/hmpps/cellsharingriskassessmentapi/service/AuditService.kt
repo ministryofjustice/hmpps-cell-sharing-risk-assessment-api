@@ -5,10 +5,11 @@ import com.microsoft.applicationinsights.TelemetryClient
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import org.springframework.beans.factory.annotation.Value
+import org.springframework.security.core.context.SecurityContextHolder
 import org.springframework.stereotype.Service
 import software.amazon.awssdk.services.sqs.model.SendMessageRequest
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.SYSTEM_USERNAME
-import uk.gov.justice.hmpps.kotlin.auth.HmppsAuthenticationHolder
+import uk.gov.justice.hmpps.kotlin.auth.AuthAwareAuthenticationToken
 import uk.gov.justice.hmpps.sqs.HmppsQueue
 import uk.gov.justice.hmpps.sqs.HmppsQueueService
 import java.time.Clock
@@ -23,7 +24,6 @@ class AuditService(
   private val hmppsQueueService: HmppsQueueService,
   private val telemetryClient: TelemetryClient,
   private val objectMapper: ObjectMapper,
-  private val authenticationHolder: HmppsAuthenticationHolder,
   private val clock: Clock,
 ) {
   private val auditQueue by lazy { hmppsQueueService.findByQueueId("audit") as HmppsQueue }
@@ -37,7 +37,7 @@ class AuditService(
   fun sendMessage(auditType: AuditType, id: String, details: Any, username: String? = null) {
     val auditEvent = AuditEvent(
       what = auditType.name,
-      who = username ?: authenticationHolder.username ?: SYSTEM_USERNAME,
+      who = username ?: signedInUsername() ?: SYSTEM_USERNAME,
       service = serviceName,
       details = details.toJson(),
       `when` = Instant.now(clock),
@@ -58,6 +58,13 @@ class AuditService(
       null,
     )
   }
+
+  /**
+   * The signed-in user, or null when there is none. Read from the security context directly because
+   * HmppsAuthenticationHolder.username throws when nobody is signed in, which is always the case on the SQS
+   * listener thread (merges, readmissions) and at startup (MAPA-454).
+   */
+  private fun signedInUsername(): String? = (SecurityContextHolder.getContext().authentication as? AuthAwareAuthenticationToken)?.userName
 
   private fun Any.toJson() = objectMapper.writeValueAsString(this)
 }
@@ -87,4 +94,10 @@ enum class AuditType {
    * [CSRA_AMENDED], similar to PRISONER_NUMBER_MERGE.
    */
   CSRAS_MOVED,
+
+  /**
+   * A prisoner's current rating or next review date was recalculated because the review that set it had been
+   * rejected at approval in NOMIS (MAPA-526). Not a [CSRA_AMENDED], similar to PRISONER_NUMBER_MERGE.
+   */
+  CSRA_RATING_RECALCULATED,
 }

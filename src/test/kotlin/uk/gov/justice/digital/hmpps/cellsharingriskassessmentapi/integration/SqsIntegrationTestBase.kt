@@ -1,5 +1,7 @@
 package uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.integration
 
+import com.fasterxml.jackson.databind.JsonNode
+import org.assertj.core.api.Assertions.assertThat
 import org.awaitility.kotlin.await
 import org.awaitility.kotlin.matches
 import org.awaitility.kotlin.untilCallTo
@@ -96,6 +98,31 @@ class SqsIntegrationTestBase : IntegrationTestBase() {
     fun testcontainers(registry: DynamicPropertyRegistry) {
       localStackContainer?.also { setLocalStackProperties(it, registry) }
     }
+  }
+
+  /**
+   * Waits until the csra inbound queue holds nothing at all, counting messages in flight, and nothing went to its
+   * dead letter queue. A message whose handling threw is in flight until its visibility timeout ends, so this
+   * only passes when every message was handled successfully the first time.
+   */
+  fun awaitCsraQueueHandledFirstTime() {
+    await untilCallTo { csraQueue.sqsClient.countAllMessagesOnQueue(csraQueue.queueUrl).get() } matches { it == 0 }
+    assertThat(csraQueue.sqsDlqClient!!.countAllMessagesOnQueue(csraQueue.dlqUrl!!).get()).isZero()
+  }
+
+  /** Reads [messageCount] audit messages, deleting each as it is read so none reappears in a later test. */
+  fun getAuditMessages(messageCount: Int = 1): List<JsonNode> {
+    val messages = mutableListOf<JsonNode>()
+    await untilCallTo {
+      messages.addAll(
+        auditQueue.sqsClient.receiveMessage(ReceiveMessageRequest.builder().queueUrl(auditQueue.queueUrl).build())
+          .get()
+          .messages()
+          .onEach { auditQueue.deleteMessage(it.receiptHandle()) }
+          .map { objectMapper.readTree(it.body()) },
+      )
+    } matches { messages.size == messageCount }
+    return messages
   }
 
   fun getNumberOfMessagesCurrentlyOnQueue(): Int = testDomainEventQueue.sqsClient.countMessagesOnQueue(testDomainEventQueue.queueUrl).get()

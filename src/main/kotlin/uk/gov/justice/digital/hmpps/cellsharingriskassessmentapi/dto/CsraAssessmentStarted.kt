@@ -14,5 +14,5 @@ data class CsraAssessmentStarted(
   val assessmentId: UUID,
 
   @param:Schema(description = "The prisoner's current CSRA rating, which is unaffected by starting a new assessment and so may refer to an earlier review", requiredMode = Schema.RequiredMode.REQUIRED)
-  val currentRating: CsraCurrentRating,
+  val currentRating: CsraDetailedRating,
 )

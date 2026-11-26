@@ -126,4 +126,21 @@ class OpenApiDocsTest : SqsIntegrationTestBase() {
         assertThat(it).contains("rating", "prisonId", "assessmentComment")
       }
   }
+
+  @Test
+  fun `the rating response documents the display text and review due date`() {
+    val schema = "$.components.schemas.CsraDetailedRating"
+    webTestClient.get()
+      .uri("/v3/api-docs")
+      .accept(MediaType.APPLICATION_JSON)
+      .exchange()
+      .expectStatus().isOk
+      .expectBody()
+      .jsonPath("$schema.properties.ratingDescription.type").isEqualTo("string")
+      .jsonPath("$schema.properties.ratingShortDescription.type").isEqualTo("string")
+      .jsonPath("$schema.properties.reviewDueDate.format").isEqualTo("date")
+      .jsonPath("$schema.required").value<List<String>> {
+        assertThat(it).contains("ratingDescription", "ratingShortDescription").doesNotContain("reviewDueDate")
+      }
+  }
 }

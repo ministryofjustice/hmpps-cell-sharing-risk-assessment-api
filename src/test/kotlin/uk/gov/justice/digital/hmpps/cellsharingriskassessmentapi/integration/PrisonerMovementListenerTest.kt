@@ -16,6 +16,7 @@ import org.mockito.kotlin.isNull
 import org.mockito.kotlin.verify
 import org.springframework.beans.factory.annotation.Autowired
 import org.springframework.test.context.bean.override.mockito.MockitoBean
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.SYSTEM_USERNAME
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraClosureReason
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraResult
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewEntity
@@ -200,6 +201,20 @@ class PrisonerMovementListenerTest : SqsIntegrationTestBase() {
     assertThat(event.additionalInformation?.id).isNull()
     assertThat(event.additionalInformation?.nomsNumber).isEqualTo("A6666AA")
     assertThat(event.additionalInformation?.source).isEqualTo(InformationSource.DPS)
+  }
+
+  @Test
+  fun `a readmission that clears a rating is audited once as the system user, and the message is handled first time`() {
+    switchOn("MDI")
+    completedRating("A6667AA", CsraResult.STANDARD)
+
+    send("A6667AA", "MDI", "READMISSION")
+
+    await.until { csraCurrentRatingRepository.findByPrisonerNumber("A6667AA")?.rating == null }
+    val audit = getAuditMessages().single()
+    assertThat(audit.path("what").asText()).isEqualTo("CSRA_AMENDED")
+    assertThat(audit.path("who").asText()).isEqualTo(SYSTEM_USERNAME)
+    awaitCsraQueueHandledFirstTime()
   }
 
   /**

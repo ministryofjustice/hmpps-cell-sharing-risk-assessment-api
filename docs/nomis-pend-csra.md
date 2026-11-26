@@ -119,4 +119,4 @@ This matters more than it sounds. `CsraRatingStage` (MAPA-235) distinguishes a r
 from an assessment's provisional one, and the obvious shortcut — deriving it in the front end as
 `provisional && assessmentType === 'REVIEW'` — is wrong precisely because a legacy NOMIS `REVIEW` in
 status `P` buckets to `REVIEW` too. That bug would have passed every environment check. The regression
-test in `CsraCurrentRatingResourceTest` is the only thing guarding it, which is why it is there.
+test in `CsraDetailedRatingResourceTest` is the only thing guarding it, which is why it is there.

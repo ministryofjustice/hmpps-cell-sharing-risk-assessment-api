@@ -81,6 +81,9 @@ class CsraAssessmentsInProgressResourceTest : SqsIntegrationTestBase() {
     review("LEG", LocalDateTime.parse("2026-07-02T09:00:00"), type = CsraType.RATING) // legacy null-result
     review("ASOUT", LocalDateTime.parse("2026-07-04T09:00:00")) // started here, since released
     review("ASGONE", LocalDateTime.parse("2026-07-04T09:00:00")) // started here, unknown to prisoner-search
+    review("ASMOVED", LocalDateTime.parse("2026-07-04T09:00:00")) // started here, now admitted elsewhere
+    // Started here, now in transit to another establishment and not yet admitted there (MAPA-514)
+    review("ASTRN", LocalDateTime.parse("2026-07-07T09:00:00"), createdBy = "JBLOGGS")
 
     prisonerSearch.stubGetPrisonerNames(
       listOf(
@@ -90,6 +93,9 @@ class CsraAssessmentsInProgressResourceTest : SqsIntegrationTestBase() {
         // Released: prisoner-search reports the released as OUT.
         RollMemberStub("ASOUT", "Mubashir", "Khan", prisonId = "OUT"),
         // ASGONE is absent from the response entirely.
+        RollMemberStub("ASMOVED", "Peter", "Ashworth", prisonId = "BXI"),
+        // In transit: prisoner-search reports those between establishments as TRN.
+        RollMemberStub("ASTRN", "Liam", "Docherty", prisonId = "TRN"),
       ),
     )
   }
@@ -118,14 +124,15 @@ class CsraAssessmentsInProgressResourceTest : SqsIntegrationTestBase() {
     get()
       .expectStatus().isOk
       .expectBody()
-      // Started: AS02 (07-05) then AS01 (07-06), ordered by started date
-      .jsonPath("$.assessmentStarted.length()").isEqualTo(2)
+      // Started: AS02 (07-05), AS01 (07-06) then ASTRN (07-07), ordered by started date
+      .jsonPath("$.assessmentStarted.length()").isEqualTo(3)
       .jsonPath("$.assessmentStarted[0].prisonerNumber").isEqualTo("AS02")
       .jsonPath("$.assessmentStarted[0].firstName").isEqualTo("Gareth")
       .jsonPath("$.assessmentStarted[0].lastName").isEqualTo("Winrow")
       .jsonPath("$.assessmentStarted[0].startedOn").isEqualTo("2026-07-05")
       .jsonPath("$.assessmentStarted[0].startedBy").isEqualTo("SCARTER")
       .jsonPath("$.assessmentStarted[1].prisonerNumber").isEqualTo("AS01")
+      .jsonPath("$.assessmentStarted[2].prisonerNumber").isEqualTo("ASTRN")
       // Provisional: PR01 with the stage's assessed-by/on and the interim rating
       .jsonPath("$.provisionalRatingEntered.length()").isEqualTo(1)
       .jsonPath("$.provisionalRatingEntered[0].prisonerNumber").isEqualTo("PR01")
@@ -145,6 +152,17 @@ class CsraAssessmentsInProgressResourceTest : SqsIntegrationTestBase() {
       .expectBody()
       .jsonPath("$.assessmentStarted[?(@.prisonerNumber == 'ASOUT')]").doesNotExist()
       .jsonPath("$.assessmentStarted[?(@.prisonerNumber == 'ASGONE')]").doesNotExist()
+      .jsonPath("$.assessmentStarted[?(@.prisonerNumber == 'ASMOVED')]").doesNotExist()
+  }
+
+  @Test
+  fun `keeps a prisoner in transit from this establishment`() {
+    // MAPA-337: until the prisoner is admitted at the receiving establishment, the sending prison may still
+    // edit the assessment, so it has to stay on the sending prison's worklist.
+    get()
+      .expectStatus().isOk
+      .expectBody()
+      .jsonPath("$.assessmentStarted[?(@.prisonerNumber == 'ASTRN')].firstName").isEqualTo("Liam")
   }
 
   @Test

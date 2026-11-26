@@ -49,7 +49,8 @@ class CsraCurrentRatingService(
 
     val latestRated = ratedReviews.firstOrNull()
     if (latestRated == null) {
-      upsert(prisonerNumber, updatedBy, CsraRatingSetReason.RATING_SAVED) {
+      val reason = csraCurrentRatingRepository.findByPrisonerNumber(prisonerNumber)?.setReason
+      upsert(prisonerNumber, updatedBy, reason ?: CsraRatingSetReason.RATING_SAVED) {
         rating = null
         provisional = false
         ratingStage = null
@@ -57,9 +58,9 @@ class CsraCurrentRatingService(
         ratingDate = null
         setByReviewId = null
       }
-      return
+    } else {
+      upsert(prisonerNumber, updatedBy, CsraRatingSetReason.RATING_SAVED) { applyFrom(latestRated) }
     }
-    upsert(prisonerNumber, updatedBy, CsraRatingSetReason.RATING_SAVED) { applyFrom(latestRated) }
   }
 
   /**

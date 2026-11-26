@@ -10,6 +10,7 @@ import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.CsvSource
+import org.junit.jupiter.params.provider.NullSource
 import org.junit.jupiter.params.provider.ValueSource
 import org.mockito.kotlin.any
 import org.mockito.kotlin.eq
@@ -737,14 +738,55 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
 
   @Test
   fun `rejects starting a second assessment while one is in progress`() {
-    // Deliberately not P4444PP: CsraCurrentRatingResourceTest seeds that number with a rated review
-    // dated 2026, and csra_review is not cleared between test classes. rejectIfInProgress only
-    // inspects the *latest* review, so whichever class ran first decided whether this saw its own
-    // unrated draft or the other one's rated row — and with the rated row it returned 201, not 409.
-    // The production weakness that makes the ordering matter at all is MAPA-332.
     val prisoner = "P4455PP"
     start(prisoner)
 
+    expectStartRejectedAsInProgress(prisoner)
+  }
+
+  @Test
+  fun `a migrated NOMIS review with no rating does not block starting an assessment`() {
+    // MAPA-514, seen in pre-prod: a NOMIS PEND review migrates as COMPLETE with no result. The
+    // overview reads it as finished and offers Start, so starting must not then refuse it as in progress.
+    val prisoner = "M5141MM"
+    seedReview(prisoner, CsraReviewStatus.COMPLETE, assessmentDate = LocalDate.parse("2026-11-01"))
+
+    val started = start(prisoner)
+
+    assertThat(csraReviewRepository.findById(started.assessmentId).orElseThrow().status)
+      .isEqualTo(CsraReviewStatus.IN_PROGRESS)
+  }
+
+  @Test
+  fun `an in-progress assessment with a provisional rating blocks starting another`() {
+    // MAPA-332: R-08 offers Continue only, not Start, once a provisional rating is saved.
+    val prisoner = "M5142MM"
+    seedReview(prisoner, CsraReviewStatus.IN_PROGRESS, interimResult = CsraResult.STANDARD)
+
+    expectStartRejectedAsInProgress(prisoner)
+  }
+
+  @Test
+  fun `an in-progress assessment blocks starting another even when a later-dated review exists`() {
+    // MAPA-332: the check once looked only at the latest review, so a later-dated rated record - such as
+    // one synced from NOMIS - hid the draft and let a second CSRA start.
+    val prisoner = "M5143MM"
+    seedReview(prisoner, CsraReviewStatus.IN_PROGRESS, assessmentDate = LocalDate.parse("2026-10-01"))
+    seedReview(prisoner, CsraReviewStatus.COMPLETE, finalResult = CsraResult.STANDARD, assessmentDate = LocalDate.parse("2026-11-01"))
+
+    expectStartRejectedAsInProgress(prisoner)
+  }
+
+  @ParameterizedTest
+  @CsvSource("CLOSED", "ARCHIVED")
+  fun `a review ended by a movement does not block starting an assessment`(status: CsraReviewStatus) {
+    val prisoner = "M514" + status.name.first() + "MM"
+    seedReview(prisoner, status, interimResult = CsraResult.STANDARD.takeIf { status == CsraReviewStatus.CLOSED })
+
+    start(prisoner)
+  }
+
+  private fun expectStartRejectedAsInProgress(prisoner: String) {
     webTestClient.post().uri("/csra-review/prisoner/$prisoner/assessment")
       .headers(setAuthorisation(roles = writeRole))
       .contentType(MediaType.APPLICATION_JSON)
@@ -754,6 +796,26 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
       .expectBody()
       .jsonPath("$.errorCode").isEqualTo("AssessmentInProgress")
   }
+
+  private fun seedReview(
+    prisonerNumber: String,
+    status: CsraReviewStatus,
+    assessmentDate: LocalDate = LocalDate.parse("2026-10-15"),
+    interimResult: CsraResult? = null,
+    finalResult: CsraResult? = null,
+  ) = csraReviewRepository.saveAndFlush(
+    CsraReviewEntity(
+      prisonerNumber = prisonerNumber,
+      prisonId = "LEI",
+      assessmentDate = assessmentDate,
+      type = CsraType.CSRA_INITIAL_ASSESSMENT,
+      status = status,
+      interimResult = interimResult,
+      finalResult = finalResult,
+      createdAt = assessmentDate.atTime(9, 0),
+      createdBy = "SCARTER",
+    ),
+  )
 
   @Test
   fun `start records the prison the assessment was started at`() {
@@ -1035,6 +1097,92 @@ class CsraAssessmentResourceTest : SqsIntegrationTestBase() {
   }
 
   // ── Partial save (saveAnswers) ────────────────────────────────────────────────────────────────────
+
+  @ParameterizedTest
+  @NullSource
+  @ValueSource(booleans = [false, true])
+  fun `provisionalReviewed and offenceEvidenceReviewed are saved and returned for the final stage and survive final submission`(reviewed: Boolean?) {
+    val prisoner = "PR001AA"
+    val assessmentId = start(prisoner).assessmentId
+    submitProvisional(prisoner, assessmentId, stageBody("STANDARD", "Provisional assessment")).expectStatus().isOk
+
+    val saved = saveAnswers(
+      prisoner,
+      assessmentId,
+      """{ "prisonId": "LEI", "version": 1, "provisionalReviewed": $reviewed, "offenceEvidenceReviewed": $reviewed }""",
+      stage = "FINAL",
+    )
+      .expectStatus().isOk
+      .expectBody<CsraAssessmentDto>()
+      .returnResult().responseBody!!
+
+    assertThat(saved.stages.single { it.stage == CsraAssessmentStage.FINAL }.provisionalReviewed).isEqualTo(reviewed)
+    assertThat(saved.stages.single { it.stage == CsraAssessmentStage.PROVISIONAL }.provisionalReviewed).isNull()
+    assertThat(csraAssessmentStageRepository.findByCsraReviewIdAndStage(assessmentId, CsraAssessmentStage.FINAL)!!.provisionalReviewed).isEqualTo(reviewed)
+    assertThat(saved.stages.single { it.stage == CsraAssessmentStage.FINAL }.offenceEvidenceReviewed).isEqualTo(reviewed)
+    assertThat(saved.stages.single { it.stage == CsraAssessmentStage.PROVISIONAL }.offenceEvidenceReviewed).isNull()
+    assertThat(csraAssessmentStageRepository.findByCsraReviewIdAndStage(assessmentId, CsraAssessmentStage.FINAL)!!.offenceEvidenceReviewed).isEqualTo(reviewed)
+
+    webTestClient.put().uri("/csra-review/prisoner/$prisoner/assessment/$assessmentId/final")
+      .headers(setAuthorisation(roles = writeRole))
+      .contentType(MediaType.APPLICATION_JSON)
+      .bodyValue(stageBody("STANDARD", "Final assessment"))
+      .exchange()
+      .expectStatus().isOk
+
+    assertThat(csraAssessmentStageRepository.findByCsraReviewIdAndStage(assessmentId, CsraAssessmentStage.FINAL)!!.provisionalReviewed).isEqualTo(reviewed)
+    assertThat(csraAssessmentStageRepository.findByCsraReviewIdAndStage(assessmentId, CsraAssessmentStage.FINAL)!!.offenceEvidenceReviewed).isEqualTo(reviewed)
+    webTestClient.get().uri("/csra-review/prisoner/$prisoner/assessment/$assessmentId")
+      .headers(setAuthorisation(roles = readRole))
+      .exchange()
+      .expectStatus().isOk
+      .expectBody<CsraAssessmentDto>()
+      .consumeWith { result ->
+        assertThat(result.responseBody!!.stages.single { it.stage == CsraAssessmentStage.FINAL }.provisionalReviewed).isEqualTo(reviewed)
+        assertThat(result.responseBody!!.stages.single { it.stage == CsraAssessmentStage.FINAL }.offenceEvidenceReviewed).isEqualTo(reviewed)
+      }
+  }
+
+  @Test
+  fun `provisionalReviewed and offenceEvidenceReviewed can be changed to incomplete and then cleared by omitting them`() {
+    val prisoner = "PR002AA"
+    val assessmentId = start(prisoner).assessmentId
+    submitProvisional(prisoner, assessmentId, stageBody("STANDARD", "Provisional assessment")).expectStatus().isOk
+
+    var version = 1
+    listOf(true, false, null).forEach { reviewed ->
+      val body = if (reviewed == null) {
+        answersBody("LEI", version = version)
+      } else {
+        """{ "prisonId": "LEI", "version": $version, "provisionalReviewed": $reviewed, "offenceEvidenceReviewed": $reviewed }"""
+      }
+      val saved = saveAnswers(prisoner, assessmentId, body, stage = "FINAL")
+        .expectStatus().isOk
+        .expectBody<CsraAssessmentDto>()
+        .returnResult().responseBody!!
+        .stages.single { it.stage == CsraAssessmentStage.FINAL }
+
+      assertThat(saved.provisionalReviewed).isEqualTo(reviewed)
+      assertThat(csraAssessmentStageRepository.findByCsraReviewIdAndStage(assessmentId, CsraAssessmentStage.FINAL)!!.provisionalReviewed).isEqualTo(reviewed)
+      assertThat(saved.offenceEvidenceReviewed).isEqualTo(reviewed)
+      assertThat(csraAssessmentStageRepository.findByCsraReviewIdAndStage(assessmentId, CsraAssessmentStage.FINAL)!!.offenceEvidenceReviewed).isEqualTo(reviewed)
+      version = saved.version
+    }
+  }
+
+  @ParameterizedTest
+  @CsvSource("provisionalReviewed,false", "provisionalReviewed,true", "offenceEvidenceReviewed,false", "offenceEvidenceReviewed,true")
+  fun `final stage review flags are rejected on provisional answer saves`(field: String, reviewed: Boolean) {
+    val prisoner = "PR003AA"
+    val assessmentId = start(prisoner).assessmentId
+
+    saveAnswers(prisoner, assessmentId, """{ "prisonId": "LEI", "version": 1, "$field": $reviewed }""")
+      .expectStatus().isBadRequest
+      .expectBody()
+      .jsonPath("$.userMessage").isEqualTo("Validation failure: $field can only be saved for the final stage")
+
+    assertThat(csraAssessmentStageRepository.findByCsraReviewIdAndStage(assessmentId, CsraAssessmentStage.PROVISIONAL)).isNull()
+  }
 
   @Test
   fun `partial save stores answers without a rating and leaves the review IN_PROGRESS`() {
