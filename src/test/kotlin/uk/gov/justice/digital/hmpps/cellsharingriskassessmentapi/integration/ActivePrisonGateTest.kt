@@ -137,6 +137,8 @@ class ActivePrisonGateTest : SqsIntegrationTestBase() {
     private const val ANSWERS_BODY = """{"prisonId":"$PRISON","version":0}"""
     private const val ASSESSMENT_STAGE_BODY =
       """{"rating":"STANDARD","prisonId":"$PRISON","assessmentComment":"comment"}"""
+    private const val REVIEW_ANSWERS_BODY =
+      """{"prisonId":"$PRISON","version":1,"answers":{"reviewReason":"SHORT_TERM_HIGH_RISK_REVIEW"}}"""
     private const val REVIEW_STAGE_BODY =
       """{"rating":"STANDARD","prisonId":"$PRISON","reviewComment":"comment",""" +
         """"reviewReason":"SCHEDULED_LONG_TERM_HIGH_RISK_REVIEW","mdtChairName":"A Chair"}"""
@@ -181,6 +183,12 @@ class ActivePrisonGateTest : SqsIntegrationTestBase() {
       ),
       GatedRequest(
         HttpMethod.PUT,
+        "/csra-review/prisoner/{prisonerNumber}/review/{reviewId}/answers",
+        "/csra-review/prisoner/$PRISONER/review/${UUID.randomUUID()}/answers",
+        REVIEW_ANSWERS_BODY,
+      ),
+      GatedRequest(
+        HttpMethod.PUT,
         "/csra-review/prisoner/{prisonerNumber}/review/{reviewId}/interim",
         "/csra-review/prisoner/$PRISONER/review/${UUID.randomUUID()}/interim",
         REVIEW_STAGE_BODY,
@@ -201,6 +209,7 @@ class ActivePrisonGateTest : SqsIntegrationTestBase() {
       "PUT /csra-review/prisoner/{prisonerNumber}/assessment/{assessmentId}/final",
       "PUT /csra-review/prisoner/{prisonerNumber}/assessment/{assessmentId}/stage/{stage}/answers",
       "POST /csra-review/prisoner/{prisonerNumber}/review",
+      "PUT /csra-review/prisoner/{prisonerNumber}/review/{reviewId}/answers",
       "PUT /csra-review/prisoner/{prisonerNumber}/review/{reviewId}/interim",
       "PUT /csra-review/prisoner/{prisonerNumber}/review/{reviewId}/final",
     )
