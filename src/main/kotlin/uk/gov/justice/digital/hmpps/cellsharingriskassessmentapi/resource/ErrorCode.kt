@@ -21,4 +21,5 @@ enum class ErrorCode(val errorCode: Int) {
   CsraAssessmentNotCancellable(112),
   ConcurrentUpdate(113),
   ReviewAnswersIncomplete(114),
+  CsraReviewNotCancellable(115),
 }

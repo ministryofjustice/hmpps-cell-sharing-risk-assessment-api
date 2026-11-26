@@ -21,6 +21,7 @@ import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraDetailedRating
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraReviewAnswersRequest
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraReviewCancelRequest
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraReviewDto
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraReviewStageRequest
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.dto.CsraReviewStartRequest
@@ -135,6 +136,63 @@ class CsraReviewWriteResource(
     @PathVariable
     reviewId: UUID,
   ) = csraReviewWriteService.getReview(prisonerNumber, reviewId)
+
+  @PostMapping("/{reviewId}/cancel")
+  @ResponseStatus(HttpStatus.OK)
+  @PreAuthorize("hasRole('ROLE_CSRA_REVIEW__RW')")
+  @Operation(
+    summary = "Cancels a CSR review that has no rating yet",
+    description = "Archives an in-progress review before any interim or final rating has been confirmed. " +
+      "Answers are retained but no longer returned. Leaves the prisoner's current rating unchanged and " +
+      "allows a new review to be started. Repeating a successful cancellation returns the current " +
+      "rating without another audit. Requires role ROLE_CSRA_REVIEW__RW",
+    responses = [
+      ApiResponse(
+        responseCode = "200",
+        description = "The review is cancelled; returns the current rating",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = CsraDetailedRating::class))],
+      ),
+      ApiResponse(
+        responseCode = "400",
+        description = "Invalid request - no prison supplied",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
+      ),
+      ApiResponse(
+        responseCode = "401",
+        description = "Unauthorized to access this endpoint",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
+      ),
+      ApiResponse(
+        responseCode = "403",
+        description = "Missing ROLE_CSRA_REVIEW__RW or prison not active (PrisonNotActive). " +
+          "ROLE_PRISONER_CSRA__ROLLOUT_OVERRIDE bypasses the rollout check",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
+      ),
+      ApiResponse(
+        responseCode = "404",
+        description = "No such review for this prisoner",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
+      ),
+      ApiResponse(
+        responseCode = "409",
+        description = "CsraReviewNotCancellable: an interim or final rating has been confirmed. " +
+          "CsraReviewNotWritable: a prisoner movement has already closed or archived it. " +
+          "ConcurrentUpdate: another request changed it at the same time, which includes a second cancellation " +
+          "sent at the same moment (a double click) - re-read it and try again",
+        content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
+      ),
+    ],
+  )
+  fun cancelReview(
+    @Parameter(description = "The prisoner number", example = "A1234BC", required = true)
+    @PathVariable
+    prisonerNumber: String,
+    @Parameter(description = "The review id returned when the review was started", required = true)
+    @PathVariable
+    reviewId: UUID,
+    @RequestBody @Valid
+    request: CsraReviewCancelRequest,
+  ) = csraReviewWriteService.cancel(prisonerNumber, reviewId, request.prisonId)
 
   @PutMapping("/{reviewId}/answers")
   @ResponseStatus(HttpStatus.OK)

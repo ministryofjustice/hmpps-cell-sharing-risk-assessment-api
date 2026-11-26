@@ -59,12 +59,12 @@ class CsraReviewEntity(
 
   // Lifecycle state. New-model reviews start IN_PROGRESS; migrated legacy reviews are COMPLETE. A move
   // may close (CLOSED, rating retained) or archive (ARCHIVED, no rating) an in-progress review.
-  // A user may also archive an unrated in-progress initial assessment by cancelling it.
+  // A user may also archive an unrated in-progress initial assessment or review by cancelling it.
   @Enumerated(EnumType.STRING)
   var status: CsraReviewStatus = CsraReviewStatus.IN_PROGRESS,
 
   // Closure reason, time and actor: set on admission (R-01/R-02), or when a user cancels an unrated
-  // initial assessment (CANCELLED). The actor is the system for admission, or the cancelling user.
+  // initial assessment or review (CANCELLED). The actor is the system for admission, or the cancelling user.
   @Enumerated(EnumType.STRING)
   var closureReason: CsraClosureReason? = null,
   var closedAt: LocalDateTime? = null,

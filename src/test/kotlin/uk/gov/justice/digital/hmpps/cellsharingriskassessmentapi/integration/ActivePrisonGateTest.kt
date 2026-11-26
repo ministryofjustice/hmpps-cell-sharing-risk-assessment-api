@@ -182,6 +182,12 @@ class ActivePrisonGateTest : SqsIntegrationTestBase() {
         START_BODY,
       ),
       GatedRequest(
+        HttpMethod.POST,
+        "/csra-review/prisoner/{prisonerNumber}/review/{reviewId}/cancel",
+        "/csra-review/prisoner/$PRISONER/review/${UUID.randomUUID()}/cancel",
+        START_BODY,
+      ),
+      GatedRequest(
         HttpMethod.PUT,
         "/csra-review/prisoner/{prisonerNumber}/review/{reviewId}/answers",
         "/csra-review/prisoner/$PRISONER/review/${UUID.randomUUID()}/answers",
@@ -209,6 +215,7 @@ class ActivePrisonGateTest : SqsIntegrationTestBase() {
       "PUT /csra-review/prisoner/{prisonerNumber}/assessment/{assessmentId}/final",
       "PUT /csra-review/prisoner/{prisonerNumber}/assessment/{assessmentId}/stage/{stage}/answers",
       "POST /csra-review/prisoner/{prisonerNumber}/review",
+      "POST /csra-review/prisoner/{prisonerNumber}/review/{reviewId}/cancel",
       "PUT /csra-review/prisoner/{prisonerNumber}/review/{reviewId}/answers",
       "PUT /csra-review/prisoner/{prisonerNumber}/review/{reviewId}/interim",
       "PUT /csra-review/prisoner/{prisonerNumber}/review/{reviewId}/final",

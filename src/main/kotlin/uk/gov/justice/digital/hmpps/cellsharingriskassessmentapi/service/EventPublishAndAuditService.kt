@@ -221,14 +221,20 @@ class EventPublishAndAuditService(
     }
   }
 
-  fun auditAssessmentCancelled(
+  fun auditAssessmentCancelled(csraReview: CsraReview, requestPrisonId: String) = auditCancelled(csraReview, requestPrisonId, "assessment")
+
+  fun auditReviewCancelled(csraReview: CsraReview, requestPrisonId: String) = auditCancelled(csraReview, requestPrisonId, "review")
+
+  /** [kind] names the telemetry event, its id field and the audit details' key, so the two journeys' cancellations can be told apart. */
+  private fun auditCancelled(
     csraReview: CsraReview,
     requestPrisonId: String,
+    kind: String,
   ) = afterCommit {
     telemetryClient.trackEvent(
-      "csra-assessment-cancelled",
+      "csra-$kind-cancelled",
       mapOf(
-        "assessmentId" to csraReview.id.toString(),
+        "${kind}Id" to csraReview.id.toString(),
         "prisonerNumber" to csraReview.prisonerNumber,
         "prisonId" to csraReview.prisonId.orEmpty(),
         "requestPrisonId" to requestPrisonId,
@@ -238,7 +244,7 @@ class EventPublishAndAuditService(
     auditEvent(
       auditType = AuditType.CSRA_CANCELLED,
       id = csraReview.id.toString(),
-      auditData = mapOf("assessment" to csraReview, "requestPrisonId" to requestPrisonId),
+      auditData = mapOf(kind to csraReview, "requestPrisonId" to requestPrisonId),
     )
   }
 

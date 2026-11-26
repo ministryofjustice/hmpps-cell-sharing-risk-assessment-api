@@ -27,8 +27,8 @@ object CsraReviewSpecifications {
       // proper rating has not yet been chosen I think they should be excluded from DPS CSRA history altogether"
       add(cb.isNotNull(currentResult))
       // An archived review is hidden from the service (R-04). Stated explicitly rather than left to
-      // the rating check above: archived rows are unrated only because the movement listener archives
-      // only unrated work, and a cancelled review will carry an interim rating.
+      // the rating check above: archived rows are unrated only because a movement and a cancellation
+      // archive only unrated work, and that may not always hold.
       add(cb.notEqual(root.get<CsraReviewStatus>("status"), CsraReviewStatus.ARCHIVED))
       from?.let { add(cb.greaterThanOrEqualTo(root.get<LocalDate>("assessmentDate"), it)) }
       to?.let { add(cb.lessThanOrEqualTo(root.get<LocalDate>("assessmentDate"), it)) }
