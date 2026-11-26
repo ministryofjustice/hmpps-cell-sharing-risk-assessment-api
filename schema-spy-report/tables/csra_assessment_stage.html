@@ -280,7 +280,7 @@
                                         <table border='0' cellspacing='0' cellpadding='0'>
                                         </table>
                                     </td>
-                                    <td><p>Version of the question set the stage was captured against, so answers stay interpretable when the questions change. <a href="./../null">Sensitivity: NONE</a></p></td>
+                                    <td><p>Version of the question set the stage was captured against, so answers stay interpretable when the questions change. Review stages only; an initial assessment leaves it null. 1 = the original eleven review questions, asked whatever the reason for the review. 2 = a question set for each reason for the review (MAPA-537). <a href="./../null">Sensitivity: NONE</a></p></td>
                                 </tr>
                                 <tr>
                                     <td><span id="dps_checked">dps_checked</span></td>
@@ -910,6 +910,227 @@
                                         </table>
                                     </td>
                                     <td><p>Initial assessment FINAL stage only: whether all evidence questions have been answered for all selected offences. NULL = Not yet started, FALSE = Incomplete (user has added/removed evidence sources without answering questions), TRUE = Complete (all offence evidence details provided). Set to FALSE when evidence sources change, TRUE when the last evidence detail is submitted. <a href="./../null">Sensitivity: NONE</a></p></td>
+                                </tr>
+                                <tr>
+                                    <td><span id="mdt_reviewed">mdt_reviewed</span></td>
+                                    <td>bool</td>
+                                    <td>1</td>
+                                    <td title='nullable'>√</td>
+                                    <td title=''></td>
+                                    <td>null</td>
+                                    <td>
+                                        <table border='0' cellspacing='0' cellpadding='0'>
+                                        </table>
+                                    </td>
+                                    <td>
+                                        <table border='0' cellspacing='0' cellpadding='0'>
+                                        </table>
+                                    </td>
+                                    <td><p>Has a multidisciplinary team reviewed the prisoner&rsquo;s cell sharing risk? Asked by the new or additional information and recent change in behaviour or thinking reviews only; true on their final stage. Review journey only. <a href="./../null">Sensitivity: NONE</a></p></td>
+                                </tr>
+                                <tr>
+                                    <td><span id="secure_hospital_inpatient">secure_hospital_inpatient</span></td>
+                                    <td>bool</td>
+                                    <td>1</td>
+                                    <td title='nullable'>√</td>
+                                    <td title=''></td>
+                                    <td>null</td>
+                                    <td>
+                                        <table border='0' cellspacing='0' cellpadding='0'>
+                                        </table>
+                                    </td>
+                                    <td>
+                                        <table border='0' cellspacing='0' cellpadding='0'>
+                                        </table>
+                                    </td>
+                                    <td><p>Was the prisoner previously an in-patient at a special hospital or secure unit? Asked by the new or additional information review. Data concerning health. <a href="./../null">Sensitivity: SPECIAL-CATEGORY</a></p></td>
+                                </tr>
+                                <tr>
+                                    <td><span id="secure_hospital_inpatient_detail">secure_hospital_inpatient_detail</span></td>
+                                    <td>text</td>
+                                    <td>2147483647</td>
+                                    <td title='nullable'>√</td>
+                                    <td title=''></td>
+                                    <td>null</td>
+                                    <td>
+                                        <table border='0' cellspacing='0' cellpadding='0'>
+                                        </table>
+                                    </td>
+                                    <td>
+                                        <table border='0' cellspacing='0' cellpadding='0'>
+                                        </table>
+                                    </td>
+                                    <td><p>Free-text detail behind a Yes to the special hospital or secure unit question. Data concerning health. <a href="./../null">Sensitivity: SPECIAL-CATEGORY</a></p></td>
+                                </tr>
+                                <tr>
+                                    <td><span id="personality_disorder">personality_disorder</span></td>
+                                    <td>bool</td>
+                                    <td>1</td>
+                                    <td title='nullable'>√</td>
+                                    <td title=''></td>
+                                    <td>null</td>
+                                    <td>
+                                        <table border='0' cellspacing='0' cellpadding='0'>
+                                        </table>
+                                    </td>
+                                    <td>
+                                        <table border='0' cellspacing='0' cellpadding='0'>
+                                        </table>
+                                    </td>
+                                    <td><p>Has the prisoner been diagnosed with a personality disorder? Asked by the new or additional information review. Data concerning health. <a href="./../null">Sensitivity: SPECIAL-CATEGORY</a></p></td>
+                                </tr>
+                                <tr>
+                                    <td><span id="personality_disorder_detail">personality_disorder_detail</span></td>
+                                    <td>text</td>
+                                    <td>2147483647</td>
+                                    <td title='nullable'>√</td>
+                                    <td title=''></td>
+                                    <td>null</td>
+                                    <td>
+                                        <table border='0' cellspacing='0' cellpadding='0'>
+                                        </table>
+                                    </td>
+                                    <td>
+                                        <table border='0' cellspacing='0' cellpadding='0'>
+                                        </table>
+                                    </td>
+                                    <td><p>Free-text detail behind a Yes to the personality disorder question. Data concerning health. <a href="./../null">Sensitivity: SPECIAL-CATEGORY</a></p></td>
+                                </tr>
+                                <tr>
+                                    <td><span id="wants_to_harm_or_kill">wants_to_harm_or_kill</span></td>
+                                    <td>bool</td>
+                                    <td>1</td>
+                                    <td title='nullable'>√</td>
+                                    <td title=''></td>
+                                    <td>null</td>
+                                    <td>
+                                        <table border='0' cellspacing='0' cellpadding='0'>
+                                        </table>
+                                    </td>
+                                    <td>
+                                        <table border='0' cellspacing='0' cellpadding='0'>
+                                        </table>
+                                    </td>
+                                    <td><p>Is there any evidence that the prisoner wants to seriously harm or kill someone? Asked by the recent change in behaviour or thinking review. The reviewer&rsquo;s risk judgement about the person. <a href="./../null">Sensitivity: PERSONAL</a></p></td>
+                                </tr>
+                                <tr>
+                                    <td><span id="wants_to_harm_or_kill_detail">wants_to_harm_or_kill_detail</span></td>
+                                    <td>text</td>
+                                    <td>2147483647</td>
+                                    <td title='nullable'>√</td>
+                                    <td title=''></td>
+                                    <td>null</td>
+                                    <td>
+                                        <table border='0' cellspacing='0' cellpadding='0'>
+                                        </table>
+                                    </td>
+                                    <td>
+                                        <table border='0' cellspacing='0' cellpadding='0'>
+                                        </table>
+                                    </td>
+                                    <td><p>Free-text detail behind a Yes to the serious harm question. Unstructured, and likely to describe third parties, offending or health. <a href="./../null">Sensitivity: SPECIAL-CATEGORY</a></p></td>
+                                </tr>
+                                <tr>
+                                    <td><span id="strange_or_unusual_behaviour">strange_or_unusual_behaviour</span></td>
+                                    <td>bool</td>
+                                    <td>1</td>
+                                    <td title='nullable'>√</td>
+                                    <td title=''></td>
+                                    <td>null</td>
+                                    <td>
+                                        <table border='0' cellspacing='0' cellpadding='0'>
+                                        </table>
+                                    </td>
+                                    <td>
+                                        <table border='0' cellspacing='0' cellpadding='0'>
+                                        </table>
+                                    </td>
+                                    <td><p>Has any strange or unusual behaviour been observed? Asked by the recent change in behaviour or thinking review. An observation about the person. <a href="./../null">Sensitivity: PERSONAL</a></p></td>
+                                </tr>
+                                <tr>
+                                    <td><span id="strange_or_unusual_behaviour_detail">strange_or_unusual_behaviour_detail</span></td>
+                                    <td>text</td>
+                                    <td>2147483647</td>
+                                    <td title='nullable'>√</td>
+                                    <td title=''></td>
+                                    <td>null</td>
+                                    <td>
+                                        <table border='0' cellspacing='0' cellpadding='0'>
+                                        </table>
+                                    </td>
+                                    <td>
+                                        <table border='0' cellspacing='0' cellpadding='0'>
+                                        </table>
+                                    </td>
+                                    <td><p>Free-text detail behind a Yes to the strange or unusual behaviour question. Unstructured, and likely to describe mental health. <a href="./../null">Sensitivity: SPECIAL-CATEGORY</a></p></td>
+                                </tr>
+                                <tr>
+                                    <td><span id="clinical_paranoid_behaviour">clinical_paranoid_behaviour</span></td>
+                                    <td>bool</td>
+                                    <td>1</td>
+                                    <td title='nullable'>√</td>
+                                    <td title=''></td>
+                                    <td>null</td>
+                                    <td>
+                                        <table border='0' cellspacing='0' cellpadding='0'>
+                                        </table>
+                                    </td>
+                                    <td>
+                                        <table border='0' cellspacing='0' cellpadding='0'>
+                                        </table>
+                                    </td>
+                                    <td><p>Is there clinical evidence of paranoid behaviour, confirmed by a healthcare assessment? Asked by the recent change in behaviour or thinking review. Data concerning health. <a href="./../null">Sensitivity: SPECIAL-CATEGORY</a></p></td>
+                                </tr>
+                                <tr>
+                                    <td><span id="clinical_paranoid_behaviour_detail">clinical_paranoid_behaviour_detail</span></td>
+                                    <td>text</td>
+                                    <td>2147483647</td>
+                                    <td title='nullable'>√</td>
+                                    <td title=''></td>
+                                    <td>null</td>
+                                    <td>
+                                        <table border='0' cellspacing='0' cellpadding='0'>
+                                        </table>
+                                    </td>
+                                    <td>
+                                        <table border='0' cellspacing='0' cellpadding='0'>
+                                        </table>
+                                    </td>
+                                    <td><p>Free-text detail behind a Yes to the paranoid behaviour question. Data concerning health. <a href="./../null">Sensitivity: SPECIAL-CATEGORY</a></p></td>
+                                </tr>
+                                <tr>
+                                    <td><span id="frequent_cell_change_requests">frequent_cell_change_requests</span></td>
+                                    <td>bool</td>
+                                    <td>1</td>
+                                    <td title='nullable'>√</td>
+                                    <td title=''></td>
+                                    <td>null</td>
+                                    <td>
+                                        <table border='0' cellspacing='0' cellpadding='0'>
+                                        </table>
+                                    </td>
+                                    <td>
+                                        <table border='0' cellspacing='0' cellpadding='0'>
+                                        </table>
+                                    </td>
+                                    <td><p>Has the prisoner or their cellmate frequently requested to change cell? Asked by the recent change in behaviour or thinking review. <a href="./../null">Sensitivity: PERSONAL</a></p></td>
+                                </tr>
+                                <tr>
+                                    <td><span id="frequent_cell_change_requests_detail">frequent_cell_change_requests_detail</span></td>
+                                    <td>text</td>
+                                    <td>2147483647</td>
+                                    <td title='nullable'>√</td>
+                                    <td title=''></td>
+                                    <td>null</td>
+                                    <td>
+                                        <table border='0' cellspacing='0' cellpadding='0'>
+                                        </table>
+                                    </td>
+                                    <td>
+                                        <table border='0' cellspacing='0' cellpadding='0'>
+                                        </table>
+                                    </td>
+                                    <td><p>Free-text detail behind a Yes to the cell change question. Unstructured, and likely to describe the cellmate as well as the prisoner. <a href="./../null">Sensitivity: SPECIAL-CATEGORY</a></p></td>
                                 </tr>
                                 </tbody>
                             </table>
