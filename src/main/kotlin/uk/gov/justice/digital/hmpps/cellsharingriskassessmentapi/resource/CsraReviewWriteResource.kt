@@ -253,7 +253,9 @@ class CsraReviewWriteResource(
   @Operation(
     summary = "Submits the final stage of a CSR review",
     description = "Records the final answers and rating, completing the review and setting the prisoner's " +
-      "final CSRA result. For a high-risk rating the reviewer's chosen next review date is stored; for any " +
+      "final CSRA result. The review must be complete for its reason: every question that reason asks answered, " +
+      "no other question answered, at least one evidence source, and mdtReviewed true where the reason asks it. " +
+      "For a high-risk rating the reviewer's chosen next review date is stored; for any " +
       "other rating the next review date is cleared. Requires role ROLE_CSRA_REVIEW__RW",
     responses = [
       ApiResponse(
@@ -264,7 +266,9 @@ class CsraReviewWriteResource(
       ApiResponse(
         responseCode = "400",
         description = "Invalid request — a yes answer with no details, risk categories that do not match the rating, a next review date that is not in the future, " +
-          "an evidence source given more than once, or a review reason different from the one the interim rating was given under",
+          "an evidence source given more than once, a review reason different from the one the interim rating was given under, " +
+          "a review not complete for its reason (ReviewAnswersIncomplete), or a rating other than HIGH_GENERAL " +
+          "when the reason makes a Yes answer a mandatory high-risk trigger (MandatoryHighRiskGeneral)",
         content = [Content(mediaType = "application/json", schema = Schema(implementation = ErrorResponse::class))],
       ),
       ApiResponse(

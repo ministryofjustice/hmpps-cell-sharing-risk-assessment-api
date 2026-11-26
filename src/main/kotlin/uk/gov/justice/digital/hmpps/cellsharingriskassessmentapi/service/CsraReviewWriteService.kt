@@ -22,6 +22,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessm
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStageEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStageRiskToEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStageVulnerabilityEntity
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraResult
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewEvidenceSource
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewReason
@@ -30,7 +31,9 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraType
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraAssessmentStageRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraReviewRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.resource.CsraMissingAnswerDetailException
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.resource.CsraReviewAnswersIncompleteException
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.resource.CsraReviewNotFoundException
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.resource.MandatoryHighRiskGeneralException
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.resource.StaleAnswersException
 import uk.gov.justice.hmpps.kotlin.auth.HmppsAuthenticationHolder
 import java.time.Clock
@@ -47,14 +50,20 @@ import java.util.UUID
  * [CsraAssessmentService] first makes it tempting to reuse its rules wholesale; two of them deliberately
  * differ, and both differences are load-bearing:
  *
- * 1. **Mandatory-high offences are advisory here, not enforced.** An assessment rejects any rating other
- *    than HIGH_GENERAL when a mandatory trigger offence is answered Yes. A review revisits an existing
- *    rating with more context — often precisely to conclude that a historic trigger no longer warrants
- *    high risk — so the trigger informs the reviewer rather than dictating the outcome.
+ * 1. **Mandatory-high offences are enforced only where the review type's design says so.** An assessment
+ *    rejects any rating other than HIGH_GENERAL when a mandatory trigger offence is answered Yes. A review
+ *    revisits an existing rating with more context — often precisely to conclude that a historic trigger no
+ *    longer warrants high risk — so by default the trigger informs the reviewer rather than dictating the
+ *    outcome. The new or additional information review is the exception: its design forces HIGH_GENERAL on a
+ *    Yes to murder, assisting a suicide or sexual assault (MAPA-531). [CsraReviewQuestionSet] says which
+ *    type enforces what.
  * 2. **The next review date is chosen by the reviewer, not computed.** An assessment sets it to the final
  *    rating date plus twelve months. A review takes the date from the request, because the reviewer knows
  *    what interval this prisoner needs. Both stamp it on the review itself, and the prisoner's current date
  *    is derived from their latest completed review.
+ *
+ * Each review type asks its own questions ([CsraReviewQuestionSet]). A part-way save may leave any of them
+ * unanswered; the final rating is accepted only once the type's questions are complete.
  *
  * What is shared lives in [CsraWriteSupport] and [CsraRiskCategoryValidator] rather than being duplicated.
  */
@@ -179,10 +188,13 @@ class CsraReviewWriteService(
     writeSupport.rejectIfPrisonNotActive(request.prisonId)
     val review = loadReview(prisonerNumber, reviewId)
     writeSupport.rejectIfNotWritable(review)
-    // Deliberately no mandatory-high check — see the class doc.
-    validateAnswerDetail(request)
-    validateEvidenceSources(request.evidenceSources)
-    rejectIfReasonChanged(review, request.reviewReason)
+    val answers = request.toAnswers()
+    validateAnswerDetail(answers)
+    validateEvidenceSources(answers.evidenceSources)
+    rejectIfReasonChanged(review, answers.reviewReason)
+    if (stage == CsraAssessmentStage.FINAL) {
+      validateFinalAnswers(answers, request.rating)
+    }
     writeSupport.rejectIfNextReviewDateNotInFuture(request.nextReviewDate, LocalDate.now(clock))
     riskCategoryValidator.validate(request.rating, request.riskTo, request.vulnerabilities)
 
@@ -249,29 +261,58 @@ class CsraReviewWriteService(
    * [CsraReviewEvidenceSource.OTHER] is held to the same rule: selecting it without naming the source records
    * that evidence was used while losing what it was.
    */
-  private fun validateAnswerDetail(request: CsraReviewStageRequest) {
+  private fun validateAnswerDetail(answers: CsraReviewAnswers) {
     val missing = buildList {
-      fun require(question: String, answer: Boolean?, detail: String?) {
-        if (answer == true && detail.isNullOrBlank()) add(question)
-      }
-      require("offenceMurderManslaughter", request.offenceMurderManslaughter, request.offenceMurderManslaughterDetail)
-      require("offenceAssistingSuicide", request.offenceAssistingSuicide, request.offenceAssistingSuicideDetail)
-      require("offenceSexualAssault", request.offenceSexualAssault, request.offenceSexualAssaultDetail)
-      require("offenceRepeatedViolence", request.offenceRepeatedViolence, request.offenceRepeatedViolenceDetail)
-      require("offencePrejudiceMotivated", request.offencePrejudiceMotivated, request.offencePrejudiceMotivatedDetail)
-      require("offenceArson", request.offenceArson, request.offenceArsonDetail)
-      require("offenceKidnapHostage", request.offenceKidnapHostage, request.offenceKidnapHostageDetail)
-      require("likelyToHarmCellmate", request.likelyToHarmCellmate, request.likelyToHarmCellmateDetail)
-      require("significantlyVulnerable", request.significantlyVulnerable, request.significantlyVulnerableDetail)
-      require("healthcareIncreasedRisk", request.healthcareIncreasedRisk, request.healthcareIncreasedRiskDetail)
-      require("otherHighRiskIndicators", request.otherHighRiskIndicators, request.otherHighRiskIndicatorsDetail)
-
-      if (request.evidenceSources.any { it.source == CsraReviewEvidenceSource.OTHER && it.details.isNullOrBlank() }) {
+      CsraReviewQuestion.entries
+        .filter { it.answerIn(answers) == true && it.detailIn(answers).isNullOrBlank() }
+        .forEach { add(it.field) }
+      if (answers.evidenceSources.any { it.source == CsraReviewEvidenceSource.OTHER && it.details.isNullOrBlank() }) {
         add("evidenceSources.OTHER")
       }
     }
     if (missing.isNotEmpty()) {
       throw CsraMissingAnswerDetailException(missing)
+    }
+  }
+
+  /**
+   * A final rating needs the review finished for its type (MAPA-537): every question the type asks answered,
+   * nothing answered that it does not ask, at least one evidence source, and a Yes to the multidisciplinary
+   * team question where the type asks it. Checked only here, because a review part way through is meant to
+   * have gaps, and an interim rating is given before the questions are asked (MAPA-522).
+   *
+   * Answers to questions the type does not ask are refused rather than ignored: they are most likely left over
+   * from a reason the user changed, and keeping them would store answers to questions nobody was shown.
+   *
+   * Then the type's mandatory-high rule, if it has one — see the class doc.
+   */
+  private fun validateFinalAnswers(answers: CsraReviewAnswers, rating: CsraResult) {
+    val questionSet = CsraReviewQuestionSet.forReason(answers.reviewReason)
+    val problems = buildList {
+      val unanswered = questionSet.required.filter { it.answerIn(answers) == null }
+      if (unanswered.isNotEmpty()) {
+        add("not answered: ${unanswered.joinToString { it.field }}")
+      }
+      val notAsked = (CsraReviewQuestion.entries - questionSet.asked).filter { it.isAnsweredIn(answers) }
+      if (notAsked.isNotEmpty()) {
+        add("not asked by a ${answers.reviewReason} review: ${notAsked.joinToString { it.field }}")
+      }
+      if (answers.evidenceSources.isEmpty()) {
+        add("no evidence source given")
+      }
+      if (questionSet.asksMdtQuestion && answers.mdtReviewed != true) {
+        add("mdtReviewed must be true")
+      }
+      if (!questionSet.asksMdtQuestion && answers.mdtReviewed != null) {
+        add("mdtReviewed is not asked by a ${answers.reviewReason} review")
+      }
+    }
+    if (problems.isNotEmpty()) {
+      throw CsraReviewAnswersIncompleteException(problems)
+    }
+
+    if (rating != CsraResult.HIGH_GENERAL && questionSet.mandatoryHighTriggers.any { it.answerIn(answers) == true }) {
+      throw MandatoryHighRiskGeneralException()
     }
   }
 
@@ -319,6 +360,7 @@ class CsraReviewWriteService(
   private fun CsraAssessmentStageEntity.applyAnswers(answers: CsraReviewAnswers) {
     questionSetVersion = REVIEW_QUESTION_SET_VERSION
     reviewReason = answers.reviewReason
+    mdtReviewed = answers.mdtReviewed
     offenceMurderManslaughter = answers.offenceMurderManslaughter
     offenceMurderManslaughterDetail = answers.offenceMurderManslaughterDetail
     offenceAssistingSuicide = answers.offenceAssistingSuicide
@@ -341,6 +383,18 @@ class CsraReviewWriteService(
     healthcareIncreasedRiskDetail = answers.healthcareIncreasedRiskDetail
     otherHighRiskIndicators = answers.otherHighRiskIndicators
     otherHighRiskIndicatorsDetail = answers.otherHighRiskIndicatorsDetail
+    secureHospitalInpatient = answers.secureHospitalInpatient
+    secureHospitalInpatientDetail = answers.secureHospitalInpatientDetail
+    personalityDisorder = answers.personalityDisorder
+    personalityDisorderDetail = answers.personalityDisorderDetail
+    wantsToHarmOrKill = answers.wantsToHarmOrKill
+    wantsToHarmOrKillDetail = answers.wantsToHarmOrKillDetail
+    strangeOrUnusualBehaviour = answers.strangeOrUnusualBehaviour
+    strangeOrUnusualBehaviourDetail = answers.strangeOrUnusualBehaviourDetail
+    clinicalParanoidBehaviour = answers.clinicalParanoidBehaviour
+    clinicalParanoidBehaviourDetail = answers.clinicalParanoidBehaviourDetail
+    frequentCellChangeRequests = answers.frequentCellChangeRequests
+    frequentCellChangeRequestsDetail = answers.frequentCellChangeRequestsDetail
     replaceEvidenceSources(this, answers.evidenceSources)
   }
 
@@ -395,7 +449,10 @@ class CsraReviewWriteService(
   }
 
   private companion object {
-    /** The eleven-question review set is signed off and stable for MVP. */
-    private const val REVIEW_QUESTION_SET_VERSION = 1
+    /**
+     * 2: a question set for each reason for the review ([CsraReviewQuestionSet], MAPA-537). 1 was the original
+     * eleven questions, asked whatever the reason.
+     */
+    private const val REVIEW_QUESTION_SET_VERSION = 2
   }
 }

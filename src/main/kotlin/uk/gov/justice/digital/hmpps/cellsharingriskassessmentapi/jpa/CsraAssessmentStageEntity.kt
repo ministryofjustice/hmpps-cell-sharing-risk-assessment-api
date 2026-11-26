@@ -29,11 +29,12 @@ import java.util.UUID
  *
  * **A null answer column means one of two things.** It has always meant "not answered", which a first
  * stage legitimately allows. Since the review journey joined the table it also means "not applicable to
- * this journey" — an assessment never populates [reviewReason], [mdtChairName] or the offence detail
- * columns, and a review never populates [officerSpokeToPrisoner], [causeForConcernSharing],
- * [seenByHealthcare] or the four evidence booleans. The two are indistinguishable at column level, so
- * anything counting unanswered questions must first narrow by the parent review's [CsraReviewEntity.type]
- * (and, in time, [questionSetVersion]).
+ * this journey" — an assessment never populates [reviewReason], [mdtChairName], [mdtReviewed], the offence
+ * detail columns or the six review-only questions, and a review never populates [officerSpokeToPrisoner],
+ * [causeForConcernSharing], [seenByHealthcare] or the four evidence booleans. Each review type also asks only
+ * some of the review questions. The two are indistinguishable at column level, so anything counting
+ * unanswered questions must first narrow by the parent review's [CsraReviewEntity.type], and for a review by
+ * [reviewReason] and [questionSetVersion].
  */
 @Entity
 @Table(name = "csra_assessment_stage")
@@ -108,6 +109,25 @@ class CsraAssessmentStageEntity(
   @Enumerated(EnumType.STRING)
   var reviewReason: CsraReviewReason? = null,
   var mdtChairName: String? = null,
+
+  // Review only (MAPA-537): whether a multidisciplinary team has reviewed the risk, asked by types 3 and 4.
+  var mdtReviewed: Boolean? = null,
+
+  // Review only (MAPA-537): the questions only the new or additional information review (type 3) asks.
+  var secureHospitalInpatient: Boolean? = null,
+  var secureHospitalInpatientDetail: String? = null,
+  var personalityDisorder: Boolean? = null,
+  var personalityDisorderDetail: String? = null,
+
+  // Review only (MAPA-537): the questions only the recent change in behaviour or thinking review (type 4) asks.
+  var wantsToHarmOrKill: Boolean? = null,
+  var wantsToHarmOrKillDetail: String? = null,
+  var strangeOrUnusualBehaviour: Boolean? = null,
+  var strangeOrUnusualBehaviourDetail: String? = null,
+  var clinicalParanoidBehaviour: Boolean? = null,
+  var clinicalParanoidBehaviourDetail: String? = null,
+  var frequentCellChangeRequests: Boolean? = null,
+  var frequentCellChangeRequestsDetail: String? = null,
 
   @OneToMany(mappedBy = "stage", cascade = [CascadeType.ALL], orphanRemoval = true)
   val offenceEvidence: MutableList<CsraAssessmentStageOffenceEvidenceEntity> = mutableListOf(),
