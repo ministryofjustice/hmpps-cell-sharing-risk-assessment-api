@@ -14,10 +14,11 @@ import java.time.LocalDate
 /**
  * The whole answer set submitted for one stage (interim or final) of a new-model CSR review.
  *
- * Every one of the eleven questions is a Yes/No that carries free text on a Yes — that is the structural
- * difference from the initial assessment, whose offence questions are plain booleans backed by a separate
- * "where did you find the evidence" capture. The confirming reviewer is taken from the authenticated user,
- * not this request.
+ * Every question is a Yes/No that carries free text on a Yes — that is the structural difference from the
+ * initial assessment, whose offence questions are plain booleans backed by a separate "where did you find
+ * the evidence" capture. Each review type asks only some of the questions (CsraReviewQuestionSet), and a final
+ * rating is only accepted once that type's questions are all answered. The confirming reviewer is taken from
+ * the authenticated user, not this request.
  */
 @Schema(description = "The answers and rating confirmed for one stage of a CSR review")
 data class CsraReviewStageRequest(
@@ -40,6 +41,9 @@ data class CsraReviewStageRequest(
   @param:Schema(description = "The name of who chaired the multidisciplinary meeting. Captured for every rating, including Standard risk.", example = "Sue Carter", requiredMode = Schema.RequiredMode.REQUIRED)
   @field:NotBlank
   val mdtChairName: String,
+
+  @param:Schema(description = "Whether a multidisciplinary team has reviewed the prisoner's cell sharing risk. Asked by the NEW_OR_ADDITIONAL_INFORMATION and RECENT_CHANGE_IN_BEHAVIOUR_OR_THINKING reviews only, and must be true when their final rating is confirmed.")
+  val mdtReviewed: Boolean? = null,
 
   @param:Schema(description = "The evidence sources considered. OTHER must carry details naming the source.")
   @field:Valid
@@ -81,7 +85,7 @@ data class CsraReviewStageRequest(
   @param:Schema(description = "Details of the kidnap or hostage-taking evidence")
   val offenceKidnapHostageDetail: String? = null,
 
-  // The remaining four questions, which share their columns with the assessment journey.
+  // Four questions that share their columns with the assessment journey.
   @param:Schema(description = "Whether the prisoner has said anything to indicate they are an increased risk when sharing a cell")
   val likelyToHarmCellmate: Boolean? = null,
   @param:Schema(description = "Details of what the prisoner said")
@@ -101,6 +105,38 @@ data class CsraReviewStageRequest(
   val otherHighRiskIndicators: Boolean? = null,
   @param:Schema(description = "Details of the other indicators")
   val otherHighRiskIndicatorsDetail: String? = null,
+
+  // The questions only the new or additional information review (type 3) asks.
+  @param:Schema(description = "Whether the prisoner was previously an in-patient at a special hospital or secure unit")
+  val secureHospitalInpatient: Boolean? = null,
+  @param:Schema(description = "Details of the special hospital or secure unit stay")
+  val secureHospitalInpatientDetail: String? = null,
+
+  @param:Schema(description = "Whether the prisoner has been diagnosed with a personality disorder")
+  val personalityDisorder: Boolean? = null,
+  @param:Schema(description = "Details of the personality disorder diagnosis")
+  val personalityDisorderDetail: String? = null,
+
+  // The questions only the recent change in behaviour or thinking review (type 4) asks.
+  @param:Schema(description = "Evidence that the prisoner wants to seriously harm or kill someone")
+  val wantsToHarmOrKill: Boolean? = null,
+  @param:Schema(description = "Details of the evidence that the prisoner wants to seriously harm or kill someone")
+  val wantsToHarmOrKillDetail: String? = null,
+
+  @param:Schema(description = "Whether any strange or unusual behaviour has been observed")
+  val strangeOrUnusualBehaviour: Boolean? = null,
+  @param:Schema(description = "Details of the strange or unusual behaviour")
+  val strangeOrUnusualBehaviourDetail: String? = null,
+
+  @param:Schema(description = "Clinical evidence of paranoid behaviour, confirmed by a healthcare assessment")
+  val clinicalParanoidBehaviour: Boolean? = null,
+  @param:Schema(description = "Details of the clinical evidence of paranoid behaviour")
+  val clinicalParanoidBehaviourDetail: String? = null,
+
+  @param:Schema(description = "Whether the prisoner or their cellmate has frequently requested to change cell")
+  val frequentCellChangeRequests: Boolean? = null,
+  @param:Schema(description = "Details of the requests to change cell")
+  val frequentCellChangeRequestsDetail: String? = null,
 
   @param:Schema(description = "Who the prisoner is a risk to. Required for a HIGH_SPECIFIC rating and rejected for any other; use the NONE category for 'no identified risk to any of these groups'.")
   @field:Valid

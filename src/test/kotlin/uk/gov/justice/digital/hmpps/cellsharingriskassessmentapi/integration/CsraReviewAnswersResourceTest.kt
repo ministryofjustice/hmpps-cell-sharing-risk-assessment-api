@@ -90,6 +90,7 @@ class CsraReviewAnswersResourceTest : SqsIntegrationTestBase() {
         "reviewReason": "$reason",
         "mdtChairName": "Sue Carter",
         "evidenceSources": [{"source":"OASYS"}]
+        ${ReviewAnswersFixture.completeAnswerFields(reason)}
         ${nextReviewDate?.let { """, "nextReviewDate": "$it"""" } ?: ""}
       }
       """.trimIndent(),

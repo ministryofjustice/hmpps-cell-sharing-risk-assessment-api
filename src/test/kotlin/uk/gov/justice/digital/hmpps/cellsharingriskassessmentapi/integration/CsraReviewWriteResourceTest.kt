@@ -67,8 +67,9 @@ class CsraReviewWriteResourceTest : SqsIntegrationTestBase() {
   private fun startBody(prisonId: String) = """{ "prisonId": "$prisonId" }"""
 
   /**
-   * A complete STANDARD review body. Every question is answered No so that no detail is required, which
-   * keeps the tests that are not about detail validation short.
+   * A complete STANDARD review body. Every question the reason asks is answered No so that no detail is
+   * required, which keeps the tests that are not about detail validation short. [answers] replaces or adds
+   * answers; see [ReviewAnswersFixture.completeAnswerFields].
    */
   private fun stageBody(
     rating: String = "STANDARD",
@@ -77,8 +78,7 @@ class CsraReviewWriteResourceTest : SqsIntegrationTestBase() {
     reason: String = "RECENT_CHANGE_IN_BEHAVIOUR_OR_THINKING",
     chair: String = "Sue Carter",
     evidenceSources: String = """[{"source":"OASYS"}]""",
-    murder: Boolean = false,
-    murderDetail: String? = null,
+    answers: Map<String, Any?> = emptyMap(),
     riskTo: String = "[]",
     vulnerabilities: String = "[]",
     nextReviewDate: String? = null,
@@ -89,9 +89,8 @@ class CsraReviewWriteResourceTest : SqsIntegrationTestBase() {
       "reviewComment": "$comment",
       "reviewReason": "$reason",
       "mdtChairName": "$chair",
-      "evidenceSources": $evidenceSources,
-      "offenceMurderManslaughter": $murder,
-      ${murderDetail?.let { """"offenceMurderManslaughterDetail": "$it",""" } ?: ""}
+      "evidenceSources": $evidenceSources
+      ${ReviewAnswersFixture.completeAnswerFields(reason, answers)},
       "riskTo": $riskTo,
       "vulnerabilities": $vulnerabilities
       ${nextReviewDate?.let { ""","nextReviewDate": "$it"""" } ?: ""}
@@ -261,12 +260,13 @@ class CsraReviewWriteResourceTest : SqsIntegrationTestBase() {
       reviewId,
       "final",
       stageBody(
+        // A Yes to murder makes High risk - general the only rating this review type allows (MAPA-531).
+        rating = "HIGH_GENERAL",
         comment = "Reviewed after new information.",
         reason = "NEW_OR_ADDITIONAL_INFORMATION",
         chair = "Michael Stanley",
         evidenceSources = """[{"source":"OASYS"},{"source":"OTHER","details":"Wing intelligence report"}]""",
-        murder = true,
-        murderDetail = "Conviction confirmed on PNC.",
+        answers = mapOf("offenceMurderManslaughter" to true, "offenceMurderManslaughterDetail" to "Conviction confirmed on PNC."),
       ),
     )
       .expectStatus().isOk
@@ -274,17 +274,18 @@ class CsraReviewWriteResourceTest : SqsIntegrationTestBase() {
       .jsonPath("$.status").isEqualTo("COMPLETE")
 
     val entity = review(reviewId)
-    assertThat(entity.finalResult).isEqualTo(CsraResult.STANDARD)
+    assertThat(entity.finalResult).isEqualTo(CsraResult.HIGH_GENERAL)
     assertThat(entity.status).isEqualTo(CsraReviewStatus.COMPLETE)
 
     val stage = csraAssessmentStageRepository.findByCsraReviewIdAndStage(reviewId, CsraAssessmentStage.FINAL)!!
     assertThat(stage.reviewReason?.name).isEqualTo("NEW_OR_ADDITIONAL_INFORMATION")
+    assertThat(stage.mdtReviewed).isTrue()
     assertThat(stage.mdtChairName).isEqualTo("Michael Stanley")
     assertThat(stage.offenceMurderManslaughter).isTrue()
     assertThat(stage.offenceMurderManslaughterDetail).isEqualTo("Conviction confirmed on PNC.")
     // The review comment shares the assessment's column — the designs label it per journey.
     assertThat(stage.assessmentComment).isEqualTo("Reviewed after new information.")
-    assertThat(stage.questionSetVersion).isEqualTo(1)
+    assertThat(stage.questionSetVersion).isEqualTo(2)
     // Read through the repository rather than the entity's lazy collection, which has no session here.
     val sources = evidenceSourceRepository.findAllByStageId(stage.id!!)
     assertThat(sources.map { it.source.name }).containsExactlyInAnyOrder("OASYS", "OTHER")
@@ -348,7 +349,7 @@ class CsraReviewWriteResourceTest : SqsIntegrationTestBase() {
     val prisoner = "RD111RR"
     val reviewId = start(prisoner).reviewId
 
-    submit(prisoner, reviewId, "interim", stageBody(murder = true))
+    submit(prisoner, reviewId, "interim", stageBody(reason = "NEW_OR_ADDITIONAL_INFORMATION", answers = mapOf("offenceMurderManslaughter" to true)))
       .expectStatus().isBadRequest
       .expectBody()
       .jsonPath("$.errorCode").isEqualTo("MissingAnswerDetail")
@@ -367,9 +368,11 @@ class CsraReviewWriteResourceTest : SqsIntegrationTestBase() {
   }
 
   @Test
-  fun `accepts a mandatory high-risk offence with a standard rating, unlike an assessment`() {
+  fun `a scheduled long term high risk review accepts a mandatory high-risk offence with a standard rating, unlike an assessment`() {
     // The deliberate divergence: a review revisits an existing rating with more context, often precisely to
-    // conclude a historic trigger offence no longer warrants high risk.
+    // conclude a historic trigger offence no longer warrants high risk. Only the new or additional
+    // information review enforces the rule (see CsraReviewQuestionSetResourceTest); whether this type should
+    // is an open question on MAPA-537.
     val prisoner = "RM111RR"
     val reviewId = start(prisoner).reviewId
 
@@ -377,7 +380,11 @@ class CsraReviewWriteResourceTest : SqsIntegrationTestBase() {
       prisoner,
       reviewId,
       "final",
-      stageBody(rating = "STANDARD", murder = true, murderDetail = "Historic conviction, no recent concerns."),
+      stageBody(
+        rating = "STANDARD",
+        reason = "SCHEDULED_LONG_TERM_HIGH_RISK_REVIEW",
+        answers = mapOf("offenceMurderManslaughter" to true, "offenceMurderManslaughterDetail" to "Historic conviction, no recent concerns."),
+      ),
     )
       .expectStatus().isOk
       .expectBody()

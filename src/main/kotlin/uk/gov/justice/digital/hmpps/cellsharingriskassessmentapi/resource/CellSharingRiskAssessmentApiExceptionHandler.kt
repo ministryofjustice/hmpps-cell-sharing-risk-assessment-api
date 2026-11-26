@@ -275,6 +275,13 @@ class CsraMissingAnswerDetailException(questions: Collection<String>) :
 
 class CsraNextReviewDateInvalidException(message: String) : CsraAnswerValidationException(ErrorCode.NextReviewDateInvalid, message)
 
+/** A final review rating sent before the review is complete for its type (MAPA-537). */
+class CsraReviewAnswersIncompleteException(problems: Collection<String>) :
+  CsraAnswerValidationException(
+    ErrorCode.ReviewAnswersIncomplete,
+    "The review is not ready for a final rating: ${problems.joinToString("; ")}",
+  )
+
 class StaleAnswersException(requestVersion: Int, entityVersion: Int) :
   Exception(
     "Request version $requestVersion does not match current version $entityVersion — reload the answers and try again",

@@ -11,7 +11,8 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewR
  * What a reviewer has entered on a CSR review's question pages so far, before a rating is confirmed (MAPA-537).
  *
  * Saved part way through the journey so a review can be left and picked up later, and returned by the read so
- * the UI can show it again. Every answer is nullable: null means "not yet answered". The confirm page's own
+ * the UI can show it again. Every answer is nullable: null means "not yet answered", or not asked by this
+ * review type — which questions a type asks is set out in CsraReviewQuestionSet. The confirm page's own
  * fields (rating, review comment, MDT chair, review date, risk to and vulnerabilities) are deliberately not
  * here — the designs save nothing from that page until the rating is confirmed.
  *
@@ -23,6 +24,9 @@ data class CsraReviewAnswers(
   @param:Schema(description = "Why the review is being held. Decides which questions the review asks.", example = "SHORT_TERM_HIGH_RISK_REVIEW", requiredMode = Schema.RequiredMode.REQUIRED)
   @field:NotNull
   val reviewReason: CsraReviewReason,
+
+  @param:Schema(description = "Whether a multidisciplinary team has reviewed the prisoner's cell sharing risk. Asked by the NEW_OR_ADDITIONAL_INFORMATION and RECENT_CHANGE_IN_BEHAVIOUR_OR_THINKING reviews only, and must be true when their final rating is confirmed.")
+  val mdtReviewed: Boolean? = null,
 
   @param:Schema(description = "The evidence sources ticked so far. OTHER carries details naming the source.")
   @field:Valid
@@ -82,6 +86,38 @@ data class CsraReviewAnswers(
   val otherHighRiskIndicators: Boolean? = null,
   @param:Schema(description = "Details of the other indicators")
   val otherHighRiskIndicatorsDetail: String? = null,
+
+  // The questions only the new or additional information review (type 3) asks.
+  @param:Schema(description = "Whether the prisoner was previously an in-patient at a special hospital or secure unit")
+  val secureHospitalInpatient: Boolean? = null,
+  @param:Schema(description = "Details of the special hospital or secure unit stay")
+  val secureHospitalInpatientDetail: String? = null,
+
+  @param:Schema(description = "Whether the prisoner has been diagnosed with a personality disorder")
+  val personalityDisorder: Boolean? = null,
+  @param:Schema(description = "Details of the personality disorder diagnosis")
+  val personalityDisorderDetail: String? = null,
+
+  // The questions only the recent change in behaviour or thinking review (type 4) asks.
+  @param:Schema(description = "Evidence that the prisoner wants to seriously harm or kill someone")
+  val wantsToHarmOrKill: Boolean? = null,
+  @param:Schema(description = "Details of the evidence that the prisoner wants to seriously harm or kill someone")
+  val wantsToHarmOrKillDetail: String? = null,
+
+  @param:Schema(description = "Whether any strange or unusual behaviour has been observed")
+  val strangeOrUnusualBehaviour: Boolean? = null,
+  @param:Schema(description = "Details of the strange or unusual behaviour")
+  val strangeOrUnusualBehaviourDetail: String? = null,
+
+  @param:Schema(description = "Clinical evidence of paranoid behaviour, confirmed by a healthcare assessment")
+  val clinicalParanoidBehaviour: Boolean? = null,
+  @param:Schema(description = "Details of the clinical evidence of paranoid behaviour")
+  val clinicalParanoidBehaviourDetail: String? = null,
+
+  @param:Schema(description = "Whether the prisoner or their cellmate has frequently requested to change cell")
+  val frequentCellChangeRequests: Boolean? = null,
+  @param:Schema(description = "Details of the requests to change cell")
+  val frequentCellChangeRequestsDetail: String? = null,
 )
 
 /**
@@ -109,6 +145,7 @@ data class CsraReviewAnswersRequest(
 
 fun CsraReviewStageRequest.toAnswers() = CsraReviewAnswers(
   reviewReason = reviewReason,
+  mdtReviewed = mdtReviewed,
   evidenceSources = evidenceSources,
   offenceMurderManslaughter = offenceMurderManslaughter,
   offenceMurderManslaughterDetail = offenceMurderManslaughterDetail,
@@ -132,6 +169,18 @@ fun CsraReviewStageRequest.toAnswers() = CsraReviewAnswers(
   healthcareIncreasedRiskDetail = healthcareIncreasedRiskDetail,
   otherHighRiskIndicators = otherHighRiskIndicators,
   otherHighRiskIndicatorsDetail = otherHighRiskIndicatorsDetail,
+  secureHospitalInpatient = secureHospitalInpatient,
+  secureHospitalInpatientDetail = secureHospitalInpatientDetail,
+  personalityDisorder = personalityDisorder,
+  personalityDisorderDetail = personalityDisorderDetail,
+  wantsToHarmOrKill = wantsToHarmOrKill,
+  wantsToHarmOrKillDetail = wantsToHarmOrKillDetail,
+  strangeOrUnusualBehaviour = strangeOrUnusualBehaviour,
+  strangeOrUnusualBehaviourDetail = strangeOrUnusualBehaviourDetail,
+  clinicalParanoidBehaviour = clinicalParanoidBehaviour,
+  clinicalParanoidBehaviourDetail = clinicalParanoidBehaviourDetail,
+  frequentCellChangeRequests = frequentCellChangeRequests,
+  frequentCellChangeRequestsDetail = frequentCellChangeRequestsDetail,
 )
 
 /**
@@ -140,6 +189,7 @@ fun CsraReviewStageRequest.toAnswers() = CsraReviewAnswers(
  */
 fun CsraAssessmentStageEntity.toReviewAnswers() = CsraReviewAnswers(
   reviewReason = checkNotNull(reviewReason) { "Review stage $id has no review reason" },
+  mdtReviewed = mdtReviewed,
   evidenceSources = evidenceSources
     .sortedBy { it.source.ordinal }
     .map { CsraReviewEvidenceSourceSelection(source = it.source, details = it.details) },
@@ -165,4 +215,16 @@ fun CsraAssessmentStageEntity.toReviewAnswers() = CsraReviewAnswers(
   healthcareIncreasedRiskDetail = healthcareIncreasedRiskDetail,
   otherHighRiskIndicators = otherHighRiskIndicators,
   otherHighRiskIndicatorsDetail = otherHighRiskIndicatorsDetail,
+  secureHospitalInpatient = secureHospitalInpatient,
+  secureHospitalInpatientDetail = secureHospitalInpatientDetail,
+  personalityDisorder = personalityDisorder,
+  personalityDisorderDetail = personalityDisorderDetail,
+  wantsToHarmOrKill = wantsToHarmOrKill,
+  wantsToHarmOrKillDetail = wantsToHarmOrKillDetail,
+  strangeOrUnusualBehaviour = strangeOrUnusualBehaviour,
+  strangeOrUnusualBehaviourDetail = strangeOrUnusualBehaviourDetail,
+  clinicalParanoidBehaviour = clinicalParanoidBehaviour,
+  clinicalParanoidBehaviourDetail = clinicalParanoidBehaviourDetail,
+  frequentCellChangeRequests = frequentCellChangeRequests,
+  frequentCellChangeRequestsDetail = frequentCellChangeRequestsDetail,
 )
