@@ -136,6 +136,18 @@ class CellSharingRiskAssessmentApiExceptionHandler {
       ),
     ).also { log.info("CSRA assessment cannot be cancelled: {}", e.message) }
 
+  @ExceptionHandler(CsraReviewNotCancellableException::class)
+  fun handleCsraReviewNotCancellableException(e: CsraReviewNotCancellableException): ResponseEntity<ErrorResponse> = ResponseEntity
+    .status(CONFLICT)
+    .body(
+      ErrorResponse(
+        status = CONFLICT,
+        errorCode = ErrorCode.CsraReviewNotCancellable.name,
+        userMessage = "Conflict: ${e.message}",
+        developerMessage = e.message,
+      ),
+    ).also { log.info("CSRA review cannot be cancelled: {}", e.message) }
+
   @ExceptionHandler(CsraPrisonNotActiveException::class)
   fun handleCsraPrisonNotActiveException(e: CsraPrisonNotActiveException): ResponseEntity<ErrorResponse> = ResponseEntity
     .status(FORBIDDEN)
@@ -240,9 +252,11 @@ class CsraAssessmentInProgressException(prisonerNumber: String) : Exception("An 
 
 class CsraAssessmentNotCancellableException(id: String, reason: String) : Exception("CSRA assessment $id $reason and cannot be cancelled")
 
+class CsraReviewNotCancellableException(id: String, reason: String) : Exception("CSRA review $id $reason and cannot be cancelled")
+
 /**
  * A write against a CSRA that a prisoner movement has already closed or archived (R-03), or an initial
- * assessment archived by user cancellation.
+ * assessment or review archived by user cancellation.
  *
  * A conflict rather than a 404: the record exists and the caller may legitimately have had it open when
  * the prisoner moved or another user cancelled it. Only CLOSED and ARCHIVED are refused - amending a

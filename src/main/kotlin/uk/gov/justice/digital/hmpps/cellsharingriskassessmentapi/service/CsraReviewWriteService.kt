@@ -22,6 +22,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessm
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStageEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStageRiskToEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraAssessmentStageVulnerabilityEntity
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraClosureReason
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraResult
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewEntity
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.CsraReviewEvidenceSource
@@ -32,6 +33,7 @@ import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.jpa.repository.CsraReviewRepository
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.resource.CsraMissingAnswerDetailException
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.resource.CsraReviewAnswersIncompleteException
+import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.resource.CsraReviewNotCancellableException
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.resource.CsraReviewNotFoundException
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.resource.MandatoryHighRiskGeneralException
 import uk.gov.justice.digital.hmpps.cellsharingriskassessmentapi.resource.StaleAnswersException
@@ -44,7 +46,8 @@ import java.util.UUID
 /**
  * Writes new (DPS) CSR reviews: a two-stage journey where a review is started as a draft, an interim rating
  * may be saved, and a final rating completes it. Each confirmed stage raises a CSRA domain event + audit.
- * The final stage's answers can also be saved part way, page by page, without a rating (MAPA-537).
+ * The final stage's answers can also be saved part way, page by page, without a rating, and a review with no
+ * rating can be cancelled (MAPA-537).
  *
  * **The review journey is not the assessment journey with different questions.** Reading
  * [CsraAssessmentService] first makes it tempting to reuse its rules wholesale; two of them deliberately
@@ -171,6 +174,44 @@ class CsraReviewWriteService(
       throw CsraReviewNotFoundException(reviewId.toString())
     }
     return review.toReviewDto(csraAssessmentStageRepository.findAllByCsraReviewId(reviewId))
+  }
+
+  /**
+   * Cancels a review that has no rating yet (MAPA-537), in the same way as cancelling an initial assessment
+   * (MAPA-415): the review is archived with the reason CANCELLED, its answers are kept but hidden everywhere,
+   * and a new review can be started. Audited, but not published — an unrated review was never published.
+   *
+   * Refused once the review has an interim rating. By then that rating is the prisoner's current rating and has
+   * been sent to NOMIS, which has no way to remove a CSRA, so the review is completed instead.
+   *
+   * Cancelling again succeeds without a second audit, so a retried request is harmless.
+   */
+  fun cancel(prisonerNumber: String, reviewId: UUID, prisonId: String): CsraDetailedRating {
+    // Rollout gate first: it is about the caller, not the record, so it must not depend on the id
+    // existing or on what state the record is in.
+    writeSupport.rejectIfPrisonNotActive(prisonId)
+    val review = loadReview(prisonerNumber, reviewId)
+    if (review.status == CsraReviewStatus.ARCHIVED && review.closureReason == CsraClosureReason.CANCELLED) {
+      return csraReviewService.getCurrentRating(prisonerNumber)
+    }
+    writeSupport.rejectIfNotWritable(review)
+    if (review.interimResult != null || review.finalResult != null) {
+      throw CsraReviewNotCancellableException(reviewId.toString(), "has a rating")
+    }
+    if (review.status != CsraReviewStatus.IN_PROGRESS) {
+      throw CsraReviewNotCancellableException(reviewId.toString(), "is complete")
+    }
+
+    val now = LocalDateTime.now(clock)
+    review.status = CsraReviewStatus.ARCHIVED
+    review.closureReason = CsraClosureReason.CANCELLED
+    review.closedAt = now
+    review.closedBy = username
+    review.lastModifiedAt = now
+    review.lastModifiedBy = username
+    csraReviewRepository.saveAndFlush(review)
+    eventPublishAndAuditService.auditReviewCancelled(review.toDto(), prisonId)
+    return csraReviewService.getCurrentRating(prisonerNumber)
   }
 
   fun submitInterim(prisonerNumber: String, reviewId: UUID, request: CsraReviewStageRequest) = submitStage(prisonerNumber, reviewId, request, CsraAssessmentStage.INTERIM)

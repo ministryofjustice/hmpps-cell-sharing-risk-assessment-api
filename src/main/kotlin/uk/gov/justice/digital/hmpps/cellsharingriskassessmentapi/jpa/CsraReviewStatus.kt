@@ -10,7 +10,7 @@ import io.swagger.v3.oas.annotations.media.Schema
  * - CLOSED: an in-progress review that had a provisional/interim rating and was closed out when the
  *   prisoner moved (R-01/R-02). It is no longer in progress, but its rating still counts as current.
  * - ARCHIVED: an unrated in-progress review archived when the prisoner moved (R-01/R-02), or an unrated
- *   initial assessment cancelled by a user. Answers are retained, but the record is hidden from the
+ *   initial assessment or review cancelled by a user. Answers are retained, but the record is hidden from the
  *   service and never a current rating (R-04).
  */
 @Schema(description = "The lifecycle state of a CSRA review")
